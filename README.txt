@@ -1,8 +1,8 @@
-PARABOLE RADIO — how to put this site online (Netlify)
-=======================================================
+PARABOLE RADIO — how to put this site online (Vercel)
+=====================================================
 
 WHAT'S IN THIS FOLDER
-- index.html .......................... the whole website (this is what Netlify serves)
+- index.html .......................... the whole website (this is what Vercel serves)
 - vercel.json ......................... the relay for Radio Cult's programme and history
   (see "The player")
 - PARABOLE RADIO/VIDEO/BACKGROUND/ .... the 15 background clips (backgroundN.mp4), each
@@ -52,7 +52,7 @@ shows "HORS ANTENNE" (and plays nothing), the pop-ups say the content is coming
 soon.
 
 
-BEFORE YOU DEPLOY — do these 4 things
+BEFORE THE LAUNCH — 4 things to check
 -------------------------------------
 1) CHANGE THE STAFF PASSWORD
    STAFF_PASSWORD in the SETTINGS block.
@@ -67,10 +67,10 @@ BEFORE YOU DEPLOY — do these 4 things
    the form's settings in Google Forms and remove what requires an account
    ("Limit to 1 response", verified e-mail collection, restriction to an organisation).
 
-4) KEEP NON-SITE FILES OUT
-   Netlify Drop publishes EVERY file in the folder. Move out anything that is not
-   part of the site (ETAT_DES_LIEUX.md, the .claude folder, this README) before
-   dragging the folder.
+4) KEEP PRIVATE FILES OUT OF GIT
+   Vercel publishes EVERY file committed to the repository, this README included
+   (at /README.txt). .gitignore already keeps ETAT_DES_LIEUX.md, the .claude folder
+   and Vercel's local files out: never commit anything private.
 
 
 ADD OR CHANGE A BACKGROUND CLIP
@@ -99,30 +99,35 @@ PROGRAMMATION and HISTORIQUE stay empty there: they come through Vercel (see
 "The player").
 
 
-DEPLOY ON NETLIFY (no account file needed, it's free)
------------------------------------------------------
-1) Go to  https://app.netlify.com/drop
-2) Drag this whole "parabole-radio-site" FOLDER onto the page
-   (after step 4 of "Before you deploy").
-3) Wait a few seconds — it goes live at a temporary address like
-   your-site-name.netlify.app . Test it there first.
+ONLINE: VERCEL, FROM GITHUB
+---------------------------
+The site is the GitHub repository  lazbutton/parabole-radio-site , linked to the
+Vercel project  parabole-radio-site . Nothing to build: Vercel serves the files
+as they are.
+- Push to the  main  branch: the site goes live within seconds, at
+  https://parabole-radio-site.vercel.app (and at your domain once connected).
+- Push to any other branch: Vercel makes a preview at its own address, to try a
+  change before it goes live. The project's "Deployments" tab in Vercel lists
+  every deployment with its address.
+- The /radiocult/ relay of vercel.json works online and on previews alike.
 
 
 CONNECT YOUR DOMAIN (registered at Squarespace, formerly Google Domains)
 ------------------------------------------------------------------------
-1) In Netlify: Site settings > Domain management > Add a custom domain.
-   Enter your domain. Netlify will show you the exact DNS records to add
+1) In Vercel: the project  parabole-radio-site  > Settings > Domains > Add.
+   Enter your domain. Vercel will show you the exact DNS records to add
    (an A record and/or a CNAME).
 2) Log in at  squarespace.com  > Domains > your domain > DNS settings.
-3) Add the records Netlify gave you. Save.
+3) Add the records Vercel gave you. Save.
 4) Wait for it to take effect (usually minutes, sometimes a few hours).
-   Netlify turns on free HTTPS automatically once the domain is verified.
+   Vercel turns on free HTTPS automatically once the domain is verified.
+5) Put the domain in the share preview (step 2 of "Before the launch").
 
 
 GOOD TO KNOW
 ------------
-- Updating the site later = just re-drag the folder onto Netlify (or connect it
-  to GitHub for auto-updates).
+- Updating the site = commit, then push to main (see "Online"). To try a change
+  first, push it to another branch for a preview.
 - Styles: PARABOLE RADIO/CSS/tailwind.css was generated once (Tailwind CSS v3.4.17)
   from the classes already in index.html, so a Tailwind class that isn't already in
   the page won't do anything. Write any new style as normal CSS in the <style> block
