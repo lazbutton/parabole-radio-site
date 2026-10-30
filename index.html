@@ -375,13 +375,11 @@
     .player[data-state="loading"] .player-icon-play { display: none; }
     .player[data-state="playing"] .player-icon-pause,
     .player[data-state="loading"] .player-icon-pause { display: block; }
-    /* the scope: a grid in the site's blue, the trace is drawn by the SCOPE script */
+    /* the scope's screen: dark glass, a little lit in the middle; the SCOPE script draws the
+       graticule, the beam and the readouts */
     .player-scope {
       flex: 1; min-width: 0; height: 64px; display: block;
-      background:
-        linear-gradient(rgba(0,13,255,0.45) 1px, transparent 1px) 0 -1px / 100% 16px,
-        linear-gradient(90deg, rgba(0,13,255,0.45) 1px, transparent 1px) -1px 0 / 16px 100%,
-        #00020f;
+      background: radial-gradient(ellipse at center, #060b3d, #00020f 75%);
       border: 1px solid #000dff;
     }
     /* the title runs like the top bar when it is too long to fit */
@@ -830,6 +828,32 @@
       let retry = null, retryDelay = 3000;
       let onAir = STREAM_URL ? 'À L’ANTENNE' : 'HORS ANTENNE';   // refined by the nowplaying service
 
+      // Sound analysis for the scope, on computers with Chrome or Edge (the engine it was tested on):
+      // the stream then goes through Web Audio, where the scope reads it. Not on phones (sound routed
+      // this way can stop once the screen locks), nor in Safari or Firefox. The stream must let other
+      // sites read it (CORS; Radio Cult does): if it refuses, the radio plays as before and the scope
+      // goes back to its simulation.
+      const analysis = { ctx: null, analyser: null, gain: null, data: null,
+        wanted: !!(window.AudioContext && navigator.userAgentData && !navigator.userAgentData.mobile
+          && window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches) };
+      if(analysis.wanted) radio.crossOrigin = 'anonymous';
+      // Once the stream plays and the context runs (it takes a click or a key), the sound goes through
+      // the graph: to the speakers through the volume, and to the scope through a low-pass.
+      function analyse(){
+        const a = analysis;
+        if(!a.wanted || a.analyser || !a.ctx || a.ctx.state !== 'running') return;
+        try {
+          const lowpass = a.ctx.createBiquadFilter(), analyser = a.ctx.createAnalyser(), gain = a.ctx.createGain();
+          lowpass.type = 'lowpass'; lowpass.frequency.value = 1200;   // the scope shows the beat, not the hiss
+          analyser.fftSize = 4096;
+          const source = a.ctx.createMediaElementSource(radio);      // from here on, the sound goes through the graph
+          source.connect(gain).connect(a.ctx.destination);
+          source.connect(lowpass).connect(analyser);
+          Object.assign(a, { analyser, gain, data: new Float32Array(analyser.fftSize) });
+          applyVolume();
+        } catch(e){ a.wanted = false; }
+      }
+
       function setState(state){
         player.dataset.state = state;
         status.textContent = { loading: 'CONNEXION…', error: 'FLUX COUPÉ, NOUVEL ESSAI…' }[state] || onAir;
@@ -848,6 +872,9 @@
         wanted = true;
         clearTimeout(retry);
         setState('loading');
+        if(analysis.wanted){                // made on the visitor's click or key, so that it may run
+          try { (analysis.ctx = analysis.ctx || new AudioContext()).resume().catch(() => {}); } catch(e){ analysis.wanted = false; }
+        }
         radio.src = STREAM_URL;             // always reopen: a live stream picks up at the live edge
         return radio.play();
       }
@@ -875,24 +902,33 @@
       // A refused autoplay leaves the radio off; any other failure goes through the reconnect below.
       function playFailed(err){ if(err && err.name === 'NotAllowedError'){ wanted = false; restState(); } }
 
-      radio.addEventListener('playing', () => { retryDelay = 3000; setState('playing'); });
+      radio.addEventListener('playing', () => { retryDelay = 3000; analyse(); setState('playing'); });
       radio.addEventListener('waiting', () => { if(wanted) setState('loading'); });
       radio.addEventListener('pause', () => {      // paused from outside (headset, system): show it
         if(wanted && player.dataset.state === 'playing'){ wanted = false; restState(); }
       });
       ['error', 'ended'].forEach(ev => radio.addEventListener(ev, () => {
         if(!wanted || !radio.getAttribute('src')) return;   // not the reset done by stopRadio
+        // a failure before the analysis ever started may be the stream refusing other sites (CORS):
+        // from now on, play it as before, without the analysis
+        if(ev === 'error' && radio.crossOrigin && !analysis.analyser){ analysis.wanted = false; radio.removeAttribute('crossorigin'); }
         setState('error');
         clearTimeout(retry);
         retry = setTimeout(() => { if(wanted) startRadio().catch(playFailed); }, retryDelay);
         retryDelay = Math.min(retryDelay * 2, 30000);
       }));
 
-      // Volume, remembered in this browser (iOS ignores it: the phone's buttons set the volume)
+      // Volume, remembered in this browser (iOS ignores it: the phone's buttons set the volume). With
+      // the analysis, it is a gain after the scope's tap, so the scope reads the sound at full level.
+      function applyVolume(){
+        const level = volume.value / 100;
+        if(analysis.gain){ radio.volume = 1; analysis.gain.gain.value = level; }
+        else radio.volume = level;
+      }
       try { const saved = localStorage.getItem('parabole_volume'); if(saved !== null) volume.value = saved; } catch(e){}
-      radio.volume = volume.value / 100;
+      applyVolume();
       volume.addEventListener('input', () => {
-        radio.volume = volume.value / 100;
+        applyVolume();
         try { localStorage.setItem('parabole_volume', volume.value); } catch(e){}
       });
 
@@ -949,6 +985,13 @@
             album: 'Parabole Radio',
             artwork: [{ src: 'PARABOLE%20RADIO/OVERLAY/logo.webp', sizes: '240x300', type: 'image/webp' }],
           });
+        },
+        // read by the scope: the last 4096 samples of the sound's low end, or null without the analysis
+        signal(){
+          const a = analysis;
+          if(!a.analyser) return null;
+          a.analyser.getFloatTimeDomainData(a.data);
+          return { data: a.data, rate: a.ctx.sampleRate };
         },
       };
     })();
@@ -1224,21 +1267,55 @@
     })();
 
     // ---------- SCOPE: the player's screen ----------
-    // Decorative: it follows the player's state, not the sound itself. Off air, a test card in the
-    // site's colours; stopped, a calm carrier; connecting, static; playing, a busy trace whose level
-    // jumps like music. About 30 frames a second, and nothing at all while off air or out of sight.
+    // Drawn like a real scope: a graticule with its ticks, readouts and trigger marks, and a phosphor
+    // beam, dimmer where it moves fast and fading slowly behind. Playing, the trace is triggered: lined
+    // up on a rising edge a quarter of the way in, it holds still there and changes further on. Where
+    // the sound can be analysed (see AUDIO), it is the real sound's low end, and the beam flares on
+    // each beat; elsewhere a simulation of music. Stopped, a small carrier drifts by, untriggered;
+    // connecting, noise; off air, a test card.
+    // About 30 frames a second, and nothing at all while off air or out of sight.
     (function playerScope(){
       const canvas = document.getElementById('playerScope');
       const player = document.getElementById('player');
       if(!canvas || !player || !canvas.getContext) return;
       const ctx = canvas.getContext('2d');
+      const grid = document.createElement('canvas'), gridCtx = grid.getContext('2d');   // the graticule, drawn once per size
+      const glow = document.createElement('canvas'), glowCtx = glow.getContext('2d');   // the phosphor, where the traces fade
       const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      let w = 1, h = 1, t = 0, level = 0.2, target = 0.6, running = false, last = 0;
+      const YELLOW = '#fff039', BLUE = '#000dff', READOUT = 'rgba(255,255,255,0.75)';
+      let w = 1, h = 1, divX = 1, divY = 1, trigX = 0, trigLevel = 0, vignette = null;
+      let t = 0, vpp = 0, running = false, last = 0;
+      let vPerDiv = 0.5, msPerDiv = 5;                    // what the readouts show
+      let peakTrack = 0, energy = 0, lastBeat = 0, pulse = 0;   // the real sound: its range, and the beat
+      // the music: a bass note with two harmonics, a mid tone out of tune with them (so the wave changes
+      // away from the trigger point) and hiss; its level jumps like beats, its note changes now and then
+      const music = { level: 0.4, target: 0.8, period: 3.2, phase: [0, 1, 2, 3] };
       function size(){
         const dpr = Math.min(2, window.devicePixelRatio || 1);
         w = Math.max(1, canvas.clientWidth); h = Math.max(1, canvas.clientHeight);
-        canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        [[canvas, ctx], [grid, gridCtx], [glow, glowCtx]].forEach(([c, g]) => {
+          c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+          g.setTransform(dpr, 0, 0, dpr, 0, 0);
+        });
+        divY = h / 4;                                                 // 4 divisions high,
+        divX = w / (2 * Math.max(1, Math.round(w / (2 * divY))));     // an even number across, about square
+        trigX = Math.round(w / 4); trigLevel = divY * 0.15;
+        vignette = ctx.createRadialGradient(w / 2, h / 2, h / 2, w / 2, h / 2, w / 1.6);   // the tube's curved glass
+        vignette.addColorStop(0, 'rgba(0,0,0,0)'); vignette.addColorStop(1, 'rgba(0,0,0,0.45)');
+        drawGrid();
+      }
+      // the graticule: dotted divisions, and the centre axes with a tick every fifth of a division
+      function drawGrid(){
+        const g = gridCtx, cx = Math.round(w / 2), cy = Math.round(h / 2);
+        g.clearRect(0, 0, w, h);
+        g.fillStyle = BLUE;
+        g.globalAlpha = 0.8;
+        for(let x = divX; x < w - 1; x += divX) for(let y = 0; y < h; y += divY / 5) g.fillRect(Math.round(x), Math.round(y), 1, 1);
+        for(let y = divY; y < h - 1; y += divY) for(let x = 0; x < w; x += divX / 5) g.fillRect(Math.round(x), Math.round(y), 1, 1);
+        g.globalAlpha = 1;
+        g.fillRect(0, cy, w, 1); g.fillRect(cx, 0, 1, h);
+        for(let x = divX / 5; x < w; x += divX / 5) g.fillRect(Math.round(x), cy - 2, 1, 5);
+        for(let y = divY / 5; y < h; y += divY / 5) g.fillRect(cx - 2, Math.round(y), 5, 1);
       }
       function testCard(){
         const bars = ['#fff039', '#ffffff', '#000dff', '#000000', '#fff039', '#000dff', '#ffffff'];
@@ -1248,46 +1325,128 @@
         ctx.fillStyle = '#fff039'; ctx.font = '700 9px "Monument Grotesk", sans-serif'; ctx.textBaseline = 'middle';
         ctx.fillText('PAS DE SIGNAL', 6, (top + h) / 2);
       }
-      const ghosts = [];   // the last traces, drawn fainter behind the new one: a scope's phosphor glow
-      function trace(amp, speed, noise){
-        const ys = [];
-        for(let x = 0; x <= w; x += 2){
-          const p = x / w, edge = Math.sin(Math.PI * p);   // quieter at the edges, like a scope
-          ys.push(h / 2 + edge * amp * h * 0.42 *
-            (0.55 * Math.sin(p * 10 + t * speed) + 0.3 * Math.sin(p * 27 - t * speed * 1.6) + 0.15 * Math.sin(p * 61 + t * speed * 2.7))
-            + (noise ? (Math.random() - 0.5) * noise * h : 0));
-        }
-        ghosts.unshift(ys);
-        ghosts.length = Math.min(ghosts.length, 3);
-        ctx.lineJoin = 'round';
-        ctx.strokeStyle = '#fff039';
-        for(let i = ghosts.length - 1; i >= 0; i--){
-          ctx.globalAlpha = [1, 0.35, 0.15][i];
-          ctx.lineWidth = i ? 1.5 : 2;
-          ctx.shadowColor = '#fff039'; ctx.shadowBlur = i ? 0 : 8;
-          ctx.beginPath();
-          ghosts[i].forEach((y, k) => k ? ctx.lineTo(k * 2, y) : ctx.moveTo(0, y));
-          ctx.stroke();
-        }
-        ctx.globalAlpha = 1;
-        ctx.shadowBlur = 0;
+      const sweep = fn => Array.from({ length: Math.ceil(w) + 1 }, (_, x) => fn(x));   // one point a pixel, up from the centre line
+      function nextMusic(){
+        const m = music;
+        if(Math.random() < 0.12) m.target = 0.5 + Math.random() * 0.45;   // the level jumps, like beats
+        if(Math.random() < 0.012) m.period = [2.4, 2.8, 3.2, 3.6, 4.2][Math.floor(Math.random() * 5)];   // a new note
+        m.level += (m.target - m.level) * 0.25;
+        m.phase = m.phase.map((p, i) => p + [0.9, 0.05, 0.08, 0.6][i] * Math.random());   // the sound moves on between sweeps
+      }
+      // Playing: one acquisition, lined up the way a scope does it, on the first rising edge through
+      // the trigger level after the trigger point.
+      function triggered(){
+        const m = music, k = 2 * Math.PI / (m.period * divX), amp = m.level * divY;
+        const at = x => amp * (0.9 * Math.sin(k * x + m.phase[0]) + 0.35 * Math.sin(2 * k * x + m.phase[1])
+          + 0.2 * Math.sin(3 * k * x + m.phase[2]) + 0.3 * Math.sin(5.37 * k * x + m.phase[3]));
+        let shift = 0;
+        for(let x = trigX + 1; x < trigX + 2 * m.period * divX; x++)
+          if(at(x - 1) < trigLevel && at(x) >= trigLevel){ shift = x - trigX; break; }
+        return sweep(x => at(x + shift) + (Math.random() - 0.5) * 1.2);
+      }
+      // Playing with the analysis: the real sound's low end at 2 ms a division, triggered on its latest
+      // rising edge that fits. The volts a division follow its level in 1-2-5 steps, like a scope's
+      // autoset; a beat is a jump in that low end's energy.
+      const STEPS = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1];
+      function measured({ data, rate }){
+        const n = data.length, spp = rate * 0.002 / divX, span = Math.ceil(w * spp), pre = Math.round(trigX * spp);
+        let peak = 0, sum = 0;
+        for(let i = 0; i < n; i++){ peak = Math.max(peak, Math.abs(data[i])); if(i >= n - 2048) sum += data[i] * data[i]; }
+        const rms = Math.sqrt(sum / 2048), now = performance.now();
+        if(rms > 0.01 && rms > energy * 1.35 && now - lastBeat > 250){ pulse = 1; lastBeat = now; }
+        energy = energy * 0.94 + rms * 0.06;
+        peakTrack = Math.max(peak, peakTrack * 0.995);
+        vPerDiv = STEPS.find(s => peakTrack / s <= 2.5) || 1;   // the loudest peaks may go off the screen
+        const level = Math.max(0.004, peak * 0.15);
+        let at = -1;
+        for(let i = n - span + pre; i > pre; i--) if(data[i - 1] < level && data[i] >= level){ at = i; break; }
+        const start = at < 0 ? n - span : at - pre, scale = divY / vPerDiv;
+        const ys = sweep(x => {   // each pixel: the mean of its samples
+          let s = 0, k = 0;
+          for(let i = Math.floor(start + x * spp); i < start + (x + 1) * spp && i < n; i++, k++) s += data[i];
+          return k ? Math.max(-h / 2, Math.min(h / 2, s / k * scale)) : 0;
+        });
+        return { ys, triggered: at >= 0 };
+      }
+      const carrier = () => sweep(x => divY * 0.3 * Math.sin(Math.PI * x / divX - t * 0.12) + (Math.random() - 0.5) * 0.8);
+      function noise(){ let v = 0; return sweep(() => (v = 0.82 * (v + (Math.random() - 0.5) * divY * 0.5))); }
+      // The phosphor fades a little each frame, then takes the new trace.
+      function fade(keep){
+        glowCtx.globalCompositeOperation = 'destination-out';
+        glowCtx.fillStyle = `rgba(0,0,0,${1 - keep})`;
+        glowCtx.fillRect(0, 0, w, h);
+        glowCtx.globalCompositeOperation = 'source-over';
+      }
+      // The beam: brighter where it moves slowly, as on a cathode-ray tube. Segments are sorted by
+      // steepness into four paths, from full brightness to a quarter. On a beat, it flares.
+      function beam(ys){
+        const g = glowCtx, cy = h / 2, paths = [[], [], [], []];
+        for(let x = 1; x < ys.length; x++) paths[Math.min(3, Math.floor(Math.abs(ys[x] - ys[x - 1]) / 2))].push(x);
+        g.globalCompositeOperation = 'lighter';
+        g.lineCap = g.lineJoin = 'round';
+        g.strokeStyle = YELLOW;
+        // the glow around it, in one stroke so it doesn't pile up where the segments meet
+        g.beginPath();
+        ys.forEach((y, x) => x ? g.lineTo(x, cy - y) : g.moveTo(0, cy - y));
+        g.globalAlpha = 0.1 + 0.25 * pulse; g.lineWidth = 4 + 3 * pulse; g.stroke();
+        paths.forEach((xs, i) => {   // the beam
+          if(!xs.length) return;
+          g.beginPath();
+          xs.forEach(x => { g.moveTo(x - 1, cy - ys[x - 1]); g.lineTo(x, cy - ys[x]); });
+          g.globalAlpha = [1, 0.6, 0.38, 0.24][i]; g.lineWidth = 1.25 + 0.75 * pulse; g.stroke();
+        });
+        g.globalAlpha = 1;
+        g.globalCompositeOperation = 'source-over';
+      }
+      // What a scope writes on its screen: channel 1's volts and the time a division, the measured
+      // peak-to-peak, the trigger status (white on a beat). Marks: the trigger point (top), its level
+      // (right), zero (left).
+      function overlay(status){
+        const cy = h / 2, ly = cy - trigLevel;
+        ctx.fillStyle = YELLOW;
+        [[trigX - 3, 0, trigX + 3, 0, trigX, 4], [w, ly - 3, w, ly + 3, w - 4, ly], [0, cy - 3, 0, cy + 3, 4, cy]].forEach(p => {
+          ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(p[2], p[3]); ctx.lineTo(p[4], p[5]); ctx.fill();
+        });
+        ctx.fillRect(3, 3, 9, 9);   // channel 1's badge
+        ctx.font = '700 7px "Monument Grotesk", sans-serif'; ctx.textBaseline = 'middle';
+        const text = (s, x, y, align, color) => { ctx.fillStyle = color; ctx.textAlign = align; ctx.fillText(s, x, y); };
+        text('1', 7.5, 7.5, 'center', '#000000');
+        text(vPerDiv < 1 ? Math.round(vPerDiv * 1000) + 'mV' : vPerDiv + 'V', 15, 7.5, 'left', READOUT);
+        text(msPerDiv.toFixed(2) + 'ms', w - 4, 7.5, 'right', READOUT);
+        text('Vpp ' + vpp.toFixed(2) + 'V', 4, h - 7, 'left', READOUT);
+        text(status, w - 4, h - 7, 'right', pulse > 0.4 ? '#ffffff' : YELLOW);
+        ctx.textAlign = 'left';
       }
       function draw(){
         const state = player.dataset.state;
         ctx.clearRect(0, 0, w, h);
-        if(state === 'off'){ ghosts.length = 0; testCard(); }
-        else if(state === 'playing'){
-          if(Math.random() < 0.12) target = 0.45 + Math.random() * 0.75;   // the level jumps, like beats
-          level += (target - level) * 0.25;
-          trace(level, 0.18, 0.02);
+        if(state === 'off'){ glowCtx.clearRect(0, 0, w, h); testCard(); return; }
+        let ys, status, sound = null;
+        vPerDiv = 0.5; msPerDiv = 5;
+        if(state === 'playing' && !still && (sound = radioControl && radioControl.signal())){
+          const m = measured(sound);
+          ys = m.ys; status = m.triggered ? 'TRIG’D' : 'AUTO'; msPerDiv = 2;
         }
-        else if(state === 'loading' || state === 'error') trace(0.12, 0.06, 0.45);
-        else trace(0.1, 0.04, 0);
+        else if(state === 'playing'){ nextMusic(); ys = triggered(); status = 'TRIG’D'; }
+        else if(state === 'loading' || state === 'error'){ ys = noise(); status = (still || (t >> 3) % 2) ? 'TRIG?' : ''; }
+        else { ys = carrier(); status = 'AUTO'; }
+        if(still) glowCtx.clearRect(0, 0, w, h);
+        else fade(state === 'playing' ? 0.72 : 0.55);
+        beam(ys);
+        if(still || t % 6 === 0) vpp = (Math.max(...ys) - Math.min(...ys)) / divY * vPerDiv;
+        ctx.drawImage(grid, 0, 0, w, h);
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.drawImage(glow, 0, 0, w, h);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = vignette; ctx.fillRect(0, 0, w, h);
+        overlay(status);
+        pulse *= 0.8;
         t++;
       }
       function loop(now){
-        if(now - last >= 33){ last = now; draw(); }
-        if(player.dataset.state === 'off'){ running = false; return; }
+        const off = player.dataset.state === 'off';
+        if(off || now - last >= 33){ last = now; draw(); }   // off air: the test card, then the loop stops
+        if(off){ running = false; return; }
         requestAnimationFrame(loop);
       }
       function wake(){
@@ -1298,7 +1457,7 @@
       draw();
       new MutationObserver(wake).observe(player, { attributes: true, attributeFilter: ['data-state'] });
       window.addEventListener('resize', () => { size(); draw(); });
-      document.fonts && document.fonts.ready.then(draw);   // the test card's text in Monument Grotesk
+      document.fonts && document.fonts.ready.then(draw);   // the readouts and the test card in Monument Grotesk
       wake();
     })();
 
