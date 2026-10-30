@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/radiocult/programme", "destination": "https://api.radiocult.fm/api/station/parabole-radio-b02d5385/schedule" },
+    { "source": "/radiocult/historique", "destination": "https://api.radiocult.fm/api/station/parabole-radio-b02d5385/streaming/history/latest-results" }
+  ]
+}

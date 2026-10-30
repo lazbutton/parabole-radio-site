@@ -225,40 +225,98 @@
       max-width: calc(100vw - 380px);
     }
     .float-actions > * { margin-left: 0; }
-    /* Pop-ups (toggled by the CHAT / PROGRAMMATION buttons) */
-    .chat-popup, .schedule-popup, .lastplayed-popup {
+    /* Pop-ups (toggled by the PROGRAMMATION / HISTORIQUE buttons), filled from the station's public data */
+    .popup {
       position: fixed;
       right: 24px;
       bottom: 96px;
       width: min(420px, calc(100vw - 24px));
       border: 2px solid #fff039;
       background: #000000;
+      color: #ffffff;
+      box-shadow: 6px 6px 0 #000dff;
       z-index: 40;
       display: none;
     }
-    .chat-popup.open, .schedule-popup.open, .lastplayed-popup.open { display: block; }
-    .chat-popup iframe, .schedule-popup iframe, .lastplayed-popup iframe { display: block; position: relative; width: 100%; height: min(520px, 65vh); border: 0; }
-    /* Loading label behind each embed — visible until the embed paints over it */
-    .chat-popup::before, .schedule-popup::before, .lastplayed-popup::before {
-      content: 'CHARGEMENT…';
-      position: absolute; inset: 0;
-      display: flex; align-items: center; justify-content: center;
-      color: #fff039; font-weight: 700; font-size: 11px; letter-spacing: 0.04em;
-    }
-    .chat-close {
-      position: absolute; top: -13px; right: -2px;
-      width: 26px; height: 26px;
+    .popup.open { display: block; }
+    .popup-meta { margin-left: auto; font-size: 8px; letter-spacing: 0.12em; opacity: 0.7; white-space: nowrap; }
+    .popup-head {
+      height: 34px; padding: 0 44px 0 12px;
+      display: flex; align-items: center;
       background: #fff039; color: #000dff;
-      border: 2px solid #fff039;
-      font-size: 16px; font-weight: 900; line-height: 1;
-      cursor: pointer; z-index: 2; border-radius: 0;
+      font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
     }
-    @media (max-width: 640px) { .chat-popup iframe, .schedule-popup iframe, .lastplayed-popup iframe { height: min(440px, 55vh); } }
+    .popup-close {
+      position: absolute; top: 4px; right: 4px;
+      width: 26px; height: 26px;
+      background: #000dff; color: #fff039;
+      border: none;
+      font-size: 16px; font-weight: 900; line-height: 1;
+      cursor: pointer; border-radius: 0;
+    }
+    .popup-close:hover { background: #000000; }
+    .popup-tabs { display: flex; overflow-x: auto; border-bottom: 2px solid #fff039; scrollbar-width: none; }
+    .popup-tabs::-webkit-scrollbar { display: none; }
+    .popup-tab {
+      flex: 1 0 auto; padding: 8px 10px;
+      background: #000000; color: #ffffff;
+      border: none; border-right: 1px solid #222;
+      font: inherit; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+      cursor: pointer;
+    }
+    .popup-tab:last-child { border-right: none; }
+    .popup-tab:hover { color: #fff039; }
+    .popup-tab[aria-selected="true"] { background: #000dff; color: #fff039; }
+    .popup-body { max-height: min(440px, 55vh); overflow-y: auto; scrollbar-color: #fff039 #000000; }
+    .popup-section {
+      padding: 5px 12px;
+      background: #111; color: #fff039;
+      font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    }
+    .popup-row {
+      display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px;
+      padding: 10px 12px; border-bottom: 1px solid #222;
+      font-size: 11px; line-height: 1.3; text-transform: uppercase;
+    }
+    .popup-row .when { color: #fff039; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .popup-row .what { font-weight: 700; overflow-wrap: anywhere; }
+    .popup-row .sub { display: block; margin-top: 2px; color: #fff039; font-weight: 400; font-size: 10px; }
+    .popup-row.now { background: #000dff; box-shadow: inset 4px 0 0 #fff039; }
+    /* each track gets its own little bar code, drawn from its title; the one on air moves */
+    .popup-row .sig { display: flex; align-items: flex-end; gap: 1px; height: 12px; margin-top: 6px; }
+    .popup-row .sig i { width: 3px; background: #000dff; }
+    .popup-row.now .sig i { background: #fff039; animation: sigBar 0.7s ease-in-out infinite alternate; }
+    .popup-row.now .sig i:nth-child(3n) { animation-duration: 0.5s; }
+    .popup-row.now .sig i:nth-child(3n+1) { animation-duration: 0.9s; }
+    @keyframes sigBar { to { height: 15%; } }
+    /* the day at a glance: 24 h ruler, programmes as blocks, a white line for now */
+    .popup-ruler { padding: 12px 12px 8px; border-bottom: 1px solid #222; }
+    .popup-ruler-track {
+      position: relative; height: 20px;
+      background: repeating-linear-gradient(90deg, #2a2a2a 0 1px, transparent 1px 12.5%);
+      border: 1px solid #000dff;
+    }
+    .popup-ruler-track .block { position: absolute; top: 3px; bottom: 3px; min-width: 3px; background: #000dff; border: 1px solid #fff039; }
+    .popup-ruler-track .block.live { background: #fff039; }
+    .popup-ruler-track .nowline { position: absolute; top: -5px; bottom: -5px; width: 2px; margin-left: -1px; background: #ffffff; box-shadow: 0 0 6px #ffffff; }
+    .popup-ruler-scale { display: flex; justify-content: space-between; margin-top: 5px; color: #fff039; font-size: 8px; letter-spacing: 0.06em; font-variant-numeric: tabular-nums; }
+    .popup-empty {
+      padding: 26px 16px 30px; text-align: center;
+      color: #fff039; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; line-height: 1.6; text-transform: uppercase;
+    }
+    /* a test card (mire) above every waiting message */
+    .popup-empty::before {
+      content: ''; display: block; width: 168px; height: 30px; margin: 0 auto 16px;
+      background: linear-gradient(90deg, #fff039 0 14.3%, #ffffff 0 28.6%, #000dff 0 42.9%, #000000 0 57.1%, #fff039 0 71.4%, #000dff 0 85.7%, #ffffff 0);
+      border: 1px solid #333;
+    }
+    @media (prefers-reduced-motion: reduce) { .popup-row.now .sig i { animation: none !important; } }
 
     /* On narrow screens, stack the floaters in a column above the bottom edge */
     @media (max-width: 820px) {
       #floatLayer { display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; padding: 12px; padding-bottom: 26px; top: 60px; overflow-x: hidden; }
       .float-player, .float-actions { position: static; transform: none; }
+      .popup { right: 12px; }   /* centred: the pop-up is 100vw - 24px wide here */
       .float-player { display: flex; justify-content: center; width: 100%; }
       .float-actions {
         flex-wrap: wrap; justify-content: center; gap: 8px;
@@ -270,14 +328,90 @@
       .bottom-social { order: 10; margin-left: 0; }
     }
 
-    /* ---------- RADIO CULT EMBED (scaled down to ~80%) ---------- */
-    /* To resize: change the 0.8 scale below, and keep width≈380×scale, height≈144×scale. */
-    .radiocult-player { width: 304px; height: 116px; overflow: hidden; flex-shrink: 0; }
-    .radiocult-player iframe { display: block; width: 380px; height: 144px; border: 0; transform: scale(0.8); transform-origin: top left; }
-    @media (max-width: 640px) {
-      .radiocult-player { width: 100%; height: 116px; }
-      .radiocult-player iframe { width: 125%; }
+    /* ---------- STATION PLAYER (the station's stream and what's on air, see SETTINGS) ---------- */
+    /* A receiver: status and station clock, a scope screen, the title as a ticker, a tuning dial.
+       data-state on #player: off (no stream set) · idle · loading · playing · error */
+    .player {
+      width: 340px;
+      display: flex; flex-direction: column; gap: 8px;
+      padding: 10px;
+      background:
+        repeating-linear-gradient(0deg, rgba(255,255,255,0.04) 0 1px, transparent 1px 3px),   /* scanlines */
+        #000000;
+      color: #ffffff;
+      border: 2px solid #fff039;
+      box-shadow: 6px 6px 0 #000dff;
     }
+    .player-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 9px; font-weight: 700; letter-spacing: 0.1em; }
+    .player-status { display: flex; align-items: center; gap: 6px; color: #fff039; }
+    .player-clock { color: #ffffff; opacity: 0.75; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .player-dot { width: 7px; height: 7px; background: #555; flex-shrink: 0; }
+    .player[data-state="idle"] .player-dot { background: #fff039; }
+    .player[data-state="playing"] .player-dot { background: #fff039; animation: playerBlink 1.2s steps(2) infinite; }
+    .player[data-state="loading"] .player-dot,
+    .player[data-state="error"] .player-dot { background: #000dff; animation: playerBlink 0.6s steps(2) infinite; }
+    @keyframes playerBlink { 50% { opacity: 0; } }
+    .player-main { display: flex; gap: 10px; }
+    .player-toggle {
+      position: relative; overflow: hidden;
+      width: 64px; height: 64px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: #fff039; color: #000dff;
+      border: none; border-radius: 0; cursor: pointer;
+    }
+    .player-toggle:hover { background: #ffffff; }
+    .player-toggle:disabled { background: #1a1a1a; color: #444; cursor: not-allowed; }
+    .player-toggle .icon { position: relative; z-index: 1; width: 26px; height: 26px; }
+    /* square waves leaving the button while the radio plays */
+    .player-toggle::before, .player-toggle::after {
+      content: ''; position: absolute; inset: 46%;
+      border: 2px solid #000dff; opacity: 0; pointer-events: none;
+    }
+    .player[data-state="playing"] .player-toggle::before { animation: playerWave 2s ease-out infinite; }
+    .player[data-state="playing"] .player-toggle::after { animation: playerWave 2s ease-out 1s infinite; }
+    @keyframes playerWave { from { inset: 46%; opacity: 0.9; } to { inset: 3px; opacity: 0; } }
+    .player-icon-pause,
+    .player[data-state="playing"] .player-icon-play,
+    .player[data-state="loading"] .player-icon-play { display: none; }
+    .player[data-state="playing"] .player-icon-pause,
+    .player[data-state="loading"] .player-icon-pause { display: block; }
+    /* the scope: a grid in the site's blue, the trace is drawn by the SCOPE script */
+    .player-scope {
+      flex: 1; min-width: 0; height: 64px; display: block;
+      background:
+        linear-gradient(rgba(0,13,255,0.45) 1px, transparent 1px) 0 -1px / 100% 16px,
+        linear-gradient(90deg, rgba(0,13,255,0.45) 1px, transparent 1px) -1px 0 / 16px 100%,
+        #00020f;
+      border: 1px solid #000dff;
+    }
+    /* the title runs like the top bar when it is too long to fit */
+    .player-ticker { overflow: hidden; white-space: nowrap; padding: 5px 0; border-top: 1px solid #222; border-bottom: 1px solid #222; }
+    .player-ticker-track { display: inline-flex; }
+    .player-ticker-item { display: inline-flex; align-items: center; gap: 8px; padding-right: 36px; font-size: 13px; font-weight: 700; text-transform: uppercase; }
+    .player-ticker-item .artist { color: #fff039; font-weight: 400; }
+    .player-ticker-item .artist::before { content: '■'; margin-right: 8px; font-size: 7px; vertical-align: 2px; }
+    .player-ticker.scrolling .player-ticker-track { animation: playerTicker 16s linear infinite; }
+    .player-ticker:hover .player-ticker-track { animation-play-state: paused; }
+    @keyframes playerTicker { to { transform: translateX(-50%); } }
+    .player-foot { display: flex; align-items: center; gap: 10px; }
+    .player[data-state="off"] .player-foot { display: none; }
+    /* progress as a tuning dial: ticks, a lit part, a yellow needle (--p set by the NOW PLAYING script) */
+    .player-dial {
+      --p: 0%;
+      flex: 1; height: 14px; position: relative;
+      background:
+        repeating-linear-gradient(90deg, #fff039 0 1px, transparent 1px 25%) left bottom / 100% 10px no-repeat,
+        repeating-linear-gradient(90deg, #000dff 0 1px, transparent 1px 5%) left bottom / 100% 5px no-repeat;
+      border-bottom: 1px solid #000dff;
+    }
+    .player-dial::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: var(--p); background: rgba(255,240,57,0.14); }
+    .player-needle { position: absolute; top: -3px; bottom: -1px; left: var(--p); width: 2px; margin-left: -1px; background: #fff039; box-shadow: 0 0 6px #fff039; }
+    .player-time { min-width: 66px; text-align: right; font-size: 9px; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+    .player-volume { width: 64px; }
+    @media (prefers-reduced-motion: reduce) {
+      .player-dot, .player-toggle::before, .player-toggle::after, .player-ticker-track { animation: none !important; }
+    }
+    @media (max-width: 640px) { .player { width: 100%; box-shadow: 4px 4px 0 #000dff; } }
 
     .admin-url-input {
       background: white;
@@ -310,11 +444,13 @@
     <symbol id="icon-instagram" viewBox="0 0 448 512"><path d="M224.1 141c-63.6 0-114.9 51.3-114.9 114.9s51.3 114.9 114.9 114.9S339 319.5 339 255.9 287.7 141 224.1 141zm0 189.6c-41.1 0-74.7-33.5-74.7-74.7s33.5-74.7 74.7-74.7 74.7 33.5 74.7 74.7-33.6 74.7-74.7 74.7zm146.4-194.3c0 14.9-12 26.8-26.8 26.8-14.9 0-26.8-12-26.8-26.8s12-26.8 26.8-26.8 26.8 12 26.8 26.8zm76.1 27.2c-1.7-35.9-9.9-67.7-36.2-93.9-26.2-26.2-58-34.4-93.9-36.2-37-2.1-147.9-2.1-184.9 0-35.8 1.7-67.6 9.9-93.9 36.1s-34.4 58-36.2 93.9c-2.1 37-2.1 147.9 0 184.9 1.7 35.9 9.9 67.7 36.2 93.9s58 34.4 93.9 36.2c37 2.1 147.9 2.1 184.9 0 35.9-1.7 67.7-9.9 93.9-36.2 26.2-26.2 34.4-58 36.2-93.9 2.1-37 2.1-147.8 0-184.8zM398.8 388c-7.8 19.6-22.9 34.7-42.6 42.6-29.5 11.7-99.5 9-132.1 9s-102.7 2.6-132.1-9c-19.6-7.8-34.7-22.9-42.6-42.6-11.7-29.5-9-99.5-9-132.1s-2.6-102.7 9-132.1c7.8-19.6 22.9-34.7 42.6-42.6 29.5-11.7 99.5-9 132.1-9s102.7-2.6 132.1 9c19.6 7.8 34.7 22.9 42.6 42.6 11.7 29.5 9 99.5 9 132.1s2.7 102.7-9 132.1z"/></symbol>
     <symbol id="icon-youtube" viewBox="0 0 576 512"><path d="M549.655 124.083c-6.281-23.65-24.787-42.276-48.284-48.597C458.781 64 288 64 288 64S117.22 64 74.629 75.486c-23.497 6.322-42.003 24.947-48.284 48.597-11.412 42.867-11.412 132.305-11.412 132.305s0 89.438 11.412 132.305c6.281 23.65 24.787 41.5 48.284 47.821C117.22 448 288 448 288 448s170.78 0 213.371-11.486c23.497-6.321 42.003-24.171 48.284-47.821 11.412-42.867 11.412-132.305 11.412-132.305s0-89.438-11.412-132.305zm-317.51 213.508V175.185l142.739 81.205-142.739 81.201z"/></symbol>
     <symbol id="icon-soundcloud" viewBox="0 0 640 512"><path d="M111.4 256.3l5.8 65-5.8 68.3c-.3 2.5-2.2 4.4-4.4 4.4s-4.2-1.9-4.2-4.4l-5.6-68.3 5.6-65c0-2.2 1.9-4.2 4.2-4.2 2.2 0 4.1 2 4.4 4.2zm21.4-45.6c-2.8 0-4.7 2.2-5 5l-5 105.6 5 68.3c.3 2.8 2.2 5 5 5 2.5 0 4.7-2.2 4.7-5l5.8-68.3-5.8-105.6c0-2.8-2.2-5-4.7-5zm25.5-24.1c-3.1 0-5.3 2.2-5.6 5.3l-4.4 130 4.4 67.8c.3 3.1 2.5 5.3 5.6 5.3 2.8 0 5.3-2.2 5.3-5.3l5.3-67.8-5.3-130c0-3.1-2.5-5.3-5.3-5.3zM7.2 283.2c-1.4 0-2.2 1.1-2.5 2.5L0 321.3l4.7 35c.3 1.4 1.1 2.5 2.5 2.5s2.2-1.1 2.5-2.5l5.6-35-5.6-35.6c-.3-1.4-1.1-2.5-2.5-2.5zm23.6-21.9c-1.4 0-2.5 1.1-2.5 2.5l-6.4 57.5 6.4 56.1c0 1.7 1.1 2.8 2.5 2.8s2.5-1.1 2.8-2.5l7.2-56.4-7.2-57.5c-.3-1.4-1.4-2.5-2.8-2.5zm25.3-11.4c-1.7 0-3.1 1.4-3.3 3.3L47 321.3l5.8 65.8c.3 1.7 1.7 3.1 3.3 3.1 1.7 0 3.1-1.4 3.1-3.1l6.9-65.8-6.9-68.1c0-1.9-1.4-3.3-3.1-3.3zm25.3-2.2c-1.9 0-3.6 1.4-3.6 3.6l-5.8 70 5.8 67.8c0 2.2 1.7 3.6 3.6 3.6s3.6-1.4 3.9-3.6l6.4-67.8-6.4-70c-.3-2.2-2-3.6-3.9-3.6zm241.4-110.9c-1.1-.8-2.8-1.4-4.2-1.4-2.2 0-4.2.8-5.6 1.9-1.9 1.7-3.1 4.2-3.3 6.7v.8l-3.3 176.7 1.7 32.5 1.7 31.7c.3 4.7 4.2 8.6 8.9 8.6s8.6-3.9 8.6-8.6l3.9-64.2-3.9-177.5c-.4-3-2-5.8-4.5-7.2zm-26.7 15.3c-1.4-.8-2.8-1.4-4.4-1.4s-3.1.6-4.4 1.4c-2.2 1.4-3.6 3.9-3.6 6.7l-.3 1.7-2.8 160.8s0 .3 3.1 65.6v.3c0 1.7.6 3.3 1.7 4.7 1.7 1.9 3.9 3.1 6.4 3.1 2.2 0 4.2-1.1 5.6-2.5 1.7-1.4 2.5-3.3 2.5-5.6l.3-6.7 3.1-58.6-3.3-162.8c-.3-2.8-1.7-5.3-3.9-6.7zm-111.4 22.5c-3.1 0-5.8 2.8-5.8 6.1l-4.4 140.6 4.4 67.2c.3 3.3 2.8 5.8 5.8 5.8 3.3 0 5.8-2.5 6.1-5.8l5-67.2-5-140.6c-.2-3.3-2.7-6.1-6.1-6.1zm376.7 62.8c-10.8 0-21.1 2.2-30.6 6.1-6.4-70.8-65.8-126.4-138.3-126.4-17.8 0-35 3.3-50.3 9.4-6.1 2.2-7.8 4.4-7.8 9.2v249.7c0 5 3.9 8.6 8.6 9.2h218.3c43.3 0 78.6-35 78.6-78.3.1-43.6-35.2-78.9-78.5-78.9zm-296.7-60.3c-4.2 0-7.5 3.3-7.8 7.8l-3.3 136.7 3.3 65.6c.3 4.2 3.6 7.5 7.8 7.5 4.2 0 7.5-3.3 7.5-7.5l3.9-65.6-3.9-136.7c-.3-4.5-3.3-7.8-7.5-7.8zm-53.6-7.8c-3.3 0-6.4 3.1-6.4 6.7l-3.9 145.3 3.9 66.9c.3 3.6 3.1 6.4 6.4 6.4 3.6 0 6.4-2.8 6.7-6.4l4.4-66.9-4.4-145.3c-.3-3.6-3.1-6.7-6.7-6.7zm26.7 3.4c-3.9 0-6.9 3.1-6.9 6.9L227 321.3l3.9 66.4c.3 3.9 3.1 6.9 6.9 6.9s6.9-3.1 6.9-6.9l4.2-66.4-4.2-141.7c0-3.9-3-6.9-6.9-6.9z"/></symbol>
-    <symbol id="icon-comment" viewBox="0 0 512 512"><path d="M512 240c0 114.9-114.6 208-256 208c-37.1 0-72.3-6.4-104.1-17.9c-11.9 8.7-31.3 20.6-54.3 30.6C73.6 471.1 44.7 480 16 480c-6.5 0-12.3-3.9-14.8-9.9c-2.5-6-1.1-12.8 3.4-17.4l0 0 0 0 0 0 0 0 .3-.3c.3-.3 .7-.7 1.3-1.4c1.1-1.2 2.8-3.1 4.9-5.7c4.1-5 9.6-12.4 15.2-21.6c10-16.6 19.5-38.4 21.4-62.9C17.7 326.8 0 285.1 0 240C0 125.1 114.6 32 256 32s256 93.1 256 208z"/></symbol>
     <symbol id="icon-calendar" viewBox="0 0 448 512"><path d="M96 32V64H48C21.5 64 0 85.5 0 112v48H448V112c0-26.5-21.5-48-48-48H352V32c0-17.7-14.3-32-32-32s-32 14.3-32 32V64H160V32c0-17.7-14.3-32-32-32S96 14.3 96 32zM448 192H0V464c0 26.5 21.5 48 48 48H400c26.5 0 48-21.5 48-48V192z"/></symbol>
     <symbol id="icon-history" viewBox="0 0 512 512"><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></symbol>
     <symbol id="icon-video" viewBox="0 0 576 512"><path d="M0 128C0 92.7 28.7 64 64 64H320c35.3 0 64 28.7 64 64V384c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V128zM559.1 99.8c10.4 5.6 16.9 16.4 16.9 28.2V384c0 11.8-6.5 22.6-16.9 28.2s-23 5-32.9-1.6l-96-64L416 337.1V320 192 174.9l14.2-9.5 96-64c9.8-6.5 22.4-7.2 32.9-1.6z"/></symbol>
     <symbol id="icon-layer-group" viewBox="0 0 576 512"><path d="M264.5 5.2c14.9-6.9 32.1-6.9 47 0l218.6 101c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 149.8C37.4 145.8 32 137.3 32 128s5.4-17.9 13.9-21.8L264.5 5.2zM476.9 209.6l53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 277.8C37.4 273.8 32 265.3 32 256s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0l152-70.2zm-152 198.2l152-70.2 53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 405.8C37.4 401.8 32 393.3 32 384s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0z"/></symbol>
+    <!-- Play / pause: plain shapes drawn for the player -->
+    <symbol id="icon-play" viewBox="0 0 24 24"><path d="M7 4l14 8-14 8z"/></symbol>
+    <symbol id="icon-pause" viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></symbol>
   </svg>
 
   <input type="file" id="videoUploadInput" accept="video/*" class="hidden" />
@@ -390,25 +526,32 @@
     <!-- FLOATING ELEMENTS (no bar) -->
     <div id="floatLayer">
 
-      <!-- Radio Cult live player -->
+      <!-- Station player: the stream (STREAM_URL) and what's on air (NOWPLAYING_URL), see SETTINGS -->
       <div class="float-item float-player">
-        <div class="radiocult-player">
-          <iframe
-            title="Parabole Radio audio player"
-            src="https://app.radiocult.fm/embed/player/parabole-radio-b02d5385?theme=dusk&primaryColor=%23579DFF&corners=rounded&playerDisplay=metadata"
-            width="100%"
-            height="144px"
-            scrolling="no"
-            frameborder="0"
-            allow="autoplay"
-            seamless
-            allowtransparency="true"
-            style="background-color: transparent; border-radius: 0.75rem;"
-          ></iframe>
+        <div id="player" class="player" data-state="off">
+          <div class="player-head">
+            <span class="player-status"><span class="player-dot"></span><span id="playerStatus">HORS ANTENNE</span></span>
+            <span id="playerClock" class="player-clock">PARIS 18</span>
+          </div>
+          <div class="player-main">
+            <button id="playerToggle" class="player-toggle" type="button" aria-label="Écouter la radio" disabled>
+              <svg class="icon player-icon-play" aria-hidden="true"><use href="#icon-play"/></svg>
+              <svg class="icon player-icon-pause" aria-hidden="true"><use href="#icon-pause"/></svg>
+            </button>
+            <canvas id="playerScope" class="player-scope" aria-hidden="true"></canvas>
+          </div>
+          <div id="playerTicker" class="player-ticker">
+            <div id="playerTickerTrack" class="player-ticker-track"><span class="player-ticker-item"><span class="title">Parabole Radio</span><span class="artist">Paris 18</span></span></div>
+          </div>
+          <div class="player-foot">
+            <div id="playerDial" class="player-dial"><div class="player-needle"></div></div>
+            <span id="playerTime" class="player-time"></span>
+            <input id="playerVolume" class="player-volume" type="range" min="0" max="100" value="90" aria-label="Volume">
+          </div>
         </div>
       </div>
 
-      <!-- Social + Chat/Schedule/History toggles -->
+      <!-- Social + Schedule/History toggles -->
       <div class="float-item float-actions">
         <div class="bottom-social">
           <a href="https://www.instagram.com/paraboleradio/" target="_blank" rel="noopener noreferrer" aria-label="Instagram"><svg class="icon" aria-hidden="true"><use href="#icon-instagram"/></svg></a>
@@ -416,59 +559,27 @@
           <a href="https://soundcloud.com/parabole-radio" target="_blank" rel="noopener noreferrer" aria-label="SoundCloud"><svg class="icon" aria-hidden="true"><use href="#icon-soundcloud"/></svg></a>
         </div>
         <a id="rotatingTextLink" class="donate-btn cycle-subtitle" href="#" target="_blank" rel="noopener noreferrer">RECHERCHE DE CONTRIBUTEURS RADIO</a>
-        <button id="chatToggle" class="donate-btn chat-toggle"><svg class="icon" aria-hidden="true"><use href="#icon-comment"/></svg> CHAT</button>
-        <button id="scheduleToggle" class="donate-btn chat-toggle"><svg class="icon" aria-hidden="true"><use href="#icon-calendar"/></svg> PROGRAMMATION</button>
-        <button id="lastPlayedToggle" class="donate-btn chat-toggle"><svg class="icon" aria-hidden="true"><use href="#icon-history"/></svg> HISTORIQUE</button>
+        <button id="scheduleToggle" class="donate-btn" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-calendar"/></svg> PROGRAMMATION</button>
+        <button id="lastPlayedToggle" class="donate-btn" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-history"/></svg> HISTORIQUE</button>
       </div>
 
     </div>
 
-    <!-- Pop-up embeds use data-src: each one loads on first open only (see togglePopup) -->
-    <!-- Chat popup — opens above the CHAT button -->
-    <div id="chatPopup" class="chat-popup">
-      <button id="chatClose" class="chat-close" aria-label="Close chat">&times;</button>
-      <iframe
-        title="Parabole Radio chat room"
-        data-src="https://app.radiocult.fm/embed/chat/parabole-radio-b02d5385?theme=midnight&primaryColor=%23579DFF&corners=sharp&playerDisplay=metadata&layout=flat"
-        width="100%"
-        height="600px"
-        scrolling="no"
-        frameborder="0"
-        seamless
-        allowtransparency="true"
-      ></iframe>
-    </div>
-
+    <!-- Pop-ups, filled from the station's public data (SCHEDULE_URL, HISTORY_URL, NOWPLAYING_URL in SETTINGS) -->
     <!-- Schedule popup — opens above the PROGRAMMATION button -->
-    <div id="schedulePopup" class="schedule-popup">
-      <button id="scheduleClose" class="chat-close" aria-label="Close schedule">&times;</button>
-      <iframe
-        title="Parabole Radio schedule"
-        data-src="https://app.radiocult.fm/embed/schedule/parabole-radio-b02d5385/show-list?theme=dusk&primaryColor=%23579DFF&corners=sharp"
-        width="100%"
-        height="500px"
-        scrolling="no"
-        frameborder="0"
-        seamless
-        allowtransparency="true"
-      ></iframe>
+    <div id="schedulePopup" class="popup" role="dialog" aria-labelledby="scheduleHead">
+      <div id="scheduleHead" class="popup-head">Programmation<span class="popup-meta" aria-hidden="true">7 jours · heure de Paris</span></div>
+      <button id="scheduleClose" class="popup-close" type="button" aria-label="Fermer la programmation">&times;</button>
+      <div id="scheduleDays" class="popup-tabs" role="tablist" aria-label="Jours"></div>
+      <div id="scheduleList" class="popup-body"></div>
     </div>
     <!-- Last played popup — opens above the HISTORIQUE button -->
-    <div id="lastPlayedPopup" class="lastplayed-popup">
-      <button id="lastPlayedClose" class="chat-close" aria-label="Close last played">&times;</button>
-      <iframe
-        title="Parabole Radio last played"
-        data-src="https://app.radiocult.fm/embed/last-played/parabole-radio-b02d5385?theme=dusk&primaryColor=%23579DFF&corners=rounded"
-        width="100%"
-        height="550px"
-        scrolling="no"
-        frameborder="0"
-        seamless
-        allowtransparency="true"
-        style="background-color: transparent; border-radius: 0.75rem;"
-      ></iframe>
+    <div id="lastPlayedPopup" class="popup" role="dialog" aria-labelledby="historyHead">
+      <div id="historyHead" class="popup-head">Historique<span class="popup-meta" aria-hidden="true">journal de diffusion</span></div>
+      <button id="lastPlayedClose" class="popup-close" type="button" aria-label="Fermer l'historique">&times;</button>
+      <div id="historyList" class="popup-body"></div>
     </div>
-    <audio id="radioStream" src="https://parabole-radio-b02d5385.radiocult.fm/stream" preload="none"></audio>
+    <audio id="radioStream" preload="none"></audio>
   </main>
   <div id="toastContainer" class="fixed bottom-28 right-4 z-[100] flex flex-col gap-2"></div>
 
@@ -490,10 +601,20 @@
     // Texts that take turns on the yellow contributors button (one every 1.5 s).
     const phrases = ["RECHERCHE DE CONTRIBUTEURS RADIO","LOOKING FOR RADIO CONTRIBUTORS","DJ'S","PODCASTS","GENRES SPECIALISTS","MUSIC ENTHUSIASTS","PARABOLE RADIO COMING SOON","CA VA PETER !!","CLIQUER ICI"];
 
-    // Real now-playing: paste your Radio Cult PUBLISHABLE key (pk_...) below.
-    // It's read-only and safe on a public site. Get it at: app.radiocult.fm/settings/cms/api
-    const RC_PUBLISHABLE_KEY = "REPLACE_WITH_pk_KEY";
-    const RC_STATION_ID = "parabole-radio-b02d5385";
+    // The station runs on Radio Cult for now, on Radiocompas (BUTTON) later: the page reads both,
+    // so switching only means putting Radiocompas' addresses here. An address left "" switches
+    // that part off: the player shows "HORS ANTENNE", the pop-ups say what's coming.
+    //   STREAM_URL ...... the stream (Icecast)        Radiocompas e.g. "https://radio.example/parabole.mp3"
+    //   NOWPLAYING_URL .. what's on air               Radiocompas e.g. "https://radio.example/now.json"
+    //   SCHEDULE_URL .... the programme               Radiocompas e.g. "https://console.radio.example/public/programme.json"
+    //   HISTORY_URL ..... the last tracks played      Radiocompas e.g. "https://console.radio.example/public/historique.json"
+    // Radio Cult lets only its own site read the programme and the history: Vercel relays them
+    // under /radiocult/ (vercel.json), so these two answer once online, or with "vercel dev".
+    const STREAM_URL = "https://parabole-radio-b02d5385.radiocult.fm/stream";
+    const NOWPLAYING_URL = "https://api.radiocult.fm/api/station/parabole-radio-b02d5385/schedule/live";
+    const SCHEDULE_URL = "/radiocult/programme";
+    const HISTORY_URL = "/radiocult/historique";
+    const STATION_TIMEZONE = "Europe/Paris";   // the pop-ups show hours at the station's time
 
     // Background clips. ONE clip = it loops seamlessly (nothing to do).
     // To rotate through several: drop the extra videos into the SAME folder
@@ -521,13 +642,12 @@
     // ========================== END SETTINGS ==========================
 
     // ---------- PLAYER ----------
-    // Playback + now-playing metadata are handled by the Radio Cult iframe embed.
-    // The old custom player, visualizer, song history and audio keyboard shortcuts
-    // were removed so there's only one player controlling the stream.
+    // The station's own player: the stream plays in <audio id="radioStream">, what's on air comes
+    // from the station's data, Radio Cult or Radiocompas (see AUDIO and NOW PLAYING below, addresses
+    // in SETTINGS). The Radio Cult embeds (player, chat, schedule, last played) were removed.
 
     // ---------- CHAT ----------
-    // Chat is now handled by the Radio Cult chat embed (real, shared, synced with the app).
-    // The old local/fake chat, swear filter and username box were removed.
+    // Removed with Radio Cult: Radiocompas has no chat room.
 
     // ---------- ADMIN, OVERLAY, LOGIC ----------
     let isAdmin = false;
@@ -685,23 +805,37 @@
     
     // ---------- LISTENER COUNT / RANDOM CHATTER ----------
     // Removed: these were simulated (Math.random) and not real data.
-    // Real listener numbers are available later via the Radio Cult analytics API.
+    // Real listener numbers could come later from the Icecast statistics.
     
     // ---------- AUDIO: RADIO FIRST, VIDEOS MUTED ----------
     // Browsers forbid starting sound before the visitor interacts, so we try to start the
-    // radio on the first click/tap/scroll and keep retrying until it actually plays.
-    // The yellow button switches between the radio and the background videos' own sound.
-    (function audioControl(){
+    // radio on the first click/tap/key and keep retrying until it actually plays.
+    // The yellow button switches between the radio and the background videos' own sound;
+    // the player's big button starts and stops the radio. A dropped stream reconnects by itself.
+    const station = { now: null };   // last answer of the nowplaying service, read by the HISTORIQUE pop-up
+    const radioControl = (function audioControl(){
       const v = document.getElementById('backgroundVideo');
       const radio = document.getElementById('radioStream');
       const btn = document.getElementById('soundToggle');
-      if(!v) return;
+      const player = document.getElementById('player');
+      const toggle = document.getElementById('playerToggle');
+      const volume = document.getElementById('playerVolume');
+      const status = document.getElementById('playerStatus');
+      if(!v || !radio || !player) return null;
       v.muted = true;                       // videos silent by default
       v.volume = 0.7;
-      if(radio) radio.volume = 0.9;
       let mode = 'radio';                   // 'radio' | 'video'
-      let userChose = false;                // true once the visitor uses the button or the Radio Cult player
+      let userChose = false;                // true once the visitor uses the yellow button or the player
+      let wanted = false;                   // the visitor wants the radio on: a dropped stream reconnects
+      let retry = null, retryDelay = 3000;
+      let onAir = STREAM_URL ? 'À L’ANTENNE' : 'HORS ANTENNE';   // refined by the nowplaying service
 
+      function setState(state){
+        player.dataset.state = state;
+        status.textContent = { loading: 'CONNEXION…', error: 'FLUX COUPÉ, NOUVEL ESSAI…' }[state] || onAir;
+        toggle.setAttribute('aria-label', (state === 'playing' || state === 'loading') ? 'Couper la radio' : 'Écouter la radio');
+      }
+      const restState = () => setState(STREAM_URL ? 'idle' : 'off');
       function setLabel(){
         if(!btn) return;
         btn.textContent = (mode === 'radio') ? 'RADIO' : 'VIDÉO';
@@ -709,54 +843,114 @@
           ? 'Son : radio en direct — cliquer pour le son des vidéos'
           : 'Son : vidéos — cliquer pour la radio';
       }
+      function startRadio(){
+        if(!STREAM_URL) return Promise.reject(new Error('STREAM_URL is empty (SETTINGS)'));
+        wanted = true;
+        clearTimeout(retry);
+        setState('loading');
+        radio.src = STREAM_URL;             // always reopen: a live stream picks up at the live edge
+        return radio.play();
+      }
+      function stopRadio(){
+        wanted = false;
+        clearTimeout(retry);
+        radio.pause();
+        radio.removeAttribute('src');       // stop downloading while the radio is off
+        radio.load();
+        restState();
+      }
       function playRadio(){
         mode = 'radio';
         v.muted = true;
         setLabel();
-        return radio ? radio.play() : Promise.reject();
+        return startRadio();
       }
       function playVideos(){
         mode = 'video';
-        if(radio) radio.pause();
+        stopRadio();
         v.muted = false;
         v.play().catch(()=>{});
         setLabel();
       }
+      // A refused autoplay leaves the radio off; any other failure goes through the reconnect below.
+      function playFailed(err){ if(err && err.name === 'NotAllowedError'){ wanted = false; restState(); } }
+
+      radio.addEventListener('playing', () => { retryDelay = 3000; setState('playing'); });
+      radio.addEventListener('waiting', () => { if(wanted) setState('loading'); });
+      radio.addEventListener('pause', () => {      // paused from outside (headset, system): show it
+        if(wanted && player.dataset.state === 'playing'){ wanted = false; restState(); }
+      });
+      ['error', 'ended'].forEach(ev => radio.addEventListener(ev, () => {
+        if(!wanted || !radio.getAttribute('src')) return;   // not the reset done by stopRadio
+        setState('error');
+        clearTimeout(retry);
+        retry = setTimeout(() => { if(wanted) startRadio().catch(playFailed); }, retryDelay);
+        retryDelay = Math.min(retryDelay * 2, 30000);
+      }));
+
+      // Volume, remembered in this browser (iOS ignores it: the phone's buttons set the volume)
+      try { const saved = localStorage.getItem('parabole_volume'); if(saved !== null) volume.value = saved; } catch(e){}
+      radio.volume = volume.value / 100;
+      volume.addEventListener('input', () => {
+        radio.volume = volume.value / 100;
+        try { localStorage.setItem('parabole_volume', volume.value); } catch(e){}
+      });
 
       // Try to start the radio at the first interaction — retry until it really plays.
       function tryStart(e){
         if(userChose) { detach(); return; }                     // respect the visitor's choice
-        if(btn && e && (e.target === btn || btn.contains(e.target))) return;
-        playRadio().then(detach).catch(()=>{ /* try again on next gesture */ });
+        if(e && e.target && e.target.closest && e.target.closest('#soundToggle, #playerToggle, #playerVolume')) return;
+        playRadio().then(detach).catch(playFailed);
       }
       function detach(){
-        ['click','keydown','touchend','scroll'].forEach(ev =>
+        ['click','keydown','touchend'].forEach(ev =>
           window.removeEventListener(ev, tryStart));
       }
-      ['click','keydown','touchend','scroll'].forEach(ev =>
+      if(STREAM_URL) ['click','keydown','touchend'].forEach(ev =>
         window.addEventListener(ev, tryStart, { passive: true }));
 
       // yellow button switches radio <-> video sound
       if(btn) btn.addEventListener('click', () => {
         userChose = true;
         if(mode === 'radio'){ playVideos(); }
-        else { playRadio().catch(()=>{}); }
+        else { playRadio().catch(playFailed); }
       });
 
-      // if the visitor uses the Radio Cult player itself, stop our stream (no double audio)
-      const radioFrame = document.querySelector('.radiocult-player iframe');
-      window.addEventListener('blur', () => {
-        setTimeout(() => {
-          if(radioFrame && document.activeElement === radioFrame){
-            userChose = true;               // the visitor picked the Radio Cult player:
-            detach();                       // don't start our stream on their next click
-            if(radio) radio.pause();
-            v.muted = true;
-          }
-        }, 0);
+      // the player's big button starts and stops the radio
+      toggle.disabled = !STREAM_URL;
+      toggle.addEventListener('click', () => {
+        userChose = true;
+        detach();
+        if(wanted) stopRadio();
+        else playRadio().catch(playFailed);
       });
+
+      // lock screen and headset buttons
+      if('mediaSession' in navigator){
+        try {
+          navigator.mediaSession.setActionHandler('play', () => { userChose = true; playRadio().catch(playFailed); });
+          navigator.mediaSession.setActionHandler('pause', () => { userChose = true; stopRadio(); });
+        } catch(e){}
+      }
 
       setLabel();
+      restState();
+      return {
+        // both called by the nowplaying poll
+        setOnAir(text){
+          onAir = text;
+          if(player.dataset.state !== 'loading' && player.dataset.state !== 'error') status.textContent = onAir;
+        },
+        setMeta(d){
+          if(!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return;
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: d ? d.title : 'Parabole Radio',
+            artist: d ? (d.artist || '') : 'Paris 18',
+            album: 'Parabole Radio',
+            artwork: [{ src: 'PARABOLE%20RADIO/OVERLAY/logo.webp', sizes: '240x300', type: 'image/webp' }],
+          });
+        },
+      };
     })();
 
 
@@ -778,9 +972,8 @@
       v.addEventListener('ended', playRandom);   // random (non-repeating) next each time
     })();
 
-    // ---------- POPUP TOGGLES (chat / schedule / last-played — only one open at a time) ----------
+    // ---------- POPUP TOGGLES (schedule / last-played — only one open at a time) ----------
     const popups = {
-      chat: document.getElementById('chatPopup'),
       schedule: document.getElementById('schedulePopup'),
       lastplayed: document.getElementById('lastPlayedPopup'),
     };
@@ -790,37 +983,323 @@
       const willOpen = !target.classList.contains('open');
       Object.values(popups).forEach(p => p && p.classList.remove('open'));
       if(willOpen){
-        const frame = target.querySelector('iframe[data-src]');
-        if(frame && !frame.getAttribute('src')) frame.src = frame.dataset.src;   // load the embed on first open
         target.classList.add('open');
+        (which === 'schedule' ? loadSchedule : loadHistory)();
       }
     }
-    document.getElementById('chatToggle')      ?.addEventListener('click', e=>{ e.stopPropagation(); togglePopup('chat'); });
     document.getElementById('scheduleToggle')  ?.addEventListener('click', e=>{ e.stopPropagation(); togglePopup('schedule'); });
     document.getElementById('lastPlayedToggle')?.addEventListener('click', e=>{ e.stopPropagation(); togglePopup('lastplayed'); });
-    document.getElementById('chatClose')      ?.addEventListener('click', ()=> popups.chat      && popups.chat.classList.remove('open'));
     document.getElementById('scheduleClose')  ?.addEventListener('click', ()=> popups.schedule  && popups.schedule.classList.remove('open'));
     document.getElementById('lastPlayedClose')?.addEventListener('click', ()=> popups.lastplayed && popups.lastplayed.classList.remove('open'));
 
-    // ---------- REAL NOW-PLAYING (Radio Cult API, key in SETTINGS) ----------
+    // Pop-up helpers: text from the station is always escaped before it goes into the page.
+    const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const popupRow = (when, title, sub, now, extra = '') =>
+      `<div class="popup-row${now ? ' now' : ''}"><span class="when">${escapeHtml(when)}</span>` +
+      `<span class="what">${escapeHtml(title)}${sub ? `<span class="sub">${escapeHtml(sub)}</span>` : ''}${extra}</span></div>`;
+    // A track's bar code: 16 bars whose heights come from a hash of its artist and title.
+    function signature(text){
+      let h = 2166136261;
+      for(const c of String(text)){ h ^= c.codePointAt(0); h = Math.imul(h, 16777619); }
+      let bars = '';
+      for(let i = 0; i < 16; i++){
+        h = Math.imul(h ^ (h >>> 15), 2246822507);
+        bars += `<i style="height:${25 + (h >>> 0) % 76}%"></i>`;
+      }
+      return `<span class="sig" aria-hidden="true">${bars}</span>`;
+    }
+    const popupSection = text => `<div class="popup-section">${escapeHtml(text)}</div>`;
+    const popupMessage = (...lines) => `<div class="popup-empty">${lines.map(escapeHtml).join('<br>')}</div>`;
+    async function fetchJson(url, options){
+      const r = await fetch(url, options);
+      if(!r.ok) throw new Error(url + ' → HTTP ' + r.status);
+      return r.json();
+    }
+    const withQuery = (url, query) => url + (url.includes('?') ? '&' : '?') + query;
+
+    // The page reads Radiocompas' format. Radio Cult's answers are put into it first, so the
+    // station can move from one to the other by changing the addresses in SETTINGS only.
+    const tagText = s => String(s ?? '').trim();   // Radio Cult's tags sometimes end with a space
+    const fromRadioCult = {
+      // {status: schedule | defaultPlaylist | offAir, content: the show on air, metadata: the track,
+      //  musicRecognition: the track heard during a live show}
+      now({ status, content, metadata, musicRecognition }){
+        const m = (musicRecognition && musicRecognition.metadata) || metadata || {};
+        const track = status !== 'offAir' && tagText(m.title) && tagText(m.title) !== 'Off Air';
+        const show = status === 'schedule' && content ? content : null;
+        return {
+          title: track ? tagText(m.title) : '', artist: track ? tagText(m.artist) : '', album: track ? tagText(m.album) : '',
+          show: show ? tagText(show.title) : '',   // Radio Cult only: the name of the show on air
+          source: status === 'offAir' ? 'off' : !show ? 'autodj' : (show.media && show.media.type === 'live') ? 'live' : 'show',
+          duration: track ? m.duration : 0,
+          elapsed: 0, received_at: track ? m.playoutStartIsoTimestamp : null,   // the track's progress counts from its start
+        };
+      },
+      // {schedules: [{start, end, title, media: {type: live | mix | playlist}}]}
+      schedule: ({ schedules = [] }) => ({ items: schedules.map(s => ({
+        starts_at: s.start, ends_at: s.end, title: s.title,
+        kind: { live: 'direct', mix: 'set' }[s.media && s.media.type] || 'emission',
+      })) }),
+      // {data: [{playoutStart, title, artist, album}]}, most recent first
+      history: ({ data = [] }) => ({ items: data.map(t => ({ played_at: t.playoutStart, title: tagText(t.title), artist: tagText(t.artist), album: tagText(t.album) })) }),
+    };
+
+    // ---------- PROGRAMMATION (the station's programme, SCHEDULE_URL in SETTINGS) ----------
+    // Expects {timezone, items: [{starts_at, ends_at, title, kind}]} for the next 7 days.
+    const schedule = { data: null, at: 0, day: null };
+    async function loadSchedule(){
+      const days = document.getElementById('scheduleDays');
+      const list = document.getElementById('scheduleList');
+      if(!SCHEDULE_URL){
+        days.innerHTML = '';
+        list.innerHTML = popupMessage('Programmation bientôt disponible.', 'En attendant : musique en continu, 24 h sur 24.');
+        return;
+      }
+      if(schedule.data && Date.now() - schedule.at < 5 * 60 * 1000) return renderSchedule();
+      list.innerHTML = popupMessage('Chargement…');
+      try {
+        // Radio Cult needs the dates (Radiocompas ignores them): from yesterday, for the hours already gone today
+        const from = new Date(Date.now() - 86400000).toISOString(), to = new Date(Date.now() + 7 * 86400000).toISOString();
+        const d = await fetchJson(withQuery(SCHEDULE_URL, `startDate=${from}&endDate=${to}`));
+        schedule.data = d.schedules ? fromRadioCult.schedule(d) : d;
+        schedule.at = Date.now();
+        renderSchedule();
+      } catch(e){
+        list.innerHTML = popupMessage('Programmation indisponible pour le moment.', 'Réessayez dans un instant.');
+      }
+    }
+    function renderSchedule(){
+      const days = document.getElementById('scheduleDays');
+      const list = document.getElementById('scheduleList');
+      const timeZone = schedule.data.timezone || STATION_TIMEZONE;
+      const dayKey = new Intl.DateTimeFormat('fr-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' });   // AAAA-MM-JJ
+      const dayName = new Intl.DateTimeFormat('fr-FR', { timeZone, weekday: 'short', day: 'numeric' });
+      const hour = new Intl.DateTimeFormat('fr-FR', { timeZone, hour: '2-digit', minute: '2-digit' });
+      const keys = [], labels = {};
+      for(let i = 0; i < 7; i++){
+        const d = new Date(Date.now() + i * 86400000);
+        const key = dayKey.format(d);
+        keys.push(key);
+        labels[key] = i === 0 ? 'Aujourd’hui' : dayName.format(d).replace('.', '');
+      }
+      if(!keys.includes(schedule.day)) schedule.day = keys[0];
+      days.innerHTML = keys.map(k =>
+        `<button type="button" class="popup-tab" role="tab" aria-selected="${k === schedule.day}" data-day="${k}">${escapeHtml(labels[k])}</button>`).join('');
+      const now = Date.now();
+      const items = (schedule.data.items || [])
+        .filter(it => dayKey.format(new Date(it.starts_at)) === schedule.day)
+        .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
+      // the day at a glance: each programme as a block on a 24 h ruler, a white line for now
+      const clock = new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+      const minuteOfDay = d => { const [hh, mm] = clock.format(d).split(':').map(Number); return hh * 60 + mm; };
+      const pct = m => (m / 14.4).toFixed(2) + '%';   // 1440 minutes = 100 %
+      const blocks = items.map(it => {
+        const start = new Date(it.starts_at), end = new Date(it.ends_at);
+        const from = minuteOfDay(start), to = dayKey.format(end) === schedule.day ? minuteOfDay(end) : 1440;
+        const onAir = start <= now && now < end;
+        return `<span class="block${onAir ? ' live' : ''}" style="left:${pct(from)};width:${pct(Math.max(to - from, 1))}"></span>`;
+      }).join('');
+      const nowLine = schedule.day === keys[0] ? `<span class="nowline" style="left:${pct(minuteOfDay(new Date()))}"></span>` : '';
+      const ruler = `<div class="popup-ruler" aria-hidden="true"><div class="popup-ruler-track">${blocks}${nowLine}</div>` +
+        '<div class="popup-ruler-scale"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div></div>';
+      const KINDS = { direct: 'En direct', set: 'Set' };   // kind: emission, set (recorded) or direct
+      list.innerHTML = ruler + (items.length
+        ? items.map(it => {
+            const start = new Date(it.starts_at), end = new Date(it.ends_at);
+            const onAir = start <= now && now < end;
+            return popupRow(hour.format(start) + ' – ' + hour.format(end), it.title,
+                            onAir ? 'En cours' : (KINDS[it.kind] || ''), onAir);
+          }).join('')
+        : popupMessage('Pas d’émission ce jour-là.', 'Musique en continu, 24 h sur 24.'));
+    }
+    document.getElementById('scheduleDays')?.addEventListener('click', e => {
+      const tab = e.target.closest('.popup-tab');
+      if(!tab) return;
+      e.stopPropagation();
+      schedule.day = tab.dataset.day;
+      renderSchedule();
+    });
+
+    // ---------- HISTORIQUE (the station's history, HISTORY_URL in SETTINGS) ----------
+    // Expects {items: [{played_at, title, artist, album}]}, most recent first. On top: what the
+    // nowplaying service knows, the current track and the next one.
+    async function loadHistory(){
+      const list = document.getElementById('historyList');
+      const np = station.now;
+      let top = '';
+      const sig = t => signature((t.artist || '') + ' ' + (t.title || ''));
+      // on air: the track, or else the show (Radio Cult names the show on air)
+      const track = np && np.title && !/en attente/i.test(np.title) ? np : null;
+      const onAir = track || (np && np.show ? { title: np.show } : null);
+      if(onAir){
+        top += popupSection(track && np.show ? 'À l’antenne · ' + np.show : 'À l’antenne') + popupRow('En cours', onAir.title, onAir.artist, true, sig(onAir));
+        if(np.next_autodj && np.next_autodj.title) top += popupRow('Ensuite', np.next_autodj.title, np.next_autodj.artist, false, sig(np.next_autodj));
+      }
+      if(!HISTORY_URL){
+        const before = (np && np.previous && np.previous.title)
+          ? popupSection('Juste avant') + popupRow('Avant', np.previous.title, np.previous.artist, false, sig(np.previous)) : '';
+        list.innerHTML = (top + before) || popupMessage('Historique bientôt disponible.');
+        return;
+      }
+      if(!list.innerHTML) list.innerHTML = top + popupMessage('Chargement…');
+      try {
+        const d = await fetchJson(withQuery(HISTORY_URL, 'limit=20'), { cache: 'no-store' });
+        const { items = [] } = d.data ? fromRadioCult.history(d) : d;
+        const hour = new Intl.DateTimeFormat('fr-FR', { timeZone: STATION_TIMEZONE, hour: '2-digit', minute: '2-digit' });
+        list.innerHTML = top + popupSection('Déjà diffusés') + (items.length
+          ? items.map(it => popupRow(hour.format(new Date(it.played_at)), it.title, it.artist, false, sig(it))).join('')
+          : popupMessage('Rien pour l’instant.'));
+      } catch(e){
+        list.innerHTML = top + popupMessage('Historique indisponible pour le moment.', 'Réessayez dans un instant.');
+      }
+    }
+    // keep the open HISTORIQUE pop-up up to date as tracks go by
+    setInterval(() => { if(popups.lastplayed && popups.lastplayed.classList.contains('open')) loadHistory(); }, 20000);
+
+    // ---------- NOW PLAYING (what's on air, NOWPLAYING_URL in SETTINGS) ----------
+    // Reads {title, artist, source, elapsed, duration, remaining, received_at, previous, next_autodj}
+    // every 10 s; the elapsed time moves on locally in between.
     (function nowPlaying(){
-      const el = document.getElementById('nowPlaying');
-      if(!el || RC_PUBLISHABLE_KEY.indexOf('pk_') !== 0) return;   // not configured yet
+      const micro = document.getElementById('nowPlaying');
+      const ticker = document.getElementById('playerTicker');
+      const track = document.getElementById('playerTickerTrack');
+      const dial = document.getElementById('playerDial');
+      const timeEl = document.getElementById('playerTime');
+      const clockEl = document.getElementById('playerClock');
+      if(!ticker) return;
+      const SOURCES = { autodj: 'EN CONTINU', stream: 'EN DIRECT', harbor: 'EN DIRECT', live: 'EN DIRECT', relay: 'EN RELAIS', off: 'HORS ANTENNE' };
+      const stationTime = new Intl.DateTimeFormat('fr-FR', { timeZone: STATION_TIMEZONE, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      let clock = null;   // {elapsed, duration, at}: where the current track was when last read
+      let shown = ['Parabole Radio', 'Paris 18'];
+      const mmss = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+      // The title as a ticker: it scrolls, like the top bar, only when it is too long to fit.
+      function setTicker(title, artist, force){
+        if(!force && shown[0] === title && shown[1] === artist) return;
+        shown = [title, artist];
+        const item = hidden => `<span class="player-ticker-item"${hidden ? ' aria-hidden="true"' : ''}>` +
+          `<span class="title">${escapeHtml(title)}</span>${artist ? `<span class="artist">${escapeHtml(artist)}</span>` : ''}</span>`;
+        track.innerHTML = item(false);
+        const scroll = track.scrollWidth > ticker.clientWidth;
+        ticker.classList.toggle('scrolling', scroll);
+        if(scroll) track.insertAdjacentHTML('beforeend', item(true));   // a second copy makes the loop seamless
+      }
+      window.addEventListener('resize', () => setTicker(shown[0], shown[1], true));
+      function tick(){
+        if(clockEl) clockEl.textContent = stationTime.format(new Date()) + ' · PARIS';
+        const known = !!(clock && clock.duration);
+        dial.style.visibility = timeEl.style.visibility = known ? 'visible' : 'hidden';
+        if(!known) return;
+        const elapsed = Math.min(clock.duration, clock.elapsed + (Date.now() - clock.at) / 1000);
+        dial.style.setProperty('--p', (100 * elapsed / clock.duration).toFixed(2) + '%');
+        timeEl.textContent = mmss(elapsed) + ' / ' + mmss(clock.duration);
+      }
+      tick();
+      setInterval(tick, 1000);
+      if(!NOWPLAYING_URL) return;
       async function poll(){
-        try{
-          const r = await fetch(`https://api.radiocult.fm/api/station/${RC_STATION_ID}/schedule/live`,
-                                { headers: { 'x-api-key': RC_PUBLISHABLE_KEY } });
-          const d = await r.json();
-          const m = d && d.result && d.result.metadata;
-          if(m){
-            const t = m.title || '';
-            const a = m.artist ? ' — ' + m.artist : '';
-            el.textContent = (t + a).trim() || '—';
+        try {
+          const answer = await fetchJson(NOWPLAYING_URL, { cache: 'no-store' });
+          const d = answer.result ? fromRadioCult.now(answer.result) : answer;
+          station.now = d;
+          const waiting = !d.title || /en attente/i.test(d.title);
+          if(d.show) setTicker(d.show, waiting ? '' : [d.title, d.artist].filter(Boolean).join(' — '));   // a show: its name, then the track
+          else setTicker(waiting ? 'Parabole Radio' : d.title, waiting ? 'Paris 18' : (d.artist || ''));
+          if(micro) micro.textContent = waiting ? (d.show || '—') : [d.artist, d.title].filter(Boolean).join(' — ');
+          if(radioControl){
+            radioControl.setOnAir(SOURCES[d.source] || 'À L’ANTENNE');
+            radioControl.setMeta(waiting ? (d.show ? { title: d.show } : null) : d);
           }
-        }catch(e){ /* keep last value on error */ }
+          const duration = Number(d.duration) || (Number(d.elapsed) + Number(d.remaining)) || 0;
+          const at = Date.parse(d.received_at);
+          clock = duration ? {
+            elapsed: Number(d.elapsed) || 0,
+            duration,
+            at: (Number.isFinite(at) && Math.abs(Date.now() - at) < duration * 1000) ? at : Date.now(),
+          } : null;
+          tick();
+        } catch(e){ /* keep the last values; the next poll tries again */ }
       }
       poll();
-      setInterval(poll, 20000);
+      setInterval(poll, 10000);
+    })();
+
+    // ---------- SCOPE: the player's screen ----------
+    // Decorative: it follows the player's state, not the sound itself. Off air, a test card in the
+    // site's colours; stopped, a calm carrier; connecting, static; playing, a busy trace whose level
+    // jumps like music. About 30 frames a second, and nothing at all while off air or out of sight.
+    (function playerScope(){
+      const canvas = document.getElementById('playerScope');
+      const player = document.getElementById('player');
+      if(!canvas || !player || !canvas.getContext) return;
+      const ctx = canvas.getContext('2d');
+      const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      let w = 1, h = 1, t = 0, level = 0.2, target = 0.6, running = false, last = 0;
+      function size(){
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        w = Math.max(1, canvas.clientWidth); h = Math.max(1, canvas.clientHeight);
+        canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      function testCard(){
+        const bars = ['#fff039', '#ffffff', '#000dff', '#000000', '#fff039', '#000dff', '#ffffff'];
+        const bw = w / bars.length, top = Math.round(h * 0.68);
+        bars.forEach((c, i) => { ctx.fillStyle = c; ctx.fillRect(Math.floor(i * bw), 0, Math.ceil(bw), top); });
+        ctx.fillStyle = '#000000'; ctx.fillRect(0, top, w, h - top);
+        ctx.fillStyle = '#fff039'; ctx.font = '700 9px "Monument Grotesk", sans-serif'; ctx.textBaseline = 'middle';
+        ctx.fillText('PAS DE SIGNAL', 6, (top + h) / 2);
+      }
+      const ghosts = [];   // the last traces, drawn fainter behind the new one: a scope's phosphor glow
+      function trace(amp, speed, noise){
+        const ys = [];
+        for(let x = 0; x <= w; x += 2){
+          const p = x / w, edge = Math.sin(Math.PI * p);   // quieter at the edges, like a scope
+          ys.push(h / 2 + edge * amp * h * 0.42 *
+            (0.55 * Math.sin(p * 10 + t * speed) + 0.3 * Math.sin(p * 27 - t * speed * 1.6) + 0.15 * Math.sin(p * 61 + t * speed * 2.7))
+            + (noise ? (Math.random() - 0.5) * noise * h : 0));
+        }
+        ghosts.unshift(ys);
+        ghosts.length = Math.min(ghosts.length, 3);
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#fff039';
+        for(let i = ghosts.length - 1; i >= 0; i--){
+          ctx.globalAlpha = [1, 0.35, 0.15][i];
+          ctx.lineWidth = i ? 1.5 : 2;
+          ctx.shadowColor = '#fff039'; ctx.shadowBlur = i ? 0 : 8;
+          ctx.beginPath();
+          ghosts[i].forEach((y, k) => k ? ctx.lineTo(k * 2, y) : ctx.moveTo(0, y));
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+      }
+      function draw(){
+        const state = player.dataset.state;
+        ctx.clearRect(0, 0, w, h);
+        if(state === 'off'){ ghosts.length = 0; testCard(); }
+        else if(state === 'playing'){
+          if(Math.random() < 0.12) target = 0.45 + Math.random() * 0.75;   // the level jumps, like beats
+          level += (target - level) * 0.25;
+          trace(level, 0.18, 0.02);
+        }
+        else if(state === 'loading' || state === 'error') trace(0.12, 0.06, 0.45);
+        else trace(0.1, 0.04, 0);
+        t++;
+      }
+      function loop(now){
+        if(now - last >= 33){ last = now; draw(); }
+        if(player.dataset.state === 'off'){ running = false; return; }
+        requestAnimationFrame(loop);
+      }
+      function wake(){
+        if(still){ draw(); return; }
+        if(!running){ running = true; requestAnimationFrame(loop); }
+      }
+      size();
+      draw();
+      new MutationObserver(wake).observe(player, { attributes: true, attributeFilter: ['data-state'] });
+      window.addEventListener('resize', () => { size(); draw(); });
+      document.fonts && document.fonts.ready.then(draw);   // the test card's text in Monument Grotesk
+      wake();
     })();
 
     renderAdmin();

@@ -3,6 +3,8 @@ PARABOLE RADIO — how to put this site online (Netlify)
 
 WHAT'S IN THIS FOLDER
 - index.html .......................... the whole website (this is what Netlify serves)
+- vercel.json ......................... the relay for Radio Cult's programme and history
+  (see "The player")
 - PARABOLE RADIO/VIDEO/BACKGROUND/ .... the 15 background clips (backgroundN.mp4), each
   with its first frame (backgroundN.jpg), shown while the clip loads
 - PARABOLE RADIO/OVERLAY/logo.webp .... the animated logo (top-left), loaded for every
@@ -19,9 +21,35 @@ of the <script> section holds everything you may want to change.
 - STAFF_PASSWORD ........ the staff password (change it before launch)
 - DEFAULT_SUBTITLE_URL .. where the yellow "contributors" button leads (your Google Form)
 - phrases ............... the texts that take turns on that button
-- RC_PUBLISHABLE_KEY .... your Radio Cult publishable key (pk_...), needed for
-                          "NOW PLAYING". Get it at app.radiocult.fm/settings/cms/api
+- STREAM_URL ............ the station's stream (Icecast)
+- NOWPLAYING_URL ........ what's on air
+- SCHEDULE_URL .......... the programme
+- HISTORY_URL ........... the last tracks played
+- STATION_TIMEZONE ...... the station's time zone, for the hours in the pop-ups
 - bgPlaylist ............ the list of background clips
+
+
+THE PLAYER
+----------
+The player, PROGRAMMATION and HISTORIQUE are the site's own: no embed. They read
+the station's public data at the addresses above.
+
+Today the station runs on Radio Cult (station parabole-radio-b02d5385): the
+player plays its stream and shows what's on air. Radio Cult lets only its own
+site read the programme and the history, so Vercel relays them under
+/radiocult/ (see vercel.json). These two pop-ups therefore fill in on the site
+online; on the computer, "python3 -m http.server" can't relay them and they
+say "indisponible".
+
+Later, Radiocompas (BUTTON): put its addresses in SETTINGS instead (now.json,
+/public/programme.json, /public/historique.json). The page reads both formats,
+nothing else to change; vercel.json can then go. Each address must answer from
+another site (CORS): the nowplaying service and the public routes of
+Radiocompas do.
+
+An address left "" switches that part off without breaking the site: the player
+shows "HORS ANTENNE" (and plays nothing), the pop-ups say the content is coming
+soon.
 
 
 BEFORE YOU DEPLOY — do these 4 things
@@ -67,6 +95,8 @@ PREVIEW ON YOUR COMPUTER
 In a terminal, inside this folder:
       python3 -m http.server 8000
 then open  http://localhost:8000 . If a change doesn't show up, reload the page.
+PROGRAMMATION and HISTORIQUE stay empty there: they come through Vercel (see
+"The player").
 
 
 DEPLOY ON NETLIFY (no account file needed, it's free)
