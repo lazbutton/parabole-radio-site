@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parabole Radio — Live Community Radio • Paris</title>
+  <meta name="description" content="Parabole Radio — Union de la Jeunesse Internationale community radio. Live stream from Paris.">
+
+  <!-- Favicon (satellite-dish emoji, no file needed). Swap for your own logo later if you like. -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+
+  <!-- Open Graph / social share preview. UPDATE the URL + image once the site is live. -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Parabole Radio — Live Community Radio • Paris">
+  <meta property="og:description" content="Union de la Jeunesse Internationale community radio. Live stream from Paris. Ça va péter !!!">
+  <meta property="og:url" content="https://REPLACE_WITH_YOUR_DOMAIN">
+  <meta property="og:image" content="https://REPLACE_WITH_YOUR_DOMAIN/PARABOLE%20RADIO/share-image.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <!-- Monument Grotesk is used for all text: fetch both weights right away -->
+  <link rel="preload" href="PARABOLE%20RADIO/FONTS/MonumentGrotesk-Regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="PARABOLE%20RADIO/FONTS/MonumentGrotesk-Bold.woff2" as="font" type="font/woff2" crossorigin>
+  <style>
+    @font-face {
+      font-family: 'Monument Grotesk';
+      src: url("PARABOLE%20RADIO/FONTS/MonumentGrotesk-Regular.woff2") format('woff2');
+      font-weight: 400; font-style: normal; font-display: swap;
+    }
+    @font-face {
+      font-family: 'Monument Grotesk';
+      src: url("PARABOLE%20RADIO/FONTS/MonumentGrotesk-Bold.woff2") format('woff2');
+      font-weight: 700; font-style: normal; font-display: swap;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Monument Grotesk', 'Inter', system-ui, sans-serif; background: #000000; overflow-x: hidden; }
+    /* Background video always fills the screen, whatever its aspect ratio */
+    #backgroundVideo {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover !important;
+      object-position: center center;
+      display: block;
+    }
+    @keyframes marqueeExtraSlow { 0% { transform: translateX(0%); } 100% { transform: translateX(-50%); } }
+    .animate-marquee-retro-slow { animation: marqueeExtraSlow 130s linear infinite; }
+    .marquee-container:hover .animate-marquee-retro-slow { animation-play-state: paused; }
+    input[type="range"] { -webkit-appearance: none; background: #000dff; height: 4px; }
+    input[type="range"]:focus { outline: none; }
+    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; background: #fff039; border: 2px solid #fff039; cursor: pointer; border-radius: 0px; }
+    
+    /* Contributors link: same size/shape as .donate-btn, yellow variant */
+    .donate-btn.cycle-subtitle {
+      background: #fff039;
+      color: #000dff;
+      border: 2px solid #fff039;
+      justify-content: center;
+      width: 325px;
+      max-width: 90vw;
+      transition: 0.15s ease;
+    }
+    .donate-btn.cycle-subtitle:hover { background: #000dff; color: #fff039; transform: scale(0.97); text-decoration: none; }
+    
+    .logo-square {
+      width: 46px;
+      height: 46px;
+      background: transparent;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      overflow: hidden;
+      flex-shrink: 0;
+      touch-action: manipulation;   /* double-tap = staff login, not page zoom */
+    }
+    .logo-square:hover { opacity: 0.8; }
+    .logo-square img { width: 78%; height: 78%; object-fit: contain; }
+    .top-bar { height: 44px; overflow: hidden; }
+    .sound-toggle { background: #fff039; color: #000dff; border: 2px solid #fff039; height: 30px; padding: 0 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-family: inherit; font-weight: 700; font-size: 11px; letter-spacing: 0.04em; line-height: 1; border-radius: 0; flex-shrink: 0; transition: 0.15s; }
+    .sound-toggle:hover { background: #fff; }
+    .marquee-text { font-size: 1.8rem; line-height: 1; font-weight: 500; letter-spacing: 0.04em; word-spacing: 0.5em; }
+    
+    .logo-separator { width: 2px; height: 100%; background-color: #fff039; flex-shrink: 0; }
+    
+    .overlay-canvas-container {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      display: none;
+    }
+    .overlay-canvas { position: absolute; }
+    .logo-overlay {
+      position: absolute;
+      top: 34px; left: 2px;
+      width: 156px;
+      height: auto;
+      pointer-events: none;
+      z-index: 1;
+    }
+    @media (max-width: 640px) { .logo-overlay { width: 110px; top: 36px; left: 0px; } }
+
+    /* Micrographic spec text (top-right, technical style) */
+    .micro-spec {
+      position: fixed; top: 52px; right: 16px; z-index: 10;
+      width: 300px; max-width: 46vw;
+      font-family: 'Monument Grotesk', 'Space Grotesk', 'Inter', sans-serif;
+      font-weight: 400;
+      font-size: 6px; line-height: 1.2; letter-spacing: 0.04em;
+      text-transform: uppercase; text-align: right;
+      color: #000dff; pointer-events: none;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+    .micro-spec .micro-gap { height: 7px; }
+    .micro-spec .micro-row { display: flex; justify-content: space-between; gap: 12px; }
+    @media (max-width: 640px) { .micro-spec { font-size: 5px; top: 50px; right: 10px; max-width: 54vw; } }
+    .overlay-controls {
+      position: fixed;
+      bottom: 200px;
+      right: 10px;
+      z-index: 45;
+      background: rgba(0,0,0,0.85);
+      padding: 8px 12px;
+      border-radius: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: auto;
+      font-family: monospace;
+      font-size: 10px;
+      min-width: 160px;
+    }
+    .overlay-controls .control-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: space-between;
+    }
+    .overlay-controls button {
+      background: white;
+      border: none;
+      padding: 4px 8px;
+      font-size: 10px;
+      font-weight: bold;
+      cursor: pointer;
+      border-radius: 0;
+    }
+    .overlay-controls input { width: 100px; }
+    .overlay-controls label { color: white; }
+    .alpha-note {
+      position: fixed;
+      bottom: 310px;
+      right: 10px;
+      background: #000000aa;
+      color: #ffdd44;
+      font-size: 9px;
+      padding: 4px 8px;
+      border-radius: 0;
+      pointer-events: none;
+      z-index: 45;
+      font-family: monospace;
+    }
+    
+    .bottom-social {
+      display: flex;
+      gap: 0.5rem;
+      margin-left: 0.5rem;
+    }
+    .bottom-social a {
+      background: #000000;
+      color: #ffffff;
+      border: 2px solid #fff039;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 0;
+      font-size: 0.9rem;
+      transition: 0.2s;
+      text-decoration: none;
+    }
+    .bottom-social a:hover { background: #fff039; transform: scale(0.96); }
+
+    /* ---------- DONATE BUTTON ---------- */
+    .donate-btn {
+      background: #000000;
+      color: #ffffff;
+      border: 2px solid #fff039;
+      height: 34px;
+      padding: 0 1rem;
+      margin-left: 0.5rem;
+      font-weight: 700;
+      font-size: 0.85rem;
+      line-height: 1;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      cursor: pointer;
+      border-radius: 0;
+      transition: 0.15s;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .donate-btn:hover { background: #fff039; color: #000dff; transform: scale(0.97); }
+
+    /* Inline SVG icons (sprite at the top of <body>): fixed 1.25em box, takes the text colour */
+    .icon { width: 1.25em; height: 1em; fill: currentColor; flex-shrink: 0; }
+    
+    /* ---------- FLOATING LAYER (no bar) ---------- */
+    #floatLayer { position: fixed; inset: 0; z-index: 20; pointer-events: none; }
+    #floatLayer .float-item { pointer-events: auto; }
+    .float-player  { position: absolute; left: 24px;  bottom: 24px; }
+    /* Buttons wrap onto extra rows (stacking upward) rather than running into the player */
+    .float-actions {
+      position: absolute; right: 24px; bottom: 24px;
+      display: flex; align-items: center;
+      flex-wrap: wrap; justify-content: flex-end;
+      gap: 0.5rem;
+      max-width: calc(100vw - 380px);
+    }
+    .float-actions > * { margin-left: 0; }
+    /* Pop-ups (toggled by the CHAT / PROGRAMMATION buttons) */
+    .chat-popup, .schedule-popup, .lastplayed-popup {
+      position: fixed;
+      right: 24px;
+      bottom: 96px;
+      width: min(420px, calc(100vw - 24px));
+      border: 2px solid #fff039;
+      background: #000000;
+      z-index: 40;
+      display: none;
+    }
+    .chat-popup.open, .schedule-popup.open, .lastplayed-popup.open { display: block; }
+    .chat-popup iframe, .schedule-popup iframe, .lastplayed-popup iframe { display: block; position: relative; width: 100%; height: min(520px, 65vh); border: 0; }
+    /* Loading label behind each embed — visible until the embed paints over it */
+    .chat-popup::before, .schedule-popup::before, .lastplayed-popup::before {
+      content: 'CHARGEMENT…';
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff039; font-weight: 700; font-size: 11px; letter-spacing: 0.04em;
+    }
+    .chat-close {
+      position: absolute; top: -13px; right: -2px;
+      width: 26px; height: 26px;
+      background: #fff039; color: #000dff;
+      border: 2px solid #fff039;
+      font-size: 16px; font-weight: 900; line-height: 1;
+      cursor: pointer; z-index: 2; border-radius: 0;
+    }
+    @media (max-width: 640px) { .chat-popup iframe, .schedule-popup iframe, .lastplayed-popup iframe { height: min(440px, 55vh); } }
+
+    /* On narrow screens, stack the floaters in a column above the bottom edge */
+    @media (max-width: 820px) {
+      #floatLayer { display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; padding: 12px; padding-bottom: 26px; top: 60px; overflow-x: hidden; }
+      .float-player, .float-actions { position: static; transform: none; }
+      .float-player { display: flex; justify-content: center; width: 100%; }
+      .float-actions {
+        flex-wrap: wrap; justify-content: center; gap: 8px;
+        width: 100%; max-width: 100%;   /* override the desktop reserve */
+      }
+      .donate-btn { margin-left: 0; }
+      .donate-btn.cycle-subtitle { width: 100%; max-width: 100%; }
+      /* put the social icons after HISTORIQUE so they share the last line */
+      .bottom-social { order: 10; margin-left: 0; }
+    }
+
+    /* ---------- RADIO CULT EMBED (scaled down to ~80%) ---------- */
+    /* To resize: change the 0.8 scale below, and keep width≈380×scale, height≈144×scale. */
+    .radiocult-player { width: 304px; height: 116px; overflow: hidden; flex-shrink: 0; }
+    .radiocult-player iframe { display: block; width: 380px; height: 144px; border: 0; transform: scale(0.8); transform-origin: top left; }
+    @media (max-width: 640px) {
+      .radiocult-player { width: 100%; height: 116px; }
+      .radiocult-player iframe { width: 125%; }
+    }
+
+    .admin-url-input {
+      background: white;
+      border: 1px solid #fff039;
+      color: #000dff;
+      font-size: 9px;
+      padding: 2px 4px;
+      height: 28px;
+      width: 130px;
+      outline: none;
+    }
+    .admin-url-button {
+      background: white;
+      border: none;
+      height: 28px;
+      padding: 0 6px;
+      font-weight: bold;
+      font-size: 9px;
+      cursor: pointer;
+    }
+  </style>
+  <!-- Tailwind utility classes, generated once from Tailwind CSS v3.4.17 (no more CDN script).
+       Loaded after the <style> block above, where the CDN used to inject them. -->
+  <link rel="stylesheet" href="PARABOLE%20RADIO/CSS/tailwind.css">
+</head>
+<body class="antialiased">
+
+  <!-- Icons: Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com - License: https://fontawesome.com/license/free (Icons: CC BY 4.0) -->
+  <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
+    <symbol id="icon-instagram" viewBox="0 0 448 512"><path d="M224.1 141c-63.6 0-114.9 51.3-114.9 114.9s51.3 114.9 114.9 114.9S339 319.5 339 255.9 287.7 141 224.1 141zm0 189.6c-41.1 0-74.7-33.5-74.7-74.7s33.5-74.7 74.7-74.7 74.7 33.5 74.7 74.7-33.6 74.7-74.7 74.7zm146.4-194.3c0 14.9-12 26.8-26.8 26.8-14.9 0-26.8-12-26.8-26.8s12-26.8 26.8-26.8 26.8 12 26.8 26.8zm76.1 27.2c-1.7-35.9-9.9-67.7-36.2-93.9-26.2-26.2-58-34.4-93.9-36.2-37-2.1-147.9-2.1-184.9 0-35.8 1.7-67.6 9.9-93.9 36.1s-34.4 58-36.2 93.9c-2.1 37-2.1 147.9 0 184.9 1.7 35.9 9.9 67.7 36.2 93.9s58 34.4 93.9 36.2c37 2.1 147.9 2.1 184.9 0 35.9-1.7 67.7-9.9 93.9-36.2 26.2-26.2 34.4-58 36.2-93.9 2.1-37 2.1-147.8 0-184.8zM398.8 388c-7.8 19.6-22.9 34.7-42.6 42.6-29.5 11.7-99.5 9-132.1 9s-102.7 2.6-132.1-9c-19.6-7.8-34.7-22.9-42.6-42.6-11.7-29.5-9-99.5-9-132.1s-2.6-102.7 9-132.1c7.8-19.6 22.9-34.7 42.6-42.6 29.5-11.7 99.5-9 132.1-9s102.7-2.6 132.1 9c19.6 7.8 34.7 22.9 42.6 42.6 11.7 29.5 9 99.5 9 132.1s2.7 102.7-9 132.1z"/></symbol>
+    <symbol id="icon-youtube" viewBox="0 0 576 512"><path d="M549.655 124.083c-6.281-23.65-24.787-42.276-48.284-48.597C458.781 64 288 64 288 64S117.22 64 74.629 75.486c-23.497 6.322-42.003 24.947-48.284 48.597-11.412 42.867-11.412 132.305-11.412 132.305s0 89.438 11.412 132.305c6.281 23.65 24.787 41.5 48.284 47.821C117.22 448 288 448 288 448s170.78 0 213.371-11.486c23.497-6.321 42.003-24.171 48.284-47.821 11.412-42.867 11.412-132.305 11.412-132.305s0-89.438-11.412-132.305zm-317.51 213.508V175.185l142.739 81.205-142.739 81.201z"/></symbol>
+    <symbol id="icon-soundcloud" viewBox="0 0 640 512"><path d="M111.4 256.3l5.8 65-5.8 68.3c-.3 2.5-2.2 4.4-4.4 4.4s-4.2-1.9-4.2-4.4l-5.6-68.3 5.6-65c0-2.2 1.9-4.2 4.2-4.2 2.2 0 4.1 2 4.4 4.2zm21.4-45.6c-2.8 0-4.7 2.2-5 5l-5 105.6 5 68.3c.3 2.8 2.2 5 5 5 2.5 0 4.7-2.2 4.7-5l5.8-68.3-5.8-105.6c0-2.8-2.2-5-4.7-5zm25.5-24.1c-3.1 0-5.3 2.2-5.6 5.3l-4.4 130 4.4 67.8c.3 3.1 2.5 5.3 5.6 5.3 2.8 0 5.3-2.2 5.3-5.3l5.3-67.8-5.3-130c0-3.1-2.5-5.3-5.3-5.3zM7.2 283.2c-1.4 0-2.2 1.1-2.5 2.5L0 321.3l4.7 35c.3 1.4 1.1 2.5 2.5 2.5s2.2-1.1 2.5-2.5l5.6-35-5.6-35.6c-.3-1.4-1.1-2.5-2.5-2.5zm23.6-21.9c-1.4 0-2.5 1.1-2.5 2.5l-6.4 57.5 6.4 56.1c0 1.7 1.1 2.8 2.5 2.8s2.5-1.1 2.8-2.5l7.2-56.4-7.2-57.5c-.3-1.4-1.4-2.5-2.8-2.5zm25.3-11.4c-1.7 0-3.1 1.4-3.3 3.3L47 321.3l5.8 65.8c.3 1.7 1.7 3.1 3.3 3.1 1.7 0 3.1-1.4 3.1-3.1l6.9-65.8-6.9-68.1c0-1.9-1.4-3.3-3.1-3.3zm25.3-2.2c-1.9 0-3.6 1.4-3.6 3.6l-5.8 70 5.8 67.8c0 2.2 1.7 3.6 3.6 3.6s3.6-1.4 3.9-3.6l6.4-67.8-6.4-70c-.3-2.2-2-3.6-3.9-3.6zm241.4-110.9c-1.1-.8-2.8-1.4-4.2-1.4-2.2 0-4.2.8-5.6 1.9-1.9 1.7-3.1 4.2-3.3 6.7v.8l-3.3 176.7 1.7 32.5 1.7 31.7c.3 4.7 4.2 8.6 8.9 8.6s8.6-3.9 8.6-8.6l3.9-64.2-3.9-177.5c-.4-3-2-5.8-4.5-7.2zm-26.7 15.3c-1.4-.8-2.8-1.4-4.4-1.4s-3.1.6-4.4 1.4c-2.2 1.4-3.6 3.9-3.6 6.7l-.3 1.7-2.8 160.8s0 .3 3.1 65.6v.3c0 1.7.6 3.3 1.7 4.7 1.7 1.9 3.9 3.1 6.4 3.1 2.2 0 4.2-1.1 5.6-2.5 1.7-1.4 2.5-3.3 2.5-5.6l.3-6.7 3.1-58.6-3.3-162.8c-.3-2.8-1.7-5.3-3.9-6.7zm-111.4 22.5c-3.1 0-5.8 2.8-5.8 6.1l-4.4 140.6 4.4 67.2c.3 3.3 2.8 5.8 5.8 5.8 3.3 0 5.8-2.5 6.1-5.8l5-67.2-5-140.6c-.2-3.3-2.7-6.1-6.1-6.1zm376.7 62.8c-10.8 0-21.1 2.2-30.6 6.1-6.4-70.8-65.8-126.4-138.3-126.4-17.8 0-35 3.3-50.3 9.4-6.1 2.2-7.8 4.4-7.8 9.2v249.7c0 5 3.9 8.6 8.6 9.2h218.3c43.3 0 78.6-35 78.6-78.3.1-43.6-35.2-78.9-78.5-78.9zm-296.7-60.3c-4.2 0-7.5 3.3-7.8 7.8l-3.3 136.7 3.3 65.6c.3 4.2 3.6 7.5 7.8 7.5 4.2 0 7.5-3.3 7.5-7.5l3.9-65.6-3.9-136.7c-.3-4.5-3.3-7.8-7.5-7.8zm-53.6-7.8c-3.3 0-6.4 3.1-6.4 6.7l-3.9 145.3 3.9 66.9c.3 3.6 3.1 6.4 6.4 6.4 3.6 0 6.4-2.8 6.7-6.4l4.4-66.9-4.4-145.3c-.3-3.6-3.1-6.7-6.7-6.7zm26.7 3.4c-3.9 0-6.9 3.1-6.9 6.9L227 321.3l3.9 66.4c.3 3.9 3.1 6.9 6.9 6.9s6.9-3.1 6.9-6.9l4.2-66.4-4.2-141.7c0-3.9-3-6.9-6.9-6.9z"/></symbol>
+    <symbol id="icon-comment" viewBox="0 0 512 512"><path d="M512 240c0 114.9-114.6 208-256 208c-37.1 0-72.3-6.4-104.1-17.9c-11.9 8.7-31.3 20.6-54.3 30.6C73.6 471.1 44.7 480 16 480c-6.5 0-12.3-3.9-14.8-9.9c-2.5-6-1.1-12.8 3.4-17.4l0 0 0 0 0 0 0 0 .3-.3c.3-.3 .7-.7 1.3-1.4c1.1-1.2 2.8-3.1 4.9-5.7c4.1-5 9.6-12.4 15.2-21.6c10-16.6 19.5-38.4 21.4-62.9C17.7 326.8 0 285.1 0 240C0 125.1 114.6 32 256 32s256 93.1 256 208z"/></symbol>
+    <symbol id="icon-calendar" viewBox="0 0 448 512"><path d="M96 32V64H48C21.5 64 0 85.5 0 112v48H448V112c0-26.5-21.5-48-48-48H352V32c0-17.7-14.3-32-32-32s-32 14.3-32 32V64H160V32c0-17.7-14.3-32-32-32S96 14.3 96 32zM448 192H0V464c0 26.5 21.5 48 48 48H400c26.5 0 48-21.5 48-48V192z"/></symbol>
+    <symbol id="icon-history" viewBox="0 0 512 512"><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></symbol>
+    <symbol id="icon-video" viewBox="0 0 576 512"><path d="M0 128C0 92.7 28.7 64 64 64H320c35.3 0 64 28.7 64 64V384c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V128zM559.1 99.8c10.4 5.6 16.9 16.4 16.9 28.2V384c0 11.8-6.5 22.6-16.9 28.2s-23 5-32.9-1.6l-96-64L416 337.1V320 192 174.9l14.2-9.5 96-64c9.8-6.5 22.4-7.2 32.9-1.6z"/></symbol>
+    <symbol id="icon-layer-group" viewBox="0 0 576 512"><path d="M264.5 5.2c14.9-6.9 32.1-6.9 47 0l218.6 101c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 149.8C37.4 145.8 32 137.3 32 128s5.4-17.9 13.9-21.8L264.5 5.2zM476.9 209.6l53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 277.8C37.4 273.8 32 265.3 32 256s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0l152-70.2zm-152 198.2l152-70.2 53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 405.8C37.4 401.8 32 393.3 32 384s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0z"/></symbol>
+  </svg>
+
+  <input type="file" id="videoUploadInput" accept="video/*" class="hidden" />
+  <input type="file" id="logoUploadInput" accept="image/*" class="hidden" />
+  <input type="file" id="overlayUploadInput" accept="video/*" class="hidden" />
+
+  <main class="relative min-h-screen w-full flex flex-col overflow-hidden bg-black">
+    <!-- Background Video – the clip is picked by the playlist script (bgPlaylist), from PARABOLE RADIO/VIDEO/BACKGROUND/.
+         No <source> here: it made the browser start downloading background.mp4 before the script swapped it. -->
+    <div class="fixed inset-0 w-full h-full z-0 overflow-hidden bg-black">
+      <video id="backgroundVideo" class="w-full h-full object-cover" autoplay loop muted playsinline></video>
+      <div class="absolute inset-0 bg-[#000dff]/20 mix-blend-overlay pointer-events-none"></div>
+      <!-- Animated logo: WebP (1.2 MB) for current browsers, APNG (4.4 MB) as fallback -->
+      <picture>
+        <source srcset="PARABOLE%20RADIO/OVERLAY/logo.webp" type="image/webp">
+        <img id="logoOverlay" class="logo-overlay" src="PARABOLE%20RADIO/OVERLAY/logo.apng" alt="Parabole Radio">
+      </picture>
+      <div id="overlayCanvasContainer" class="overlay-canvas-container">
+        <canvas id="overlayCanvas" class="overlay-canvas"></canvas>
+      </div>
+    </div>
+
+    <!-- TOP BAR -->
+    <div class="fixed top-0 left-0 right-0 z-30 bg-black border-b-2 border-[#fff039] flex items-center overflow-hidden top-bar">
+      <div id="logoSquare" class="logo-square"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAAig0lEQVR42u1dd5hcxZGvnpmVUEIBCQQIZEAkk0U6cjDYBCOLcEYCE84GEYwIZ2zLcCbZBp/BFgjBgW0wHGB8Bkww2ERhMgIsG5MFIktIAiRAcXdn5nd/vCqmtrbfm35hxUrwvm+/2d15r193dVV1hV9XO1rBLgDOOQcAfYnoZCJan4iGEdFqRDSIiPoSUS8i6mEebSOiJUS0kIjmEdEcInqXiGYQ0WTn3EfS9opEL7cCM8BAInqPiHoW0OzqzrnZKyIDlFY0BuDJd865+UT0AhHViKidiOpEBP6J5R/+qRNRlZ99kYjmStsrGr1K3VGCAbiCxvUOEZX57xJrPNdEIzp1b5mIZjrn6gBK3WBcKzYDACg751CApAmhZyjJTt0d00Ypr2Zi7VT+ggE8E89EqgFoATBUpCZn09ML6N6reSWfP4cAaHHO1fSYP9cMAKAEoMQTXwIwloimEdFtTLisDCDS+3qOccq7X8uhRXQ7fyCiaQDGmjGvcHZY6HpYVn8fCOBpdLz2yCopQlQAGwKocXt1pLvk/i10m2k1G491O/P+pwEcaO/7vEy+nvjtANyjCFMF0Mq/35WD8KJ2VwYwNwMDyL0fARicdTmSsQL4P26vlcco1z0AtvPRZoWWegADAExUxKgpSZW/qwA2t9oiw3v/odoMveTeF5U2cWm1EPd9fZ74umd8wvQXAxiwwmoDI/WjALxmpN5e7fz5uxzLgDDbrabNkEv6dHce9c+flya8X4/9NQCjVjhtAKDCn/0AXOGZ5DgVXAewCMDaLEmljO+9KAMDyL2X6bYySP9qAD5W42n2PjCN+mV5b7fyAkR1O+eqALYloseJ6DiOstWJqNLEcq4RUW8iOpHjAln7mseNy/psift8LBGtzGNJUusVRZfjiOhxANsy7ZbvJQHAOABLMkihSM37AAamjaQpFbxXBhtAVPPX06pj6SeAvgBm8hhqGbTPUgDjlldjrwSgB4BJHsMKGYhxWlqVqIy3DWLsjBDm2yytDaCWnnEJNk6oEQqmYYssK8uNwQfgWh5AWwYfXBOiDuB1AD3TaAHlCvYDMCeFKyj3zAewSloPgPtYYQ+inpHxpR9t/PuNXWUYlrqGB+CI6GoiWkBRQiVP/+pEtA4RHczralB7khWkKL8/k9tppyjLl/QjmcNZRDRf2gqVfr7360S0MbdTyjn+pUR0HY8Fy8syIFrgG0oNZtUC8uwzId4Aq8oK/7QYVzDN9Vd+tkW1Vwpcdh7Nof5F+mX5O7wr3cIucTMkqeOcux3AeCK6lKUry/vKLElbE9Fezrn72LuoKfVcil7rqs45saZlUvpRlBSaRkRvUoT2+YiIFrF0ERGtRER9iGgAEa1CRMOJ6GUA/ZxzC2LWeRBRXbSD9AnAzkS0E/ch66RViaiFiM5wzt3AtGxfHg1CkcALlT2QVQsAwD06ieQzCgGMADCGo2tTAMwGcHWGvl8O4D0AD3BbYwCM8DED90W03m0ZPB6f4fs/yyoW0NUeQcXEw9tzGIQ1AFtoo4yJvyOACzjJ0up59lE1Wc1+hGmneNpp5XdcwO8smbFuxOOr55z8OyWOstyHhZVb2BPAYznWRkmk3KIk/UwAz8ZojHY1GW8B6NnMoleeQwXAq8oSb4/p87Pch/X5ueuZSVtzaLlpHENIHf3szkwgxtEQlQeopjCI9L0Pc7h0kcdoqhnpq6ugylrNfHrFAEMBLPS4juLWWSlfBOBKAA95jNc0fv87AIZlzT90q1CwMQrrbCS9T0Sj2AgraWMt5pIQapmI/kVERxHR7uza9SaiVm7DsYFZMiFXcZ16EtFa6n9JIWiiCEbeh5+17ZX4XY7fvZT7UiOiPYnoSO5rWYW0ky6hwSIi+oZz7l2mVZ1WtEvZA3uyhMRJiU4PzwYwHkAP1c6QwCQLPO5UJaB/hwRqKXn/QgBrqHZ6cJ9nx6S7fdrt68u90ZeSCY5SE1SPSZFebQhbVs9fHmhUyvdnp2CACSnbvlrZDjr1vQaPIS71Lc+f8LmYfI97+GNDiHa1Fo42rpZTVr9juFdbilTrdSkY4KpABhAJ3swAXpx+D4DRPCbfWH+uadKt3bmiXBLjHv7WEOR2hQr2ukGK0DcHTFTVuIIuwFh9MGAJkO/ujIvUGaYYymPT/f29ZfCiIrFd5j4WZZ0qP7cC4C+8Rp5jpTFpgAB2CMg0yneJrqBxAWekaHf3ZqFaow3O4eemsGtcKlCwis0Yqtz2YADHGSK5AtoXLfBlAGekaVtJ60NNpDXIFVRjW125mPUm+YknQ4XCaL0JCm3cUtBcaSY7gucs324kpb4u5oE/UhSKVbW9KkfX3gKwXgqCCjEPCFDXMpE7Jahr6c+2AaljedchocabYti1OBbyNIDViqIj/74pgLu5bxfnalsRZEsecJuK5/8MQK+s640ixlAAzynCPgegf2gUTNkmzzXJvcua+624CVMM9c0mDCXBplfY3XOBqrkEoA9nNfV4h2ZZWo1GqQD4kdJcErncMjMTKAaYogiiifIvAHul1QYmKvic6rBM0r3MVE0ZSxHgO00mTdo+J4ABzmhiWMo7TgyRfmMI3uEZ73MAhqRhAiP1OwKYavonfZySiQFUh33qtW6IcxmAQSHaQOUF+qhOt3sm6qoUxHXc3jsJWkDavT6AAX6XwAAi/e/xphOXgkknezKi8o6pPIZSAP1kbvoC+IUab1w85YDUTKBAFc96YvG+aN3rAA5OsuATJCFuss4KZIIQyZX+P6aWjbL5qfB3DwXsVzg3sG8S7/hBQjpc2rwjxPXl3/dlyBkSmF4M1WdDwCw+gh4aGA7VBL9BJzNMutTi9NsC2jw6wCUULbAqb+XSgaG62m5WBfB2AKrnDfNM3YR9P2FPwTVJLMl4x8RIqL6EFhd5LHqNNRgC4DeBeyv03B0aHGmUFwL4Z4L0J2mDOQC+baJ4lqlCI2xVAF8JiQvw5ySVOva9YwmAbThytzuAvflnd96GNtJkGTWhWw1Qoxww+bvwc7UUOYtDLd3477HMwEm5hTgt8E+e01Ko9O+fEcqtmeUuABuqtr/ECZzQzgvR5gP4chLRTXi4aiRrKiOSDuF4w9SEdz7D9xzCz0w1mqoOYJMk6VfMuD7vaUCK8daYRl8ydLsphdTHBaz2b6oFlIX+QArpT8pwLQBwGqvnJz0GZChDzQCwakIQp6SY90oA03nd3chz7y1KSwjRZZJv99y/Ebc13SR9Sgn0GwTg5QzgF5HYJwCsAuB4AB/mBNbKcw8kehqKczcPVFlptMHlAP4eA/AIbedxX+jUGEf7MfSsjydWsBI/e36C93GhQi9VzHt6A7hRJMnzbglttwD4WwZp1TR/XnkNedDFFsiyeawmVRI0KSd2z2qCOYg2Sbaw21INMIri1sc/Kku5pCRuEwXGBDNCRYdZPTEDHwMc5zHCBBb+VXX/bQA2MUGeioKFpaGf1YqTmNmGMu2qBQijtD/JuwyoOHhf9nFRoAb4rtEwO/BykJa7O1jKqu+nK8OtjTn9Yavu1Pv38KzL8vveHskuqYCYxvstAnC66cv5KdHPeuzTVGJJ3vndAjUAeG77dkqIKe49qKAXijp7CWpfmwldTlATF8rlwsmnAlhTxRN0n2UydzATL0RdT7WjXcYqgA3MvZJ13Nb425o+dzDw48QUmk1L/VLOEPbUyTCmWQvTMM8WM0ufgzppAUWkP2Yw1JJeNsajUm3y4t4U2kCHT69TBKx77rnZjE20XB+j5erKfe1n7pVn/+BR63WlDX7PofE0vjnYVhgZQxsbR6gWsAzU9TJq1f8gAB+gI5w6j/S/gMamCdckfXk8vztJGwgBXuOMWn+VS6h6cHpt7BY6mDIvaBSkqirJmmbuEa01QjGZL9T6EtNOsnxxk6WN348AnOJDPHnC5hWmZd6NpgKV/wBRGd1orIrL94shelojRAZ5TEAARxtySf6uDPxdAOuo59dFY+dvzfPs5UaS5fMmkzUDgD/F3DspoT8fyLLB967DfbT90QxxOxr7CEKjicdk0AJ60u11QCctwAbgTgDOYz+01SPZ7U24UBhlNqJt2UGABKMNxpiIl0jpQgBbWfAlZ8OWGjdKh22HamniZy7wZOV+oX38gPByG4BdPWDVrbivNaNhZgE4KgTx5Alz90MDYVxvon19m1gkGvhL9mb6N50bVn3HcuBkdsyaUo1ZfyemRbk2iXkDURFJyyxC9H/3GGCd0MDq/v/wMMCxnvvONG1p++iwhP6MMX2/FsDqvhxJitzMxTF2SDVmyZ4P4K9sMG+WFqNn16OBnIG6xAA4tIrTDLF1ViCCMYT24Qjcr/jvngkZt+8ZAolGmIXGVish5u6emPpXjBXeh9W5XnvFvZuQkPUUa/5XHME8IA+CSgnF1mbCfcvBqyw4BwvayDJTMIBHGSBlz/+3ZILfx7FrGJRLD+TADfIEtCgVf4EibNnDoHFBLCHS8bJhQ9kONi8/wtxzrGkjcdeuYbAWAD8FsIv6Ow8tKkzT5w2tFyOC6f0YwL9BbZ4xc5gPyKu1g+e7NTjLdxVLzI88CN7UnVA++G0qUbNbUhiWf9fbszvFI1RYd5Yi5GwVIPFZ3p/u2vUxoenLTirhdBsyFLpU9LbCN4GN3hsAHK0NYkO3LoWFuzjOYmPlVs75765j8pYjmyBfbNROS+slAPrbiVD96g3gKY+bd6DRFk/pLKD57hvGCAXnMvpat1L1tR+P2y4XTWseN6FpT46e/gTRPohBMRris9lKLuqaOzDcqKi3OTZ+OBiSHbImmayknsi6WutGeRimpLTSW2YiHjOT/Edl3d9s7IlHzLOddu0aqd9fZf/qhnG8WbgmWnUop6R/i45VVYGocGZZa7TusHNIiHpYTHROUsNTWI1t7VlDS+hYoGFkTPCjPcG61hK5BbuB2nLfWb3vAtXOzw3IUi8hC5T7WTYaYDU0tpH5ooDCtCO1h+FR7Y6zsKchKiD9kceNE5oeltbDWpYMMMljicdZrC8hApQeAK7Ibdq8GB3h6HEIpFkAjrQ2h8LO1VXu/1Z139FsRC02CKY/maTP/jb2wH8fboI+tZgEVg2M0TfjG8BezkQOI9djPKuaoekl3ZEBRCIeDgiF+iJT73OE7AREhR37oVGgISki2W5StCOURInXMM48M0Kt2cP4Z2WVKNLX8WoddsqD+FOC1Pt884VsP6zL3sXNKh/RLLZio4kPF7lFrxAbQFnWM1OkkuMii20cfDqHDbVmEUkbYz9Z9W0l/vxv9sn30ZPpUcM9WWvMAHChboN/PwnAPE/OIm4s7Zzm/RmHn5cmjCUkgwimce9OKd1uIP02zZolWbFEqzmFrRvHUjcnQWq0JD4o67aa3H4xlnfJY4SubNy8LZRBGvdOqPzAHZzL31gJiCyPSzKCPHSEc71uowWU0bVrCgBks0TSaBhUrMpY7sfEfCGGGZYqQ/Qsxta50EgcOu7xHwTgvxRjLo2Z9JcY9jbK2jPK8BtdQFpXaLtr3j2FXWEAHlrAAGWQG1u4lcdyLnPi5fsA7meL30es3TPkJWRMu8Uw9QLWMhMQwcwrCfEOYaiNCwR1HNptDEFFrPE5sYR1ZRD2961xTXznNRFh569FtFMJaBSFKOVY2qTs6xsMQkkb0xDt0x8NmHjeOoLji2KAIvb5S1pxIDWOXs1S1FgKK39ARAu5TQfAd59MkFTtqjvnZhLRjUR0I6KdyztTVI0s73Uaj+1R59xis1SUqHHUbM1OuqIPUVTZ7AOKStFmLSIttB2g6JNr/ioFnNLZLlArnpCsBQ9ExS+QOsDU/JxfIk8ZNufcEiK6T/2duuSaPOOcezrm+xo1LwHXoZ8AFlCj7F2WS2jbl+etvQgNMDBvG9QoBD2fsheFrjFh5nGfQuoIxs4f/3zsnKsWsMT1z6HZSI1lHtOolpEJhLYyb0L7XJM3IycDSKcuIqL1cnSqzITZhfuUR00SES0mom2IaA4yHPuunlmFiP5ORL0Uc2Vd3o4morFqrFmF7QSmUVZh69BgXg0gVw8+sj2vUTm/oD4NIqJ1iWgOE7+WQWpr3MaaBdFofkE06lHUvFUoKrfaowAN0JsNkqwaQNTkgkBVC2WAlYxKXUpEzxJRHdlP2gAbmiCip4loc4pKzuolS94des7xJ2icb1DPoQF6c7/yaoA2YYCe1Lkubtr1diAf05Lp+HcAdX5+LhEtUYN0ZtLr/FkxxuNcInqMiO4mor8556artjMJGo/jSSLaDtFO5z2IaB8i2pGIhhimqyqvxPbZ8ZL0Po+xnpFGcgT9QEX3LHMmfWqtsHuych43kD+HBFjuIdf7rLbXMVIu1rMm+gtE9AAR3UNET/jUK4DezrnFaewAuRdAL/YoyDn3ChG9QkRXIDpMagdmhj0pOh+oYrSDPuvQEdFsHlsu7W9ondeFX0gK5FnLGZ2amjdBoYIv93DQw6aCP2Yc4umMSyx5gjE9VTz/cg7TDggNCKk+DEBUhmWy2jHU0xP1KzO+4YeMd1jgSW61Q512koM+ElSamjPqKnP9HHEYNQ8D6Fr3K2VhAhU6lcn7gWr/dUSFm74JVTjaE4HTO4EPYDSxXE9ztrLkwyjqcLOClelybi+j47bwloSI5FocLbxOoZIA4If8/UrIVlrPqeffKWjO7tdVsao5Q7htAlJE8zo8GgNnQ6f9OPsnx7L0iouz63wB/z4UwDWqb5LEmRgKTFXtX2LaAKN/VlWSX/L1SbXVh5NkF/Hunt4JOQMXqJnWUZqxnlNrX6MrdheRpfpqXJYqDunK3w1HVN70BkbZtPE6q9VsLBycfz9C4RE0oud6bQ/wO06SVC3/bMz/u15PEqKCEFCIItF0h/n6oCa1bNBDq3AbbzKDjgGwZmg+QdMUjToFRWRdf6x3seRpsN23YSJBMloAbMc7bx6CvzDTGbJFOkZKRSWOQMfiEDpP/zd+l+AMv6Xuu0m1d7P6/2Gqjz0UQNRC227RGg/+kjGyNf4Mz/g+aWLPlI2mE5r+MGfSTc/1GNlxkjdNKZ25VYwlDzFW5Zz4FYjKrMZtRJW2XkTnMi22Dv/JvAVKI3Sqat1eRcGmS4zOkXeco9o5V03wM2Yf4WBlT9h3fAiuGKokuFN/0ajp156AkXyecQ772fC8gbjdWgADCBNsLdu+ZudYU2QrdpVxbpoAm3Ca+C40ih3B7LOrxgAi9S5WC8jcEo2a/vr+mkopr6+iZgTga0qdA1w3mL870ny3t3l2Q+5/XJGI+/X+OwNMjStmnYSRnMMIqGNlHIoRZikPKet8yWaYgWRy3tXABuIwcIu40+cD+Ifn+2rADmOfaynE7AHgbIX6aTe7dmXt30UxjqjQ+wzWfydF2F3Md/qASr2f0DKs1gaLeUmrmD6HumxxNG3lNs7iTa1Zdm37aPuoVjGTm6iVJG6dhagy1zGMsJ2cAuka0lFZk/dgFQ4PQTX2f4w1qBi1o6V3KYC11fi/pAgrEO+tLABF2RBJ5xw9pRhwbEYDWxfK1NdkRhafxLjD91Mii/UcTyZjQduOxmH6a4j2ml+EqMrmyma92gb5q4zoo9P/hWinLWKIrwclvnaLsZxvNBL+trZTAPRSGP827T2oNqTNMz3b1SwT1hBVRHte3ZuHFkLPbQytBzMOUQJecXaVr1jFEbqhDY0RZjs7D9GxLqcA2NTnomgMnAJsZjEuNcNNYTvibCW5vs0XAHCZxwNxjFZeatT1ox5v4glj6C1hn9t5LPErY5hA9/FsRhM/EjO2tBb7C+hY2NoXBd0G0bkBD5p9FVaga5AqrkrNvWoemA7g14gqhwXtNUd8YYU0aq+Tdc1t3ulpM7bSNjqfdqKLQVynxlAxWkLf90szLqeWlb8m9OdOY7idisZ2r7TLobR5pif2kYSRXJuXrBvQqLgi16uf0koRaiIbG2cA2B4Z9porSVmbJaiOdOXfwD75Oh6CD0TH8qvCLM+gUWtf79p1iCqNzFf9SKoacp5ZYurMiOJK2uJR/XgptP15mfva4aQ13t9wR0ptUFfaaO2kKGuT6GpftqHO5yV1UqeAnZ3wpAhck5Bl2SNRSepNR9jGxkT5SoqIekvV2xJRg780vT1DwBqWmgGOMPfK5w8S+rM2OtYZeE+5n6WYsRytxtCscLb04ca4CGtASNsXee2VFKPPtdccnUua1AKk/rcqxh4XVZN2N2M/+RM0dt3aYhFxp4iINtpBMzj/vrO5R7ZrvclGooOnKARry4Xcp80TQuFaQ62BRp3DJCGRPmQuudNsqeiUbSriUsT5s2eAeh/cSwD2jYur+0KrarJOVbEBnx1izxGqq+TOMM+kDFeuYN08e1TM+ivRue8B2DFwDLqNA9E4o9AKi9Dsz3kmP4YZunZPoVq3Ryo1Z92kC9EoyxJyQJSuwXMN+8BjbRhWcfvzhqjy+aaK8LkmaVZ74ILzhKPHApgL4De+cHCSRCrcwaUeN1foNhIZysx85pca4LVGmp4yUbjQ08ZsjT+5rkCj8qUkX3zhV/n9Ec8aLUzweEw8BIh2FpeUFhrI79bXuVpThdKIf98T0fk+WvqvLVL6lzUDSExgGKIds23so7aESopn8k/wSAlYjR6u7n/EgyiyRPXV97vBs2QJoudBdf/h6Hi8rNZu3w5ZCmK0wUrsjYgHshZCjnrpzhqAf/8JgG3TSr2ZnP1j/GgbOBqPzqXgZddwjfEPVo3L8nEe37PUE1+vItryPSUhHC1Blr3TMIGHXruabGWXaYBSF0l+yTlXQ3S61nVEdAoRCa6uorZ+NSWKc66KaK//HxSaVWuOMoNG2xm1WyaiLYnoMiJ6k8dYYeRziYheYXCoU0agAEZf4Xt68jMlbuMyIhrJSOU9+F0wAFWN0r0JwKbc96DJY3pVFPz7FA7EDebvur8mSPB3Jf04BOHHwop1PiwAAydqeIbBBvZGtMX7LI4kzuCsXty5Q19hDOKd/MxuBiHUk3F+Se5tVe0mXi0NGFUFr3Rp3rcAfDPUU/os13sxpDbwRLyEKHeFrP8qqtUXjbOGqgEBk9OVa+jzxQczGOUVjv0/xD9P8P9egqnDp7yUHjHBpSQmeBKNs4qajVeWurs8yCZwxnV4Uqzks5h4Z+Lkp6FROjaukHSipWyMojsDiJ0UthWXsAcTbYOA8Ou6fG8Pk1vQEvpRQJjbHlwRy/TKMD43Jm5SVUCXcd1CGxijZWs0KoTFSauv0nZLgtF3eWBC6dMTv+KIohjqawaJVPVA0fZMiOZJO5cE9k28kIkJfZPJPywh3W1pejcaZym6ZaoNYtyW1sBMl6ydbYrQPndsQiCBRQoXcyTPxazv0u6JCe3K/45JmCx9ikhrYLLr03OOEsa7Jxo1BZvRTxhhIaL9E+W0bnVRUr8Hw77S5rrFePoYwPaepEwzSUCCb19u4kr+KoABfp6kXpF8jhCaaL6DPOPdXi2baWFd4ODV9l3uMiqrfGBM6DILyGGe6fyugZJgs4lbJIVL1aTdnsCs3sOmEsLc2yL8HB+5b7EZ7/Zo1B1MC56pm8zlBWjUDyx11eSPTkheZEW6fMSgzE05ph5KDJnEv4RwPk/aswntf4ovaJYcg7+Ydeh4Z3JaexcFEilikwcQ7fPcq9DkngGMIFDtpUW7yP6/NBql1sxoM3H+AWicTFZvApfum0RERZN9U4I7ZLxXKZROtWBaAsBPQ5eDNKpiKn+2Uc6yJEJHjprViWg8EX2HiH7JbTtKruhR43ueJqIHJfIYF2Tjz9WpUVUjSToG872x93FkrkRE91JUiKIU2N8Kj/E4IvpPQ4u8V4XnhijaNt8lmb0rC9QA9rzeskqvzgt0iZoWTFTt7hMgcfb8oHJAjuKoQNd3HhoHX0mfTksAl2al55WFG4MqoNIH2Y5Fj/OPf2aSMRUF/bovRr2JgfiqgEGarNfS5kkBzNvpBLFmwApGC72VAOgAj2X9mLFOLECoNB6xD7ri9BDFtSPZB856qrUPmRt3/s54NLaU2c0pQdUyFaEvScEAv0jZ9vfV85ouH0o/Y6Br8vwtOZhA6NLqg8h1SbIHjZMs2zJOvuzajdsKrXMLwwFcbZjtAzbqmsKbPPC0kJzCLSk8C8c5ho/NpFytYvdxASrJefRC40T1akZtekwI0xbJBJNTMoFWU4NC/FUjMdujsY37+yo7VwpcwkJK4ch3fw9xpXjyBBd4ljBPmsAMOha3eCOlWyi0v3SZ5QYMVv/uQNXl27VbTvM+9fcoDhUPsIzp2ajiVPBqXoILGOQKxqFruf0foWMZmeB12CCePw6MsbSrvIDDsjw1TKm+lVU4uNokCtYKPrQpC6cqg2+c2hMwUUubIX5FYQQ3CbRXNBp4A8EAJuDrt+M+iE//Le5jjxya9asqA1hvok3/wXPgsKxPD1Gqa00VHawmuEFjcky+MNxKjOq10jGNYWc7w5xVqFxAOTyqvcmPJHn29LTTh9/xE3TcqSxabjrynRJqIe3tCZM/w7cp5jNJCXN27F0PE7SZNbslJ2EON1lHH4HeQVQyZgKiahvD0bHqWOh1Cj+7H7d1m0ImwZMLkXEfmGc9Vunh8zw2VlWNcUQRFr8rggk4MrYRRSXah1GjVGyFiC5zzp3EWMBqHm3Dkb+tOHqoB15X/7NjaiWiC4jofiIaTlHx5wFE1IeI5ECopUS0iKLzBT4koreIaD8i+h51LA8rUbsaR/9KJtpXJqLHnXM7cXSynkXbEZFgIa8hoqMMPd8lor2dcy8L7bsDMkhrAn3S5e1pDaKEtkOrY9VUvEBwCqMzvFeKZ7Wi47bqEGN3lzzSqYy6MjoeVvVaUZLflUywJmPrnkNj124R1UPvzeAnC2BjpIKGVZr8CBRshwCvIW59vi3vJCnwyQBe719Ua3733CiimGAwgKF5DRTlbm6N9OlnmbhP0Nh46lIw3DA0ikTWU763HcCX88K10HHf4pBuPfnW9y4iJ60Y6oYMoVJhlldSbkRxyu18M0O+Xvr46yImrEh65k0Hh1mVUZVthwyndHi4vw5gXSI6mDpvxAhJNxMRva3St6H9Lznn2ojonQzp2jLffxir7HoeLSD9yUvPZcYA0ukCOlviNsazJV5L6bXI+1/PMNaSeTbNWATL0IeIjucxlHLSs94Vk99lDFDQMlJDdArn0RmkX1/Tc3TltRx0BRGNQ1RFrYbucM7v8sIA7AeDiI5hnz2t9OsYx4wCGMBloGudiFYloiN5LOUvGCCd9PcmohOp48kbqZiIP99UwaK0y8cbOegkZxWdzLmB2hcMkE76xxDRWpTt+DiZwE+IaGaGdVzufZei84uyHDwlWmB9IhrNxlzlCwZofomknEzZwZLy3CyKQrtZn59L0flFlLMvp2bQQp8/BuB8gewd3IKyn0WsXcA6u3XBbRTgCpLp+w4ARnFfyl8wQPwl5/zNpOgkMKKOMPEahZ8pmNUFtLR5IwUDQPVTYODEY5mH7GcYdtnVrdYklT17iIgeQlQf70giOoiiLKNeJsQ4TDo7b3oB3Xo1QMp9x9q9S0S3ENH/OuemeZjziythKehQAIFRL4fwhsy5MUkYjciVpMwofr6coQ+CQTjUk/ePO/VjLvfxEKgq6t2moMNyyggWfzcYjaNnXkxI1NTQqNxZyvBuXQm0npD4eZH7MhrqoCtpo7tPvFtOGEGOZCUNgGDibkjRKeHbs+G4HhENpQgIMsw59yFynB7O8fy3qXH65wyKtoNNJaJnKCo6VbeMQ0RdFr793DGAhxnKzAxVz/dyavhqRHR3XsQMQ7T2ZZfydefcvLjlgohqy8Ok6+v/AYRNzUdDmDT1AAAAAElFTkSuQmCC" alt="Parabole Radio"></div>
+      <div class="logo-separator"></div>
+      <div class="flex-1 overflow-hidden h-full flex items-center marquee-container">
+        <div class="animate-marquee-retro-slow whitespace-nowrap flex items-center gap-12">
+          <h1 class="marquee-text text-white uppercase">
+            PARABOLE RADIO • UNION DE LA JEUNESSE INTERNATIONALE COMMUNITY RADIO • CA VA PETER !!! • LIVE • PARIS 18.
+          </h1>
+          <h1 class="marquee-text text-white uppercase" aria-hidden="true">
+            PARABOLE RADIO • UNION DE LA JEUNESSE INTERNATIONALE COMMUNITY RADIO • CA VA PETER !!! • LIVE • PARIS 18.
+          </h1>
+        </div>
+      </div>
+      <div class="flex items-center bg-black h-full shrink-0 pr-2 gap-1">
+        <button id="soundToggle" class="sound-toggle" title="Son : radio / vidéos">RADIO</button>
+        <div id="adminControlsContainer" class="flex items-center gap-1"></div>
+      </div>
+    </div>
+
+    <div class="h-11"></div>
+    <div class="flex-1"></div>
+
+    <!-- Micrographic spec text (top-right) -->
+    <div class="micro-spec">
+      <div>PARABOLE RADIO</div>
+      <div>ONDES HERTZIENNES &amp; FLUX NUMÉRIQUES</div>
+      <div>CONTINUOUS AUDIO SPECTRUM</div>
+      <div>24/7 BROADCAST PATTERN</div>
+      <div class="micro-gap"></div>
+      <div class="micro-row"><span>AUDIO SAMPLING</span><span>96KHZ / 24-BIT</span></div>
+      <div>SIGNAL</div>
+      <div class="micro-gap"></div>
+      <div>NOW PLAYING</div>
+      <div id="nowPlaying">—</div>
+      <div class="micro-gap"></div>
+      <div>UNION DE LA JEUNESSE INTERNATIONALE COMMUNITY RADIO</div>
+    </div>
+
+    <!-- Overlay controls -->
+    <div id="overlayQuickControls" class="overlay-controls" style="display: none;">
+      <div class="control-row"><button id="toggleOverlayBtn">HIDE</button><button id="removeOverlayBtn">REMOVE</button></div>
+      <div class="control-row"><label>Opacity</label><input type="range" id="overlayOpacity" min="0" max="100" value="100"></div>
+      <div class="control-row"><label>Size (%)</label><input type="range" id="overlaySize" min="10" max="80" value="40"></div>
+      <div class="control-row"><label>Pos X</label><input type="range" id="overlayPosX" min="0" max="100" value="50"></div>
+      <div class="control-row"><label>Pos Y</label><input type="range" id="overlayPosY" min="0" max="100" value="50"></div>
+    </div>
+    <div id="alphaNote" class="alpha-note" style="display: none;">Transparency hint: use WebM with alpha or adjust opacity</div>
+
+    <!-- BOTTOM SECTION -->
+    <!-- FLOATING ELEMENTS (no bar) -->
+    <div id="floatLayer">
+
+      <!-- Radio Cult live player -->
+      <div class="float-item float-player">
+        <div class="radiocult-player">
+          <iframe
+            title="Parabole Radio audio player"
+            src="https://app.radiocult.fm/embed/player/parabole-radio-b02d5385?theme=dusk&primaryColor=%23579DFF&corners=rounded&playerDisplay=metadata"
+            width="100%"
+            height="144px"
+            scrolling="no"
+            frameborder="0"
+            allow="autoplay"
+            seamless
+            allowtransparency="true"
+            style="background-color: transparent; border-radius: 0.75rem;"
+          ></iframe>
+        </div>
+      </div>
+
+      <!-- Social + Chat/Schedule/History toggles -->
+      <div class="float-item float-actions">
+        <div class="bottom-social">
+          <a href="https://www.instagram.com/paraboleradio/" target="_blank" rel="noopener noreferrer" aria-label="Instagram"><svg class="icon" aria-hidden="true"><use href="#icon-instagram"/></svg></a>
+          <a href="https://www.youtube.com/@parabole_radio" target="_blank" rel="noopener noreferrer" aria-label="YouTube"><svg class="icon" aria-hidden="true"><use href="#icon-youtube"/></svg></a>
+          <a href="https://soundcloud.com/parabole-radio" target="_blank" rel="noopener noreferrer" aria-label="SoundCloud"><svg class="icon" aria-hidden="true"><use href="#icon-soundcloud"/></svg></a>
+        </div>
+        <a id="rotatingTextLink" class="donate-btn cycle-subtitle" href="#" target="_blank" rel="noopener noreferrer">RECHERCHE DE CONTRIBUTEURS RADIO</a>
+        <button id="chatToggle" class="donate-btn chat-toggle"><svg class="icon" aria-hidden="true"><use href="#icon-comment"/></svg> CHAT</button>
+        <button id="scheduleToggle" class="donate-btn chat-toggle"><svg class="icon" aria-hidden="true"><use href="#icon-calendar"/></svg> PROGRAMMATION</button>
+        <button id="lastPlayedToggle" class="donate-btn chat-toggle"><svg class="icon" aria-hidden="true"><use href="#icon-history"/></svg> HISTORIQUE</button>
+      </div>
+
+    </div>
+
+    <!-- Pop-up embeds use data-src: each one loads on first open only (see togglePopup) -->
+    <!-- Chat popup — opens above the CHAT button -->
+    <div id="chatPopup" class="chat-popup">
+      <button id="chatClose" class="chat-close" aria-label="Close chat">&times;</button>
+      <iframe
+        title="Parabole Radio chat room"
+        data-src="https://app.radiocult.fm/embed/chat/parabole-radio-b02d5385?theme=midnight&primaryColor=%23579DFF&corners=sharp&playerDisplay=metadata&layout=flat"
+        width="100%"
+        height="600px"
+        scrolling="no"
+        frameborder="0"
+        seamless
+        allowtransparency="true"
+      ></iframe>
+    </div>
+
+    <!-- Schedule popup — opens above the PROGRAMMATION button -->
+    <div id="schedulePopup" class="schedule-popup">
+      <button id="scheduleClose" class="chat-close" aria-label="Close schedule">&times;</button>
+      <iframe
+        title="Parabole Radio schedule"
+        data-src="https://app.radiocult.fm/embed/schedule/parabole-radio-b02d5385/show-list?theme=dusk&primaryColor=%23579DFF&corners=sharp"
+        width="100%"
+        height="500px"
+        scrolling="no"
+        frameborder="0"
+        seamless
+        allowtransparency="true"
+      ></iframe>
+    </div>
+    <!-- Last played popup — opens above the HISTORIQUE button -->
+    <div id="lastPlayedPopup" class="lastplayed-popup">
+      <button id="lastPlayedClose" class="chat-close" aria-label="Close last played">&times;</button>
+      <iframe
+        title="Parabole Radio last played"
+        data-src="https://app.radiocult.fm/embed/last-played/parabole-radio-b02d5385?theme=dusk&primaryColor=%23579DFF&corners=rounded"
+        width="100%"
+        height="550px"
+        scrolling="no"
+        frameborder="0"
+        seamless
+        allowtransparency="true"
+        style="background-color: transparent; border-radius: 0.75rem;"
+      ></iframe>
+    </div>
+    <audio id="radioStream" src="https://parabole-radio-b02d5385.radiocult.fm/stream" preload="none"></audio>
+  </main>
+  <div id="toastContainer" class="fixed bottom-28 right-4 z-[100] flex flex-col gap-2"></div>
+
+  <script>
+    // ============================ SETTINGS ============================
+    // Everything you may want to change is grouped here.
+
+    // Staff password — double-click the logo in the top bar to log in.
+    // NOTE: this is a client-side gate. It keeps casual visitors out, but anyone who
+    // opens "view source" can read it — it is NOT real security. That's acceptable here
+    // because admin actions only change THIS browser's localStorage, not anything shared.
+    // ⬇️ CHANGE this to your own staff password before launch.
+    const STAFF_PASSWORD = "PARABOLE2026";
+
+    // ⬇️ PASTE your Google Form link here so it works for EVERY visitor (not just the admin browser).
+    //    Example: "https://forms.gle/xxxxxxxxxxxx"  — leave "" to rely only on the admin-set link.
+    const DEFAULT_SUBTITLE_URL = "https://docs.google.com/forms/d/e/1FAIpQLSdd0G1tn5WbVDM4stWcq4IiSMGGaEQ2Ldpd83fDWgAR0H1TPQ/viewform?usp=dialog";
+
+    // Texts that take turns on the yellow contributors button (one every 1.5 s).
+    const phrases = ["RECHERCHE DE CONTRIBUTEURS RADIO","LOOKING FOR RADIO CONTRIBUTORS","DJ'S","PODCASTS","GENRES SPECIALISTS","MUSIC ENTHUSIASTS","PARABOLE RADIO COMING SOON","CA VA PETER !!","CLIQUER ICI"];
+
+    // Real now-playing: paste your Radio Cult PUBLISHABLE key (pk_...) below.
+    // It's read-only and safe on a public site. Get it at: app.radiocult.fm/settings/cms/api
+    const RC_PUBLISHABLE_KEY = "REPLACE_WITH_pk_KEY";
+    const RC_STATION_ID = "parabole-radio-b02d5385";
+
+    // Background clips. ONE clip = it loops seamlessly (nothing to do).
+    // To rotate through several: drop the extra videos into the SAME folder
+    //   PARABOLE RADIO/VIDEO/BACKGROUND/
+    // and list each path below. They play in random order (never the same clip twice in a row).
+    // Next to each clip, a same-name .jpg (its first frame) is shown while the clip loads:
+    //   ffmpeg -i background16.mp4 -frames:v 1 -q:v 4 background16.jpg
+    const bgPlaylist = [
+      "PARABOLE RADIO/VIDEO/BACKGROUND/background.mp4",   // Baile Furacão 2000
+      "PARABOLE RADIO/VIDEO/BACKGROUND/background2.mp4",  // babyfather – killuminatti
+      "PARABOLE RADIO/VIDEO/BACKGROUND/background3.mp4",  // Daft Punk 1996
+      "PARABOLE RADIO/VIDEO/BACKGROUND/background4.mp4",  // Kiss FM Paris (INA)
+      "PARABOLE RADIO/VIDEO/BACKGROUND/background5.mp4",  // logobi Black Panthers
+      "PARABOLE RADIO/VIDEO/BACKGROUND/background6.mp4",  // Etran de L'Aïr – Imouha
+      "PARABOLE RADIO/VIDEO/BACKGROUND/background7.mp4",  // Mafia K1 Fry – Pour ceux
+      "PARABOLE RADIO/VIDEO/BACKGROUND/background8.mp4",  // Pirate Radio London / Rush FM
+      "PARABOLE RADIO/VIDEO/BACKGROUND/background9.mp4",  // Wah Wah Watson + Herbie Hancock
+      "PARABOLE RADIO/VIDEO/BACKGROUND/background10.mp4", // Ça va péter
+      "PARABOLE RADIO/VIDEO/BACKGROUND/background11.mp4", // Nata Karim (série malienne)
+      "PARABOLE RADIO/VIDEO/BACKGROUND/background12.mp4", // Radio Cité Future / Radio Verte 1981 (INA)
+      "PARABOLE RADIO/VIDEO/BACKGROUND/background13.mp4", // Radio pirate mode d'emploi 1977 (INA)
+      "PARABOLE RADIO/VIDEO/BACKGROUND/background14.mp4", // Sankara / Zidane
+      "PARABOLE RADIO/VIDEO/BACKGROUND/background15.mp4", // clip court
+    ];
+    // ========================== END SETTINGS ==========================
+
+    // ---------- PLAYER ----------
+    // Playback + now-playing metadata are handled by the Radio Cult iframe embed.
+    // The old custom player, visualizer, song history and audio keyboard shortcuts
+    // were removed so there's only one player controlling the stream.
+
+    // ---------- CHAT ----------
+    // Chat is now handled by the Radio Cult chat embed (real, shared, synced with the app).
+    // The old local/fake chat, swear filter and username box were removed.
+
+    // ---------- ADMIN, OVERLAY, LOGIC ----------
+    let isAdmin = false;
+    
+    function showToast(title,desc,variant){
+      const c=document.getElementById('toastContainer');
+      const el=document.createElement('div');
+      el.className=`toast-message bg-white border-l-4 ${variant==='destructive'?'border-red-600':'border-[#fff039]'} shadow-lg rounded-r-md px-4 py-2 max-w-xs w-full text-[#000dff] font-black text-xs uppercase flex flex-col gap-0.5`;
+      el.innerHTML=`<div class="font-bold text-sm">${title}</div><div class="text-[10px] opacity-80">${desc}</div>`;
+      c.appendChild(el);
+      setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateX(100%)'; setTimeout(()=>el.remove(),300); },2800);
+    }
+    
+    // ---------- ROTATING SUBTITLE LINK (texts and default link in SETTINGS) ----------
+    const rotatingLink = document.getElementById('rotatingTextLink');
+    let phraseIdx = 0;
+
+    // Adds https:// if it's missing, so "forms.gle/abc" doesn't become a broken relative link.
+    function normalizeUrl(u){
+      u = (u || '').trim();
+      if(!u || /REPLACE_WITH/i.test(u)) return '';
+      if(!/^https?:\/\//i.test(u)) u = 'https://' + u;
+      return u;
+    }
+
+    let subtitleUrl = normalizeUrl(localStorage.getItem('vibetune_subtitle_url') || DEFAULT_SUBTITLE_URL);
+    if (subtitleUrl) { rotatingLink.href = subtitleUrl; rotatingLink.style.cursor='pointer'; } else { rotatingLink.removeAttribute('href'); rotatingLink.style.cursor = 'default'; }
+    setInterval(()=>{
+      phraseIdx = (phraseIdx+1)%phrases.length;
+      rotatingLink.style.opacity='0';
+      setTimeout(()=>{ rotatingLink.innerText = phrases[phraseIdx]; rotatingLink.style.opacity='1'; },150);
+    },1500);
+    rotatingLink.style.transition='opacity 0.15s';
+    function setSubtitleUrl(url){ url=normalizeUrl(url); subtitleUrl=url; if(url){ rotatingLink.href=url; rotatingLink.style.cursor='pointer'; } else { rotatingLink.removeAttribute('href'); rotatingLink.style.cursor='default'; } localStorage.setItem('vibetune_subtitle_url',url); showToast("SUBTITLE URL", url ? `Now linking to ${url}` : "Link removed", "default"); }
+
+    // ---------- LOGO UPLOAD (transparent) ----------
+    const logoSquare = document.getElementById('logoSquare');
+    const logoUpload = document.getElementById('logoUploadInput');
+    const savedLogo = localStorage.getItem('vibetune_logo');
+    if(savedLogo){ const img=document.createElement('img'); img.src=savedLogo; logoSquare.innerHTML=''; logoSquare.appendChild(img); logoSquare.style.background = 'transparent'; }
+    logoSquare.onclick=()=>{ if(isAdmin) logoUpload.click(); };
+    logoUpload.onchange=e=>{ 
+      const f=e.target.files[0]; 
+      if(f&&isAdmin&&f.type.startsWith('image/')){ 
+        const r=new FileReader(); 
+        r.onload=ev=>{ 
+          const img=document.createElement('img'); 
+          img.src=ev.target.result; 
+          logoSquare.innerHTML=''; 
+          logoSquare.appendChild(img); 
+          logoSquare.style.background = 'transparent';
+          localStorage.setItem('vibetune_logo',ev.target.result); 
+          showToast("LOGO","UPDATED","default"); 
+        }; 
+        r.readAsDataURL(f); 
+      } else if(!isAdmin) showToast("ACCESS","ADMIN ONLY","destructive");
+      else showToast("ERROR","IMAGE NEEDED","destructive"); 
+      logoUpload.value=''; 
+    };
+    
+    // ---------- OVERLAY ----------
+    const overlayContainer = document.getElementById('overlayCanvasContainer');
+    const overlayCanvas = document.getElementById('overlayCanvas');
+    const ctxOverlay = overlayCanvas.getContext('2d');
+    const overlayUpload = document.getElementById('overlayUploadInput');
+    const overlayControls = document.getElementById('overlayQuickControls');
+    const alphaNote = document.getElementById('alphaNote');
+    let overlayVideo = null, ovAnimId = null, ovUrl = null, ovVisible = true;
+    const opacitySlide = document.getElementById('overlayOpacity');
+    const sizeSlide = document.getElementById('overlaySize');
+    const posXSlide = document.getElementById('overlayPosX');
+    const posYSlide = document.getElementById('overlayPosY');
+    function drawOverlay(){
+      if(!overlayVideo || !ovVisible || overlayContainer.style.display==='none') return;
+      if(overlayVideo.readyState>=2){
+        const op = opacitySlide.value/100, sz = sizeSlide.value/100, px = posXSlide.value/100, py = posYSlide.value/100;
+        const vw = overlayVideo.videoWidth, vh = overlayVideo.videoHeight;
+        if(vw&&vh){
+          let tw = window.innerWidth * sz;
+          let th = tw * (vh/vw);
+          if(th > window.innerHeight){ th = window.innerHeight*0.8; tw = th * (vw/vh); }
+          const left = (window.innerWidth - tw) * px;
+          const top = (window.innerHeight - th) * py;
+          overlayCanvas.width = tw; overlayCanvas.height = th;
+          overlayCanvas.style.width = tw+'px'; overlayCanvas.style.height = th+'px';
+          overlayCanvas.style.left = left+'px'; overlayCanvas.style.top = top+'px';
+          ctxOverlay.clearRect(0,0,tw,th);
+          ctxOverlay.globalAlpha = op;
+          ctxOverlay.drawImage(overlayVideo,0,0,tw,th);
+        }
+      }
+      ovAnimId = requestAnimationFrame(drawOverlay);
+    }
+    function loadOverlayVideo(file){
+      if(!file||!file.type.startsWith('video/')){ showToast("INVALID","SELECT VIDEO","destructive"); return; }
+      if(ovUrl) URL.revokeObjectURL(ovUrl);
+      const url = URL.createObjectURL(file);
+      ovUrl = url;
+      if(overlayVideo){ overlayVideo.pause(); overlayVideo.src=''; }
+      overlayVideo = document.createElement('video');
+      overlayVideo.src = url;
+      overlayVideo.loop = true; overlayVideo.muted = true; overlayVideo.playsInline = true;
+      overlayVideo.onloadeddata = () => {
+        overlayContainer.style.display = 'flex';
+        ovVisible = true;
+        overlayVideo.play().catch(e=>showToast("AUTOPLAY","Click to start","default"));
+        if(ovAnimId) cancelAnimationFrame(ovAnimId);
+        ovAnimId = requestAnimationFrame(drawOverlay);
+        overlayControls.style.display = 'flex';
+        if(!file.type.includes('webm')) alphaNote.style.display = 'block';
+        else alphaNote.style.display = 'none';
+        showToast("OVERLAY","LOADED","default");
+      };
+      overlayVideo.onerror = () => { showToast("ERROR","Video format error","destructive"); removeOverlay(); };
+      overlayVideo.load();
+    }
+
+    function removeOverlay(){ if(ovAnimId) cancelAnimationFrame(ovAnimId); if(overlayVideo){ overlayVideo.pause(); overlayVideo.src=''; } if(ovUrl) URL.revokeObjectURL(ovUrl); overlayContainer.style.display='none'; overlayControls.style.display='none'; alphaNote.style.display='none'; showToast("OVERLAY","REMOVED","default"); }
+    function toggleOverlay(){ if(overlayContainer.style.display==='none'){ if(overlayVideo&&overlayVideo.src){ overlayContainer.style.display='flex'; ovVisible=true; overlayVideo.play().catch(()=>{}); if(!ovAnimId) ovAnimId=requestAnimationFrame(drawOverlay); showToast("OVERLAY","SHOWN","default"); } else showToast("NO OVERLAY","Upload first","destructive"); } else { overlayContainer.style.display='none'; ovVisible=false; if(ovAnimId) cancelAnimationFrame(ovAnimId); ovAnimId=null; showToast("OVERLAY","HIDDEN","default"); } }
+    document.getElementById('toggleOverlayBtn')?.addEventListener('click',toggleOverlay);
+    document.getElementById('removeOverlayBtn')?.addEventListener('click',removeOverlay);
+    
+    // ---------- ADMIN UI ----------
+    const adminDiv = document.getElementById('adminControlsContainer');
+    const videoUp = document.getElementById('videoUploadInput'), bgVideo = document.getElementById('backgroundVideo');
+    
+    // ---------- STAFF LOGIN (password in SETTINGS) ----------
+    function promptAdminLogin(){
+      const entry = prompt("STAFF PASSWORD:");
+      if(entry === null) return;            // cancelled
+      if(entry === STAFF_PASSWORD){ adminLogin(); }
+      else { showToast("ACCESS DENIED","Wrong password","destructive"); }
+    }
+
+    function adminLogin(){ isAdmin=true; renderAdmin(); showToast("ADMIN","Controls available","default"); }
+    function adminLogout(){ isAdmin=false; renderAdmin(); showToast("SIGNED OUT","Public view","default"); }
+    function renderAdmin(){
+      adminDiv.innerHTML='';
+      if(isAdmin){
+        const vidBtn=document.createElement('button'); vidBtn.className="h-8 px-2 bg-white text-[#000dff] font-black text-[9px] uppercase rounded-none flex items-center gap-1"; vidBtn.innerHTML='<svg class="icon" aria-hidden="true"><use href="#icon-video"/></svg> VIDEO'; vidBtn.onclick=()=>videoUp.click();
+        const ovBtn=document.createElement('button'); ovBtn.className="h-8 px-2 bg-white text-[#000dff] font-black text-[9px] uppercase rounded-none flex items-center gap-1"; ovBtn.innerHTML='<svg class="icon" aria-hidden="true"><use href="#icon-layer-group"/></svg> OVERLAY'; ovBtn.onclick=()=>overlayUpload.click();
+        const urlInput = document.createElement('input'); urlInput.type='text'; urlInput.placeholder='Subtitle URL'; urlInput.value=subtitleUrl; urlInput.className='admin-url-input';
+        const setUrlBtn = document.createElement('button'); setUrlBtn.innerText='SET'; setUrlBtn.className='admin-url-button'; setUrlBtn.onclick=()=>setSubtitleUrl(urlInput.value);
+        const urlWrapper = document.createElement('div'); urlWrapper.className='flex items-center gap-1'; urlWrapper.appendChild(urlInput); urlWrapper.appendChild(setUrlBtn);
+        const logoutBtn=document.createElement('button'); logoutBtn.className="h-8 px-2 bg-white text-[#000dff] font-black text-[9px] uppercase rounded-none"; logoutBtn.innerHTML='EXIT'; logoutBtn.onclick=adminLogout;
+        adminDiv.appendChild(vidBtn); adminDiv.appendChild(ovBtn); adminDiv.appendChild(urlWrapper); adminDiv.appendChild(logoutBtn);
+      } else {
+        // No visible ADMIN button — staff log in by double-clicking the logo (top-left of the top bar).
+      }
+    }
+    // Hidden staff login: double-click the logo in the top bar.
+    document.getElementById('logoSquare')?.addEventListener('dblclick', () => { if(!isAdmin) promptAdminLogin(); });
+    videoUp.onchange=e=>{ const f=e.target.files[0]; if(f&&isAdmin){ const url=URL.createObjectURL(f); bgVideo.src=url; bgVideo.load(); bgVideo.play(); showToast("VIDEO","BACKGROUND UPDATED","default"); } else showToast("ACCESS","ADMIN ONLY","destructive"); videoUp.value=''; };
+    overlayUpload.onchange=e=>{ const f=e.target.files[0]; if(f&&isAdmin) loadOverlayVideo(f); else if(!isAdmin) showToast("ACCESS","ADMIN ONLY","destructive"); overlayUpload.value=''; };
+    
+    // ---------- LISTENER COUNT / RANDOM CHATTER ----------
+    // Removed: these were simulated (Math.random) and not real data.
+    // Real listener numbers are available later via the Radio Cult analytics API.
+    
+    // ---------- AUDIO: RADIO FIRST, VIDEOS MUTED ----------
+    // Browsers forbid starting sound before the visitor interacts, so we try to start the
+    // radio on the first click/tap/scroll and keep retrying until it actually plays.
+    // The yellow button switches between the radio and the background videos' own sound.
+    (function audioControl(){
+      const v = document.getElementById('backgroundVideo');
+      const radio = document.getElementById('radioStream');
+      const btn = document.getElementById('soundToggle');
+      if(!v) return;
+      v.muted = true;                       // videos silent by default
+      v.volume = 0.7;
+      if(radio) radio.volume = 0.9;
+      let mode = 'radio';                   // 'radio' | 'video'
+      let userChose = false;                // true once the visitor uses the button or the Radio Cult player
+
+      function setLabel(){
+        if(!btn) return;
+        btn.textContent = (mode === 'radio') ? 'RADIO' : 'VIDÉO';
+        btn.title = (mode === 'radio')
+          ? 'Son : radio en direct — cliquer pour le son des vidéos'
+          : 'Son : vidéos — cliquer pour la radio';
+      }
+      function playRadio(){
+        mode = 'radio';
+        v.muted = true;
+        setLabel();
+        return radio ? radio.play() : Promise.reject();
+      }
+      function playVideos(){
+        mode = 'video';
+        if(radio) radio.pause();
+        v.muted = false;
+        v.play().catch(()=>{});
+        setLabel();
+      }
+
+      // Try to start the radio at the first interaction — retry until it really plays.
+      function tryStart(e){
+        if(userChose) { detach(); return; }                     // respect the visitor's choice
+        if(btn && e && (e.target === btn || btn.contains(e.target))) return;
+        playRadio().then(detach).catch(()=>{ /* try again on next gesture */ });
+      }
+      function detach(){
+        ['click','keydown','touchend','scroll'].forEach(ev =>
+          window.removeEventListener(ev, tryStart));
+      }
+      ['click','keydown','touchend','scroll'].forEach(ev =>
+        window.addEventListener(ev, tryStart, { passive: true }));
+
+      // yellow button switches radio <-> video sound
+      if(btn) btn.addEventListener('click', () => {
+        userChose = true;
+        if(mode === 'radio'){ playVideos(); }
+        else { playRadio().catch(()=>{}); }
+      });
+
+      // if the visitor uses the Radio Cult player itself, stop our stream (no double audio)
+      const radioFrame = document.querySelector('.radiocult-player iframe');
+      window.addEventListener('blur', () => {
+        setTimeout(() => {
+          if(radioFrame && document.activeElement === radioFrame){
+            userChose = true;               // the visitor picked the Radio Cult player:
+            detach();                       // don't start our stream on their next click
+            if(radio) radio.pause();
+            v.muted = true;
+          }
+        }, 0);
+      });
+
+      setLabel();
+    })();
+
+
+    // ---------- BACKGROUND PLAYLIST (clips listed in SETTINGS) ----------
+    (function initBgPlaylist(){
+      const v = document.getElementById('backgroundVideo');
+      if(!v || !bgPlaylist.length) return;
+      let current = -1;
+      function pickRandom(){
+        let n;
+        do { n = Math.floor(Math.random() * bgPlaylist.length); } while (n === current);
+        current = n;
+        return bgPlaylist[n];
+      }
+      function playRandom(){ const src = pickRandom(); v.poster = src.replace(/\.mp4$/, '.jpg'); v.src = src; v.load(); v.play().catch(()=>{}); }
+      playRandom();                              // start on a random clip
+      if(bgPlaylist.length < 2) return;          // single clip: the loop attribute repeats it seamlessly
+      v.loop = false;
+      v.addEventListener('ended', playRandom);   // random (non-repeating) next each time
+    })();
+
+    // ---------- POPUP TOGGLES (chat / schedule / last-played — only one open at a time) ----------
+    const popups = {
+      chat: document.getElementById('chatPopup'),
+      schedule: document.getElementById('schedulePopup'),
+      lastplayed: document.getElementById('lastPlayedPopup'),
+    };
+    function togglePopup(which){
+      const target = popups[which];
+      if(!target) return;
+      const willOpen = !target.classList.contains('open');
+      Object.values(popups).forEach(p => p && p.classList.remove('open'));
+      if(willOpen){
+        const frame = target.querySelector('iframe[data-src]');
+        if(frame && !frame.getAttribute('src')) frame.src = frame.dataset.src;   // load the embed on first open
+        target.classList.add('open');
+      }
+    }
+    document.getElementById('chatToggle')      ?.addEventListener('click', e=>{ e.stopPropagation(); togglePopup('chat'); });
+    document.getElementById('scheduleToggle')  ?.addEventListener('click', e=>{ e.stopPropagation(); togglePopup('schedule'); });
+    document.getElementById('lastPlayedToggle')?.addEventListener('click', e=>{ e.stopPropagation(); togglePopup('lastplayed'); });
+    document.getElementById('chatClose')      ?.addEventListener('click', ()=> popups.chat      && popups.chat.classList.remove('open'));
+    document.getElementById('scheduleClose')  ?.addEventListener('click', ()=> popups.schedule  && popups.schedule.classList.remove('open'));
+    document.getElementById('lastPlayedClose')?.addEventListener('click', ()=> popups.lastplayed && popups.lastplayed.classList.remove('open'));
+
+    // ---------- REAL NOW-PLAYING (Radio Cult API, key in SETTINGS) ----------
+    (function nowPlaying(){
+      const el = document.getElementById('nowPlaying');
+      if(!el || RC_PUBLISHABLE_KEY.indexOf('pk_') !== 0) return;   // not configured yet
+      async function poll(){
+        try{
+          const r = await fetch(`https://api.radiocult.fm/api/station/${RC_STATION_ID}/schedule/live`,
+                                { headers: { 'x-api-key': RC_PUBLISHABLE_KEY } });
+          const d = await r.json();
+          const m = d && d.result && d.result.metadata;
+          if(m){
+            const t = m.title || '';
+            const a = m.artist ? ' — ' + m.artist : '';
+            el.textContent = (t + a).trim() || '—';
+          }
+        }catch(e){ /* keep last value on error */ }
+      }
+      poll();
+      setInterval(poll, 20000);
+    })();
+
+    renderAdmin();
+  </script>
+</body>
+</html>
