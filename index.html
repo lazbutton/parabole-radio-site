@@ -940,8 +940,9 @@
     // radio on the first click/tap/key and keep retrying until it actually plays.
     // The yellow button switches between the radio and the background videos' own sound;
     // the player's big button starts and stops the radio. A dropped stream reconnects by itself.
-    const station = { now: null, progress: null, level: null };   // last answer of the nowplaying service (HISTORIQUE pop-up),
-                                                     // and how far the track has played, 0 to 1 (SCOPE)
+    const station = { now: null, progress: null, level: null, played: [] };   // last answer of the nowplaying service (HISTORIQUE pop-up),
+                                                     // how far the track has played, 0 to 1 (SCOPE), and the tracks
+                                                     // seen go by on this page, newest first (HISTORIQUE)
     const radioControl = (function audioControl(){
       const v = document.getElementById('backgroundVideo');
       const radio = document.getElementById('radioStream');
@@ -1432,6 +1433,11 @@
     // ---------- HISTORIQUE (the station's history, HISTORY_URL in SETTINGS) ----------
     // Expects {items: [{played_at, title, artist, album}]}, most recent first. On top: what the
     // nowplaying service knows, the current track and the next one.
+    // The same play: same artist and title, started within 10 minutes (Radio Cult's history and its
+    // live answer may not give quite the same start).
+    const samePlay = (a, b) => !!(a && b) && a.title.toLowerCase() === b.title.toLowerCase()
+      && (a.artist || '').toLowerCase() === (b.artist || '').toLowerCase()
+      && !(Math.abs(Date.parse(a.played_at) - Date.parse(b.played_at)) > 600000);
     async function loadHistory(){
       const list = document.getElementById('historyList');
       const np = station.now;
@@ -1454,11 +1460,17 @@
       try {
         const d = await fetchJson(withQuery(HISTORY_URL, 'limit=20'), { cache: 'no-store' });
         const { items = [] } = d.data ? fromRadioCult.history(d) : d;
+        // Radio Cult lists a track a few minutes after it ended: the tracks seen go by on this page
+        // fill the gap. The track on air is "En cours", not here.
+        const played = items.concat(station.played.filter(p => !items.some(it => samePlay(it, p))))
+          .filter(it => !samePlay(it, track))
+          .sort((a, b) => (Date.parse(b.played_at) || 0) - (Date.parse(a.played_at) || 0))
+          .slice(0, 20);
         const hour = new Intl.DateTimeFormat('fr-FR', { timeZone: STATION_TIMEZONE, hour: '2-digit', minute: '2-digit' });
-        list.innerHTML = top + popupSection('Déjà diffusés') + (items.length
-          ? items.map(it => popupRow(hour.format(new Date(it.played_at)), it.title, it.artist, false, sig(it))).join('')
+        list.innerHTML = top + popupSection('Déjà diffusés') + (played.length
+          ? played.map(it => popupRow(hour.format(new Date(it.played_at)), it.title, it.artist, false, sig(it))).join('')
           : popupMessage('Rien pour l’instant.'));
-        askHopper([track, ...items]);
+        askHopper([track, ...played]);
       } catch(e){
         list.innerHTML = top + popupMessage('Historique indisponible pour le moment.', 'Réessayez dans un instant.');
       }
@@ -1528,7 +1540,7 @@
       window.addEventListener('resize', () => setTicker(shown[0], shown[1], true));
       // PREVIOUS, under the band: the track that played before this one. Radiocompas gives it
       // (previous); with Radio Cult, the history gives it on arrival, then the changes seen here do.
-      let current = null, askedHistory = false;
+      let current = null, askedHistory = false, seenChange = false, shownOnAir = '';
       function setPrevious(t){
         if(!prevBtn || !t || !t.title) return;
         prevText.textContent = [t.title, t.artist].filter(Boolean).join(' — ');
@@ -1556,16 +1568,37 @@
           else setTicker(waiting ? 'Parabole Radio' : d.title, waiting ? 'Paris 18' : (d.artist || ''));
           if(micro) micro.textContent = waiting ? (d.show || '—') : [d.artist, d.title].filter(Boolean).join(' — ');
           const key = waiting ? null : (d.artist || '') + '|' + d.title;
+          const changed = !!(current && key && key !== current.key);
+          if(changed){
+            seenChange = true;
+            station.played = [current, ...station.played].slice(0, 20);   // HISTORIQUE: the track that just ended
+          }
           if(d.previous && d.previous.title) setPrevious(d.previous);
-          else if(current && key && key !== current.key) setPrevious(current);   // the track that just ended
+          else if(changed) setPrevious(current);
           else if(!askedHistory && HISTORY_URL){
             askedHistory = true;
-            fetchJson(withQuery(HISTORY_URL, 'limit=2'), { cache: 'no-store' }).then(h => {
-              const before = ((h.data ? fromRadioCult.history(h) : h).items || []).find(it => it.title !== d.title);
-              if(before && prevBtn && prevBtn.hidden) setPrevious(before);
+            // Radio Cult lists a track a couple of minutes after it ended: asked again 3 minutes
+            // later, unless a change seen here has told it by then
+            const ask = () => fetchJson(withQuery(HISTORY_URL, 'limit=3'), { cache: 'no-store' }).then(h => {
+              const before = ((h.data ? fromRadioCult.history(h) : h).items || []).find(it => !samePlay(it, current));
+              if(before && !seenChange) setPrevious(before);
             }).catch(() => {});
+            ask();
+            setTimeout(ask, 180000);
           }
-          if(key) current = { key, title: d.title, artist: d.artist };
+          if(key && (!current || key !== current.key)){
+            // when it started: Radio Cult gives its start, Radiocompas how far it has played
+            const start = Date.parse(d.received_at) - (Number(d.elapsed) || 0) * 1000;
+            current = { key, title: d.title, artist: d.artist, album: d.album,
+              played_at: new Date(Number.isFinite(start) && start < Date.now() + 60000 ? start : Date.now()).toISOString() };
+          }
+          if(key) d.played_at = current.played_at;
+          // the open HISTORIQUE pop-up follows at once when the track or the show changes
+          const onAir = (d.show || '') + '|' + (key || '');
+          if(onAir !== shownOnAir){
+            shownOnAir = onAir;
+            if(popups.lastplayed && popups.lastplayed.classList.contains('open')) loadHistory();
+          }
           if(radioControl){
             radioControl.setOnAir(d.source !== 'off');
             radioControl.setMeta(waiting ? (d.show ? { title: d.show } : null) : d);
