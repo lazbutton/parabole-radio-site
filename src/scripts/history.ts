@@ -2,10 +2,9 @@
 // Attend {items: [{played_at, title, artist, album}]}, du plus récent au plus ancien. En tête : ce que le direct sait,
 // le morceau en cours et le suivant.
 import type { History, Track } from "../lib/station/types";
-import { popupMessage } from "./schedule";
 import { HISTORY_URL, HOPPER_URL, STATION_TIMEZONE } from "./settings";
 import { station } from "./state";
-import { escapeHtml, fetchJson, withQuery } from "./util";
+import { escapeHtml, fetchJson, popupMessage, withQuery } from "./util";
 
 const popupRow = (when: string, title: string, sub: string | undefined, now: boolean, extra = "") =>
   `<div class="popup-row${now ? " now" : ""}"><span class="when">${escapeHtml(when)}</span>` +

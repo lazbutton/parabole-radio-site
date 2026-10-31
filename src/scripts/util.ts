@@ -4,6 +4,9 @@
 export const escapeHtml = (s: unknown) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
+/** Les messages d'attente des panneaux : une mire, puis le texte. */
+export const popupMessage = (...lines: string[]) => `<div class="popup-empty">${lines.map(escapeHtml).join("<br>")}</div>`;
+
 export async function fetchJson<T = any>(url: string, options?: RequestInit): Promise<T> {
   const r = await fetch(url, options);
   if (!r.ok) throw new Error(url + " → HTTP " + r.status);

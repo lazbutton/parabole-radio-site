@@ -3,13 +3,10 @@
 // sert notre API).
 import type { Schedule } from "../lib/station/types";
 import { SCHEDULE_URL, STATION_TIMEZONE } from "./settings";
-import { escapeHtml, fetchJson } from "./util";
+import { escapeHtml, fetchJson, popupMessage } from "./util";
 
 const schedule = { data: null as Schedule | null, at: 0, day: null as string | null };
 const panel = () => document.getElementById("schedulePopup");
-
-/** Les messages d'attente des panneaux : une mire, puis le texte. */
-export const popupMessage = (...lines: string[]) => `<div class="popup-empty">${lines.map(escapeHtml).join("<br>")}</div>`;
 
 export async function loadSchedule() {
   const days = document.getElementById("scheduleDays")!;
