@@ -5,6 +5,8 @@ WHAT'S IN THIS FOLDER
 - index.html .......................... the whole website (this is what Vercel serves)
 - vercel.json ......................... the relay for Radio Cult's programme and history
   (see "The player")
+- api/hopper.js ....................... asks Hopper (hppr.fr) for the HISTORIQUE links
+  (see "The player")
 - PARABOLE RADIO/VIDEO/BACKGROUND/ .... the 15 background clips (backgroundN.mp4), each
   with its first frame (backgroundN.jpg), shown while the clip loads
 - PARABOLE RADIO/OVERLAY/logo.webp .... the animated logo (top-left), loaded for every
@@ -26,6 +28,8 @@ of the <script> section holds everything you may want to change.
 - SCHEDULE_URL .......... the programme
 - HISTORY_URL ........... the last tracks played
 - STATION_TIMEZONE ...... the station's time zone, for the hours in the pop-ups
+- CHAT_URL .............. Radio Cult's chat, in the site's colours ("" hides CHAT)
+- HOPPER_URL ............ the HISTORIQUE links to hppr.fr ("" shows none)
 - bgPlaylist ............ the list of background clips
 
 
@@ -47,8 +51,18 @@ nothing else to change; vercel.json can then go. Each address must answer from
 another site (CORS): the nowplaying service and the public routes of
 Radiocompas do.
 
+In HISTORIQUE, a track gets a "Retrouver" link when Hopper (hppr.fr) finds it word
+for word on the streaming platforms, as on OutLive: the link opens the track on
+each listener's own platform. No link otherwise (a wrong link is worse than
+none). The page asks api/hopper.js, a Vercel function, which asks
+https://hppr.fr/api/resolve and keeps each answer 30 days in Vercel's cache: each
+track is asked once, whoever listens. Without a key, Hopper allows 10 searches a
+minute from Vercel's shared addresses; to give Parabole its own limit (60), add
+"parabole:<key>" to HOPPER_PARTNER_KEYS in Hopper's .env and the same <key> as
+HOPPER_KEY in the Vercel project's environment variables.
+
 An address left "" switches that part off without breaking the site: the player
-shows "HORS ANTENNE" (and plays nothing), the pop-ups say the content is coming
+shows "OFF AIR" (and plays nothing), the pop-ups say the content is coming
 soon.
 
 
