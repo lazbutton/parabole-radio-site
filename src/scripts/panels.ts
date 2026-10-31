@@ -146,14 +146,21 @@ if (windowsOn) {
       panel.dataset.moved = "";
       panel.classList.add("dragging");
       bar.setPointerCapture(e.pointerId);
-      const move = (ev: PointerEvent) => place(panel, ev.clientX - dx, ev.clientY - dy);
+      let dragged = false; // un simple clic sur la barre (pour passer devant) n'est pas un déplacement
+      const move = (ev: PointerEvent) => {
+        if (!dragged && Math.abs(ev.clientX - e.clientX) + Math.abs(ev.clientY - e.clientY) < 4) return;
+        dragged = true;
+        place(panel, ev.clientX - dx, ev.clientY - dy);
+      };
       const end = () => {
         panel.classList.remove("dragging");
         bar.removeEventListener("pointermove", move);
         bar.removeEventListener("pointerup", end);
         bar.removeEventListener("pointercancel", end);
-        saved[panel.id] = { left: parseFloat(panel.style.left), top: parseFloat(panel.style.top) };
-        save();
+        if (dragged) {
+          saved[panel.id] = { left: parseFloat(panel.style.left), top: parseFloat(panel.style.top) };
+          save();
+        } else if (!saved[panel.id]) resetWindow(panel); // jamais déplacé : il garde sa place par défaut
       };
       bar.addEventListener("pointermove", move);
       bar.addEventListener("pointerup", end);
