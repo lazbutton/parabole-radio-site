@@ -1,0 +1,27 @@
+---
+/**
+ * Le fond de toutes les pages : la vidéo d'archives (le clip est tiré par src/scripts/background.ts, dans la liste
+ * de src/scripts/settings.ts), un voile bleu, le filtre cathodique, le globe (logo animé, rendu audioréactif par
+ * src/scripts/globe.ts) et la surimpression du mode staff. Il ne quitte jamais la page : la vidéo continue d'une
+ * rubrique à l'autre.
+ */
+---
+
+<div id="fond" class="fixed inset-0 w-full h-full z-0 overflow-hidden bg-black">
+  <!-- Pas de <source> ici : le navigateur commençait à télécharger background.mp4 avant que le script ne change de clip. -->
+  <video id="backgroundVideo" class="w-full h-full object-cover" autoplay loop muted playsinline></video>
+  <div class="absolute inset-0 bg-[#000dff]/20 mix-blend-overlay pointer-events-none"></div>
+  <!-- CRT filter: adapted from "CRT scanline filter" by Tellers - https://tellers.ai/free-svg-vfx/crt-scanline-filter
+       - License: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Changes: rebuilt in CSS; the noise
+       (under 1/255, invisible), the glow blur, the rolling band, the flashing line, the top band (under the top
+       bar) and the screen frame are left out. -->
+  <div class="crt-filter" aria-hidden="true"></div>
+  <!-- Le globe : WebP animé (1,2 Mo) pour les navigateurs récents, APNG (4,4 Mo) en secours -->
+  <picture>
+    <source srcset="/PARABOLE%20RADIO/OVERLAY/logo.webp" type="image/webp" />
+    <img id="logoOverlay" class="logo-overlay" src="/PARABOLE%20RADIO/OVERLAY/logo.apng" alt="Parabole Radio" />
+  </picture>
+  <div id="overlayCanvasContainer" class="overlay-canvas-container">
+    <canvas id="overlayCanvas" class="overlay-canvas"></canvas>
+  </div>
+</div>

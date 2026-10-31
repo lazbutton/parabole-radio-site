@@ -1,0 +1,55 @@
+---
+/**
+ * À propos : un texte PROVISOIRE. Ce qui est sûr (la radio, l'écoute, l'appel aux contributeurs) est écrit ; le reste
+ * est marqué « À écrire », dont le contact et les mentions légales, obligatoires pour un site publié en France (LCEN).
+ * Le futur CMS (/admin) permettra à l'équipe de l'éditer sans toucher au code.
+ */
+import Base from "../layouts/Base.astro";
+import Sheet from "../components/Sheet.astro";
+import { DEFAULT_SUBTITLE_URL } from "../scripts/settings";
+---
+
+<Base page="about" title="À propos" description="Parabole Radio, webradio communautaire de Paris 18.">
+  <Sheet title="À propos">
+    <span slot="tete" class="a-ecrire">Texte à écrire</span>
+    <div class="feuille-corps">
+      <p class="brouillon">
+        Ce texte est provisoire : chaque partie marquée <span class="a-ecrire">À écrire</span> attend sa version définitive.
+      </p>
+
+      <h2>Parabole Radio</h2>
+      <p>
+        Webradio communautaire du 18<sup>e</sup> arrondissement de Paris : Union de la Jeunesse Internationale Community
+        Radio. Le direct tourne 24 h sur 24 : de la musique en continu, des émissions et des sets.
+      </p>
+      <p class="brouillon"><span class="a-ecrire">À écrire</span> L’histoire de la radio, l’équipe, ce qu’on y entend.</p>
+
+      <h2>Écouter</h2>
+      <p>
+        Le direct se lance avec la touche ▶ du bandeau, en bas de chaque page. Il continue quand on change de page. La
+        programmation, l’historique des morceaux et le chat s’ouvrent depuis la ligne sous le bandeau.
+      </p>
+
+      <h2>Participer</h2>
+      <p>
+        La radio cherche des contributeurs : DJ, podcasteurs, spécialistes d’un genre, passionnés de musique.{" "}
+        {
+          DEFAULT_SUBTITLE_URL && (
+            <a href={DEFAULT_SUBTITLE_URL} target="_blank" rel="noopener noreferrer">
+              Répondre au formulaire
+            </a>
+          )
+        }
+      </p>
+
+      <h2>Contact</h2>
+      <p class="brouillon"><span class="a-ecrire">À écrire</span> Une adresse e-mail pour joindre la radio.</p>
+
+      <h2>Mentions légales</h2>
+      <p class="brouillon">
+        <span class="a-ecrire">À écrire</span> L’éditeur du site, le directeur ou la directrice de la publication, et
+        l’hébergeur.
+      </p>
+    </div>
+  </Sheet>
+</Base>

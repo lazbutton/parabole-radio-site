@@ -1,0 +1,83 @@
+---
+/**
+ * Le gabarit de toutes les pages. Il pose la « coque » qui ne quitte jamais l'écran : le fond (vidéo, globe), la barre
+ * du haut et son menu, le bandeau du lecteur, les panneaux (dont le chat) et le mode staff. Seul <main id="page">
+ * change d'une rubrique à l'autre : le ClientRouter d'Astro charge la page sans rechargement, et une fonction de
+ * remplacement maison (src/scripts/router.ts) ne remplace que ce <main>. Le son, la vidéo et le cadre du chat ne
+ * sont donc jamais déplacés ni recréés.
+ *
+ * <html data-page> dit quelle rubrique est ouverte : les styles s'en servent (PROGRAMMATION toujours ouvert sur
+ * l'accueil), et la fonction de remplacement le recopie à chaque navigation.
+ */
+import { ClientRouter } from "astro:transitions";
+import Background from "../components/Background.astro";
+import Band from "../components/Band.astro";
+import Icons from "../components/Icons.astro";
+import Panels from "../components/Panels.astro";
+import Staff from "../components/Staff.astro";
+import TopBar from "../components/TopBar.astro";
+import type { Page } from "../lib/menu";
+import "../styles/socle.css";
+import "../styles/bandeau.css";
+import "../styles/panneaux.css";
+import "../styles/staff.css";
+import "../styles/pages.css";
+
+interface Props {
+  page: Page;
+  /** Le nom de la rubrique, pour l'onglet : « À propos — Parabole Radio ». Sans lui, le titre de l'accueil. */
+  title?: string;
+  description?: string;
+}
+const {
+  page,
+  title,
+  description = "Parabole Radio — Union de la Jeunesse Internationale community radio. Live stream from Paris.",
+} = Astro.props;
+const documentTitle = title ? `${title} — Parabole Radio` : "Parabole Radio — Live Community Radio • Paris";
+const url = new URL(Astro.url.pathname, Astro.site);
+---
+
+<!doctype html>
+<html lang="fr" data-page={page} transition:animate="none">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{documentTitle}</title>
+    <meta name="description" content={description} />
+
+    <!-- Favicon : l'émoji antenne parabolique, sans fichier -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>"
+    />
+
+    <!-- Aperçu de partage. L'image (1200 × 630) reste à faire : og:image viendra avec elle. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={documentTitle} />
+    <meta property="og:description" content="Union de la Jeunesse Internationale community radio. Live stream from Paris. Ça va péter !!!" />
+    <meta property="og:url" content={url} />
+    <meta name="twitter:card" content="summary" />
+
+    <!-- Monument Grotesk sert à tout le texte : les deux graisses tout de suite -->
+    <link rel="preload" href="/PARABOLE%20RADIO/FONTS/MonumentGrotesk-Regular.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/PARABOLE%20RADIO/FONTS/MonumentGrotesk-Bold.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- Les classes utilitaires, générées une fois avec Tailwind CSS v3.4.17 (feuille figée, à ne pas modifier) -->
+    <link rel="stylesheet" href="/PARABOLE%20RADIO/CSS/tailwind.css" />
+    <ClientRouter fallback="swap" />
+  </head>
+  <body class="antialiased">
+    <Icons />
+    <Background />
+    <TopBar page={page} />
+    <main id="page">
+      <slot />
+    </main>
+    <Band />
+    <Panels />
+    <Staff />
+    <script>
+      import "../scripts/shell";
+    </script>
+  </body>
+</html>

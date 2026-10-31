@@ -1,0 +1,27 @@
+---
+/**
+ * L'accueil : le direct. Tout ce qui le fait (vidéo, globe, bandeau ON AIR, PROGRAMMATION toujours ouvert sur
+ * ordinateur, HISTORIQUE, CHAT) est dans la coque (src/layouts/Base.astro) ; la page n'y ajoute que son texte
+ * micrographique, en haut à droite, avec ce qui passe (NOW PLAYING, rempli par src/scripts/nowplaying.ts).
+ */
+import Base from "../layouts/Base.astro";
+---
+
+<Base page="accueil">
+  <h1 class="sr-only">Parabole Radio, union de la jeunesse internationale community radio : le direct de Paris 18</h1>
+  <!-- Texte micrographique (en haut à droite) -->
+  <div class="micro-spec">
+    <div>PARABOLE RADIO</div>
+    <div>ONDES HERTZIENNES &amp; FLUX NUMÉRIQUES</div>
+    <div>CONTINUOUS AUDIO SPECTRUM</div>
+    <div>24/7 BROADCAST PATTERN</div>
+    <div class="micro-gap"></div>
+    <div class="micro-row"><span>AUDIO SAMPLING</span><span>96KHZ / 24-BIT</span></div>
+    <div>SIGNAL</div>
+    <div class="micro-gap"></div>
+    <div>NOW PLAYING</div>
+    <div id="nowPlaying">—</div>
+    <div class="micro-gap"></div>
+    <div>UNION DE LA JEUNESSE INTERNATIONALE COMMUNITY RADIO</div>
+  </div>
+</Base>

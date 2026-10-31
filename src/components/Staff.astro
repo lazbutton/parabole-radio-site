@@ -1,0 +1,20 @@
+---
+/**
+ * Le mode staff caché (src/scripts/staff.ts) : les fichiers qu'on choisit, les réglages de la surimpression vidéo et
+ * les messages. Tout reste dans le navigateur de la personne connectée ; le futur CMS (/admin) le remplacera.
+ */
+---
+
+<input type="file" id="videoUploadInput" accept="video/*" class="hidden" />
+<input type="file" id="logoUploadInput" accept="image/*" class="hidden" />
+<input type="file" id="overlayUploadInput" accept="video/*" class="hidden" />
+
+<div id="overlayQuickControls" class="overlay-controls" style="display: none;">
+  <div class="control-row"><button id="toggleOverlayBtn">HIDE</button><button id="removeOverlayBtn">REMOVE</button></div>
+  <div class="control-row"><label>Opacity</label><input type="range" id="overlayOpacity" min="0" max="100" value="100" /></div>
+  <div class="control-row"><label>Size (%)</label><input type="range" id="overlaySize" min="10" max="80" value="40" /></div>
+  <div class="control-row"><label>Pos X</label><input type="range" id="overlayPosX" min="0" max="100" value="50" /></div>
+  <div class="control-row"><label>Pos Y</label><input type="range" id="overlayPosY" min="0" max="100" value="50" /></div>
+</div>
+<div id="alphaNote" class="alpha-note" style="display: none;">Transparency hint: use WebM with alpha or adjust opacity</div>
+<div id="toastContainer" class="fixed bottom-28 right-4 z-[100] flex flex-col gap-2"></div>

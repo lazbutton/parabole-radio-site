@@ -1,0 +1,32 @@
+---
+/**
+ * Une rubrique qui n'existe pas encore : une mire, « Bientôt », et ce qui viendra, d'après les croquis
+ * (EVOLUTION_DU_PROJET.md).
+ */
+import Sheet from "./Sheet.astro";
+
+interface Props {
+  title: string;
+  /** Ce que la rubrique contiendra, en une ou deux phrases. */
+  summary: string;
+  /** Ses étiquettes : rangées, catégories, filtres. */
+  tags?: string[];
+}
+const { title, summary, tags = [] } = Astro.props;
+---
+
+<Sheet title={title} meta="en préparation">
+  <div class="bientot">
+    <p class="bientot-titre">Bientôt</p>
+    <p>{summary}</p>
+    {
+      tags.length > 0 && (
+        <ul aria-label="Au programme">
+          {tags.map((tag) => (
+            <li>{tag}</li>
+          ))}
+        </ul>
+      )
+    }
+  </div>
+</Sheet>

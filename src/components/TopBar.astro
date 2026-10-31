@@ -1,0 +1,45 @@
+---
+/**
+ * La barre du haut, sur toutes les pages : le logo rond (retour à l'accueil ; un double-clic ouvre le mode staff), le
+ * texte qui défile, le menu des rubriques comme sur la maquette, et la touche RADIO / VIDÉO (le son du direct ou celui
+ * des vidéos). Elle n'est pas remplacée à la navigation : src/scripts/router.ts y met à jour la rubrique ouverte.
+ */
+import logoBarre from "../assets/logo-barre.png";
+import { MENU, type Page } from "../lib/menu";
+
+interface Props {
+  page: Page;
+}
+const { page } = Astro.props;
+const marquee = "PARABOLE RADIO • UNION DE LA JEUNESSE INTERNATIONALE COMMUNITY RADIO • CA VA PETER !!! • LIVE • PARIS 18.";
+---
+
+<header class="fixed top-0 left-0 right-0 z-30 bg-black border-b-2 border-[#fff039] flex items-center overflow-hidden top-bar">
+  <a id="logoSquare" class="logo-square" href="/" aria-label="Parabole Radio, retour au direct">
+    <img src={logoBarre.src} width={logoBarre.width} height={logoBarre.height} alt="" />
+  </a>
+  <div class="logo-separator"></div>
+  <div class="flex-1 overflow-hidden h-full flex items-center marquee-container">
+    <div class="animate-marquee-retro-slow whitespace-nowrap flex items-center gap-12">
+      <p class="marquee-text text-white uppercase">{marquee}</p>
+      <p class="marquee-text text-white uppercase" aria-hidden="true">{marquee}</p>
+    </div>
+  </div>
+  <nav class="menu" aria-label="Rubriques">
+    <ul>
+      {
+        MENU.map((item) => (
+          <li>
+            <a href={item.href} data-page={item.page} aria-current={item.page === page ? "page" : undefined}>
+              {item.label}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </nav>
+  <div class="flex items-center bg-black h-full shrink-0 pr-2 gap-1">
+    <button id="soundToggle" class="sound-toggle" title="Son : radio / vidéos">RADIO</button>
+    <div id="adminControlsContainer" class="flex items-center gap-1"></div>
+  </div>
+</header>
