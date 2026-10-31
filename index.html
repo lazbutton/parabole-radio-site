@@ -102,6 +102,21 @@
     }
     @media (max-width: 640px) { .logo-overlay { width: 136px; top: 36px; left: 0px; } }
 
+    /* CRT filter over the background video (credit next to it in the body). Values from the
+       1920x1080 SVG; lines stay in CSS pixels so they are sharp on every screen, and only the opacity
+       moves, so the browser never repaints it */
+    .crt-filter {
+      position: absolute; inset: 0; pointer-events: none;
+      animation: crtFlicker 0.18s linear infinite;
+      background:
+        radial-gradient(75% 75% at 50% 50%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.10) 82%, rgba(0,0,0,0.33)),                          /* vignette */
+        linear-gradient(rgba(0,0,0,0) 2px, rgba(0,0,0,0.16) 2px 3px, rgba(0,0,0,0.26) 3px) 0 0 / 100% 4px,                         /* scanlines */
+        linear-gradient(to right, rgba(255,74,74,0.0126) 2px, rgba(108,255,108,0.0126) 2px 4px, rgba(94,163,255,0.0126) 4px) 0 0 / 6px 100%,   /* phosphor */
+        radial-gradient(85% 85% at 50% 45%, rgba(255,255,255,0) 70%, rgba(159,214,255,0.0144));                                   /* glass edge */
+    }
+    @keyframes crtFlicker { 0%, 33.33%, 66.67%, 100% { opacity: 1; } 16.67% { opacity: 0.985; } 50% { opacity: 0.992; } 83.33% { opacity: 0.988; } }
+    @media (prefers-reduced-motion: reduce) { .crt-filter { animation: none; } }
+
     /* Micrographic spec text (top-right, technical style) */
     .micro-spec {
       position: fixed; top: 52px; right: 16px; z-index: 10;
@@ -570,6 +585,11 @@
     <div class="fixed inset-0 w-full h-full z-0 overflow-hidden bg-black">
       <video id="backgroundVideo" class="w-full h-full object-cover" autoplay loop muted playsinline></video>
       <div class="absolute inset-0 bg-[#000dff]/20 mix-blend-overlay pointer-events-none"></div>
+      <!-- CRT filter: adapted from "CRT scanline filter" by Tellers - https://tellers.ai/free-svg-vfx/crt-scanline-filter
+           - License: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Changes: rebuilt in CSS; the noise
+           (under 1/255, invisible), the glow blur, the rolling band, the flashing line, the top band (under the top
+           bar) and the screen frame are left out. -->
+      <div class="crt-filter" aria-hidden="true"></div>
       <!-- Animated logo: WebP (1.2 MB) for current browsers, APNG (4.4 MB) as fallback -->
       <picture>
         <source srcset="PARABOLE%20RADIO/OVERLAY/logo.webp" type="image/webp">
