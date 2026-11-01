@@ -20,6 +20,7 @@ import {
   PersonIcon,
   PlusIcon,
   SunIcon,
+  VideoIcon,
 } from "@radix-ui/react-icons";
 import { Dialog, Kbd, Spinner, VisuallyHidden } from "@radix-ui/themes";
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
@@ -144,6 +145,7 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange(op
           { key: "shows", label: "Shows", icon: <DiscIcon />, href: "/admin/shows", words: "émissions archives" },
           { key: "drafts", label: "Shows en brouillon", icon: <FileTextIcon />, href: "/admin/shows?status=draft", words: "brouillons" },
           { key: "artists", label: "Artistes", icon: <PersonIcon />, href: "/admin/artistes", words: "résidents invités" },
+          { key: "clips", label: "Vidéos de fond", icon: <VideoIcon />, href: "/admin/videos", words: "clips accueil fond chaînes" },
           { key: "password", label: "Changer de mot de passe", icon: <LockClosedIcon />, href: "/admin/mot-de-passe", words: "compte" },
         ],
       },

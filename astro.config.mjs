@@ -30,6 +30,9 @@ export default defineConfig({
       // le serveur s'en sert : l'admin n'envoie aucun client Supabase au navigateur.
       PUBLIC_SUPABASE_URL: envField.string({ context: "server", access: "public", optional: true }),
       PUBLIC_SUPABASE_PUBLISHABLE_KEY: envField.string({ context: "server", access: "public", optional: true }),
+      // Le magasin Vercel Blob des vidéos de fond envoyées depuis l'admin : Vercel le pose quand on relie le magasin
+      // au projet. Sans lui, l'admin gère la liste mais n'envoie rien (src/lib/admin/blob.ts).
+      BLOB_READ_WRITE_TOKEN: envField.string({ context: "server", access: "secret", optional: true }),
     },
   },
 });

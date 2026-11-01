@@ -1,0 +1,118 @@
+---
+/**
+ * Les vidéos de fond (cms/README.md, « Les vidéos de fond ») : la liste dans son ordre, l'ajout, le titre, la mise en
+ * rotation, l'ordre, le remplacement du fichier et la suppression. En GET, l'écran (HTML ou JSON) ; en POST, une
+ * action de l'écran (ClipsScreen), et une réponse en JSON : la liste à jour, ou les erreurs.
+ *
+ * Les fichiers vont directement du navigateur à Vercel Blob (src/lib/admin/blob.ts) : l'action « ticket » signe
+ * l'envoi d'un fichier, puis « add » ou « replace » vérifie dans le magasin que la vidéo est bien arrivée avant de
+ * l'inscrire. Les fichiers qu'une action rend inutiles (ancien fichier remplacé, vidéo supprimée, envoi abandonné)
+ * sont effacés du magasin ; ceux livrés avec le site ne sont jamais touchés.
+ */
+import { readClipFile, readClipTitle } from "@parabole/cms";
+import type { Screen } from "../../components/admin/types";
+import Admin from "../../layouts/Admin.astro";
+import { blobReady, POSTER_TYPE_LIST, removeFiles, uploaded, uploadTicket } from "../../lib/admin/blob";
+import { clipsData, json, wantsJson } from "../../lib/admin/views";
+
+export const prerender = false;
+
+const admin = Astro.locals.admin!;
+
+if (Astro.request.method === "POST") {
+  const data = await Astro.request.formData();
+  const text = (name: string) => String(data.get(name) ?? "");
+  const id = text("id");
+  /** La liste à jour, après une action réussie. */
+  const done = async (message?: string) => json({ ok: true, data: clipsData(await admin.listClips()), message });
+  const refused = (errors: Record<string, string>, status = 422) => json({ ok: false, errors }, status);
+
+  switch (text("intent")) {
+    case "ticket": {
+      if (!blobReady()) return refused({ video: "L'envoi de vidéos n'est pas branché : il manque le magasin Vercel Blob." }, 503);
+      const ticket = await uploadTicket(text("kind") === "poster" ? "poster" : "video", text("type"), Number(text("size")));
+      return "error" in ticket ? refused({ video: ticket.error }) : json({ ok: true, ...ticket });
+    }
+
+    case "add":
+    case "replace": {
+      const read = readClipFile({
+        videoUrl: text("videoUrl"),
+        posterUrl: text("posterUrl"),
+        mimeType: text("mimeType"),
+        size: text("size"),
+        duration: text("duration"),
+        width: text("width"),
+        height: text("height"),
+      });
+      const title = readClipTitle(text("title"));
+      const sent = [read.values.videoUrl, read.values.posterUrl];
+      const errors = { ...read.errors, ...(text("intent") === "add" ? title.errors : {}) };
+      // Le fichier doit être dans le magasin : la taille retenue est la sienne, pas celle qu'annonce le navigateur.
+      const video = Object.keys(errors).length ? null : await uploaded(read.values.videoUrl, [read.values.mimeType]);
+      const poster = read.values.posterUrl ? await uploaded(read.values.posterUrl, POSTER_TYPE_LIST) : null;
+      if (!Object.keys(errors).length && (!video || (read.values.posterUrl && !poster)))
+        errors.video = "La vidéo envoyée est introuvable sur le stockage. Recommence l'envoi.";
+      if (Object.keys(errors).length) {
+        await removeFiles(sent);
+        return refused(errors);
+      }
+      const file = { ...read.values, sizeBytes: video!.size };
+      if (text("intent") === "add") {
+        const added = await admin.addClip({ title: title.title, file, status: text("status") === "draft" ? "draft" : "published" });
+        if (!added.ok) {
+          await removeFiles(sent);
+          return refused(added.errors);
+        }
+        return done(`« ${title.title || "Sans titre"} » ajoutée`);
+      }
+      const replaced = await admin.replaceClipFile(id, file);
+      if (!replaced.ok) {
+        await removeFiles(sent);
+        return refused(replaced.errors);
+      }
+      await removeFiles([replaced.previous.videoUrl, replaced.previous.posterUrl]);
+      return done(`Vidéo de « ${replaced.previous.title || "Sans titre"} » remplacée`);
+    }
+
+    case "abandon": {
+      // Un envoi interrompu (l'image d'attente n'est pas partie…) : ses fichiers, s'ils ne servent à aucun clip.
+      const used = new Set((await admin.listClips()).flatMap((clip) => [clip.videoUrl, clip.posterUrl]));
+      await removeFiles(data.getAll("url").map(String).filter((url) => !used.has(url)));
+      return json({ ok: true });
+    }
+
+    case "save": {
+      const change: { title?: string; status?: "draft" | "published" } = {};
+      if (data.has("title")) {
+        const title = readClipTitle(text("title"));
+        if (Object.keys(title.errors).length) return refused(title.errors);
+        change.title = title.title;
+      }
+      if (data.has("status")) change.status = text("status") === "draft" ? "draft" : "published";
+      const saved = await admin.updateClip(id, change);
+      if (!saved.ok) return refused(saved.errors);
+      const message = change.status === "draft" ? "Vidéo mise de côté" : change.status === "published" ? "Vidéo remise dans la rotation" : "Titre enregistré";
+      return done(message);
+    }
+
+    case "move": {
+      if (!(await admin.moveClip(id, text("direction") === "up" ? "up" : "down"))) return refused({ form: "Cette vidéo n'est plus dans la liste." }, 404);
+      return done();
+    }
+
+    case "delete": {
+      const removed = await admin.deleteClip(id);
+      if (!removed) return refused({ form: "Cette vidéo n'est plus dans la liste : elle a peut-être déjà été supprimée." }, 404);
+      await removeFiles([removed.videoUrl, removed.posterUrl]);
+      return done(`« ${removed.title || "Sans titre"} » supprimée`);
+    }
+  }
+  return refused({ form: "Action inconnue." }, 400);
+}
+
+const screen: Screen = { name: "clips", title: "Vidéos de fond", data: clipsData(await admin.listClips()) };
+if (wantsJson(Astro.request)) return json(screen);
+---
+
+<Admin screen={screen} />

@@ -95,6 +95,27 @@ export type ArtistEditorData = { sheet: ArtistSheet };
 
 export type PasswordData = { email: string };
 
+/** Une vidéo de fond, dans l'ordre de la liste. */
+export type ClipRow = {
+  id: string;
+  title: string;
+  videoUrl: string;
+  posterUrl: string | null;
+  /** Son numéro de chaîne : sa place parmi les vidéos de la rotation ; null quand elle est mise de côté. */
+  channel: number | null;
+  status: ContentStatus;
+  /** Livrée avec le site (public/), ou envoyée depuis l'admin (Vercel Blob). */
+  origin: "site" | "upload";
+  /** « 2:06 · 640 × 360 · 9,6 Mo » */
+  facts: string;
+  /** « 1 nov. 2026 » : son ajout à la liste. */
+  added: string;
+};
+/** Les vidéos de fond ; `uploads` : l'envoi vers Vercel Blob est branché ; `maxBytes` : le poids maximal d'une vidéo. */
+export type ClipsData = { clips: ClipRow[]; uploads: boolean; maxBytes: number };
+/** La réponse du serveur à une action de l'écran des vidéos : la liste à jour, ou les erreurs. */
+export type ClipsResponse = { ok: true; data: ClipsData; message?: string } | { ok: false; errors: FieldErrors };
+
 /** Un écran de l'application, tel que le serveur le prépare. */
 export type Screen =
   | { name: "dashboard"; title: string; data: DashboardData }
@@ -102,7 +123,8 @@ export type Screen =
   | { name: "show"; title: string; data: ShowEditorData }
   | { name: "artists"; title: string; data: ArtistsListData }
   | { name: "artist"; title: string; data: ArtistEditorData }
-  | { name: "password"; title: string; data: PasswordData };
+  | { name: "password"; title: string; data: PasswordData }
+  | { name: "clips"; title: string; data: ClipsData };
 
 /** Ce que la page passe à l'application : la personne connectée, l'adresse affichée et son écran. */
 export type AppProps = { viewer: Viewer; href: string; screen: Screen };
