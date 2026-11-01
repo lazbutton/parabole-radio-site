@@ -1,0 +1,47 @@
+---
+/**
+ * La fiche d'un show : la créer (/admin/shows/nouveau) ou la modifier (cms/README.md, 9.2). En GET, l'écran (HTML au
+ * premier affichage, JSON quand l'application navigue). En POST, la fiche envoyée par l'écran (ShowEditor) : le
+ * serveur vérifie la saisie (readShowForm), écrit sous le rôle de la personne connectée (Astro.locals.admin), puis
+ * répond en JSON : la fiche à jour, les erreurs par champ, ou la liste où revenir après une suppression.
+ */
+import { readShowForm, type AdminShow } from "@parabole/cms";
+import type { Screen } from "../../../components/admin/types";
+import Admin from "../../../layouts/Admin.astro";
+import { intentOf, showFormFrom } from "../../../lib/admin/forms";
+import { seeOther } from "../../../lib/admin/paths";
+import { json, showSheet, wantsJson } from "../../../lib/admin/views";
+
+export const prerender = false;
+
+const admin = Astro.locals.admin!;
+const isNew = Astro.params.id === "nouveau";
+const show: AdminShow | null = isNew ? null : await admin.getShow(Astro.params.id ?? "");
+const posted = Astro.request.method === "POST";
+if (!isNew && !show) return posted ? json({ ok: false, errors: { form: "Ce show n'existe plus : il a peut-être été supprimé." } }, 404) : seeOther("/admin/shows");
+
+if (posted) {
+  const data = await Astro.request.formData();
+  const intent = intentOf(data);
+  if (intent === "delete") {
+    if (!show) return json({ ok: false, errors: { form: "Ce show n'est pas encore créé." } }, 400);
+    const removed = await admin.deleteShow(show.id);
+    return json({ ok: true, redirect: "/admin/shows", message: `« ${removed?.title ?? show.title} » supprimé` });
+  }
+  // Publier, ou enregistrer un show déjà publié : il lui faut une date de diffusion.
+  const publishing = intent === "publish" || (intent === "save" && show?.status === "published");
+  const read = readShowForm(showFormFrom(data), { publish: publishing });
+  if (Object.keys(read.errors).length) return json({ ok: false, errors: read.errors }, 422);
+  const status = intent === "publish" ? "published" : intent === "unpublish" ? "draft" : undefined;
+  const version = String(data.get("version") ?? "");
+  const result = await admin.saveShow({ id: show?.id, version: show ? version : undefined, values: read.values, status });
+  if (!result.ok) return json({ ok: false, errors: result.errors, version: result.version }, 422);
+  const fresh = await admin.getShow(result.id);
+  return json({ ok: true, created: isNew, newArtists: result.newArtists.length, sheet: await showSheet(admin, fresh) });
+}
+
+const screen: Screen = { name: "show", title: show?.title ?? "Nouveau show", data: { sheet: await showSheet(admin, show) } };
+if (wantsJson(Astro.request)) return json(screen);
+---
+
+<Admin screen={screen} />

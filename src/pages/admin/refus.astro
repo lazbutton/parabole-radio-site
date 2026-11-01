@@ -1,0 +1,28 @@
+---
+/**
+ * Un compte connecté qui n'a pas de fiche d'équipe (table member) : la garde (src/middleware.ts) affiche cette page à
+ * la place de celle demandée. La base ne lui montrerait de toute façon que le publié, et ne le laisserait rien écrire.
+ */
+import AdminGate from "../../layouts/AdminGate.astro";
+
+export const prerender = false;
+
+Astro.response.status = 403;
+const email = Astro.locals.user?.email;
+---
+
+<AdminGate title="Accès refusé">
+  <div class="panel">
+    <h1 class="panel-head">Accès refusé</h1>
+    <div class="panel-body">
+      <p class="flash error" role="alert">Ce compte ne fait pas partie de l'équipe.</p>
+      <p>
+        {email ? `Tu es connecté·e avec ${email}. ` : ""}Seuls les membres de l'équipe de Parabole entrent dans l'admin. Si tu
+        en fais partie, demande à un admin de t'ajouter.
+      </p>
+      <form method="post" action="/admin/deconnexion">
+        <button class="button full" type="submit">Se déconnecter</button>
+      </form>
+    </div>
+  </div>
+</AdminGate>

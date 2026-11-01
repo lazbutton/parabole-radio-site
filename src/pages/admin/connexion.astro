@@ -1,0 +1,59 @@
+---
+/**
+ * La connexion de l'équipe : adresse et mot de passe (cms/README.md, 9.1). Le serveur les passe à Supabase Auth
+ * (signInWithPassword), qui pose la session en cookies. En cas d'échec, un seul message, que l'adresse soit connue ou
+ * non. Une personne déjà connectée et de l'équipe est renvoyée au tableau de bord par la garde (src/middleware.ts).
+ */
+import { isAuthRetryableFetchError } from "@supabase/supabase-js";
+import AdminGate from "../../layouts/AdminGate.astro";
+import { safeReturn, seeOther } from "../../lib/admin/paths";
+
+export const prerender = false;
+
+const after = safeReturn(Astro.url.searchParams.get("suite"));
+let email = "";
+let failure = "";
+if (Astro.request.method === "POST") {
+  const data = await Astro.request.formData();
+  email = String(data.get("email") ?? "").trim();
+  const password = String(data.get("password") ?? "");
+  if (!email || !password) failure = "Entre ton adresse et ton mot de passe.";
+  else {
+    const { error } = await Astro.locals.supabase!.auth.signInWithPassword({ email, password });
+    if (!error) return seeOther(safeReturn(String(data.get("suite") ?? "")));
+    // Adresse inconnue, mot de passe faux, compte non confirmé : le même message, pour ne rien dire des comptes.
+    const refused = error.status === 400 && !isAuthRetryableFetchError(error);
+    if (error.status === 429) failure = "Trop d'essais de connexion : attends quelques minutes.";
+    else if (refused) failure = "Adresse ou mot de passe incorrect.";
+    else {
+      // Un réglage de Supabase Auth, ou une panne : rien à voir avec ce qu'on a tapé.
+      console.error("admin : connexion impossible", error.status, error.code);
+      failure = "Connexion impossible pour le moment : réessaie dans un instant.";
+    }
+  }
+  Astro.response.status = 400;
+}
+const farewell = Astro.url.searchParams.has("au-revoir");
+---
+
+<AdminGate title="Connexion">
+  <form class="panel" method="post">
+    <h1 class="panel-head">Admin de Parabole Radio</h1>
+    <div class="panel-body">
+      <p>L'espace de l'équipe : shows, tracklists, artistes.</p>
+      {farewell && !failure && <p class="flash">Tu es déconnecté·e.</p>}
+      {failure && <p class="flash error" role="alert">{failure}</p>}
+      <input type="hidden" name="suite" value={after} />
+      <div class="field">
+        <label for="email">Adresse e-mail</label>
+        <input type="email" id="email" name="email" value={email} autocomplete="username" required autofocus={!email} />
+      </div>
+      <div class="field">
+        <label for="password">Mot de passe</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" required autofocus={Boolean(email)} />
+      </div>
+      <button class="button full" type="submit">Entrer</button>
+      <p class="hint">Mot de passe oublié ? Demande à un admin de t'en poser un nouveau.</p>
+    </div>
+  </form>
+</AdminGate>

@@ -1,0 +1,46 @@
+---
+/**
+ * Changer son mot de passe (cms/README.md, 9.1) : 12 caractères au moins, comme le demande Supabase Auth. Le mot de
+ * passe actuel est vérifié d'abord, pour qu'une session restée ouverte sur un ordinateur partagé ne suffise pas. En GET,
+ * l'écran (HTML ou JSON) ; en POST, le formulaire envoyé par l'écran (PasswordScreen), avec une réponse en JSON.
+ */
+import { isAuthWeakPasswordError } from "@supabase/supabase-js";
+import type { Screen } from "../../components/admin/types";
+import Admin from "../../layouts/Admin.astro";
+import { json, wantsJson } from "../../lib/admin/views";
+
+export const prerender = false;
+
+const MINIMUM = 12;
+const supabase = Astro.locals.supabase!;
+const email = Astro.locals.user!.email;
+
+if (Astro.request.method === "POST") {
+  const data = await Astro.request.formData();
+  const current = String(data.get("current") ?? "");
+  const next = String(data.get("next") ?? "");
+  const again = String(data.get("again") ?? "");
+  const errors: Record<string, string> = {};
+  if (!current) errors.current = "Entre ton mot de passe actuel.";
+  if (next.length < MINIMUM) errors.next = `${MINIMUM} caractères au moins.`;
+  else if (next === current) errors.next = "Choisis un mot de passe différent de l'actuel.";
+  if (!errors.next && again !== next) errors.again = "Les deux saisies ne sont pas identiques.";
+  if (!Object.keys(errors).length) {
+    const check = await supabase.auth.signInWithPassword({ email, password: current });
+    if (check.error) errors.current = check.error.status === 429 ? "Trop d'essais : attends quelques minutes." : "Ce n'est pas ton mot de passe actuel.";
+    else {
+      const { error } = await supabase.auth.updateUser({ password: next });
+      if (!error) return json({ ok: true });
+      if (isAuthWeakPasswordError(error)) errors.next = "Supabase juge ce mot de passe trop faible : allonge-le, mélange lettres, chiffres et signes.";
+      else if (error.code === "same_password") errors.next = "Choisis un mot de passe différent de l'actuel.";
+      else errors.form = "Le changement n'a pas pu se faire. Réessaie dans un instant.";
+    }
+  }
+  return json({ ok: false, errors }, 400);
+}
+
+const screen: Screen = { name: "password", title: "Mot de passe", data: { email } };
+if (wantsJson(Astro.request)) return json(screen);
+---
+
+<Admin screen={screen} />

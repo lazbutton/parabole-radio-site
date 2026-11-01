@@ -73,25 +73,7 @@ export const frenchOrder = new Intl.Collator("fr", { sensitivity: "base", numeri
 export const oneOf = <T extends string>(values: readonly T[], value: unknown): value is T => typeof value === "string" && (values as readonly string[]).includes(value);
 
 // ---------------------------------------------------------------------------------------------------------------
-// Le jour de Paris
+// Le jour de Paris (src/paris.ts, partagé avec l'admin)
 // ---------------------------------------------------------------------------------------------------------------
 
-export const STATION_TIME_ZONE = "Europe/Paris";
-
-/** Écart entre l'heure de Paris et l'heure universelle à cet instant, en millisecondes (1 h l'hiver, 2 h l'été). */
-function zoneOffset(at: Date, timeZone = STATION_TIME_ZONE): number {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" })
-      .formatToParts(at)
-      .map((part) => [part.type, Number(part.value)]),
-  ) as Record<string, number>;
-  const local = Date.UTC(parts.year!, parts.month! - 1, parts.day!, parts.hour!, parts.minute!, parts.second!);
-  return local - Math.floor(at.getTime() / 1000) * 1000;
-}
-
-/** Minuit, heure de Paris, du jour où tombe cet instant. */
-export function startOfParisDay(at: Date): Date {
-  const local = new Date(at.getTime() + zoneOffset(at));
-  const midnight = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate());
-  return new Date(midnight - zoneOffset(new Date(midnight)));
-}
+export { STATION_TIME_ZONE, startOfParisDay } from "../paris.ts";

@@ -1,0 +1,26 @@
+---
+/**
+ * La déconnexion : seulement par un formulaire (POST), pour qu'aucun lien, même chargé d'avance par le navigateur,
+ * ne déconnecte personne. Seule la session de cet appareil se ferme ; les autres (téléphone, ordinateur) restent ouvertes.
+ */
+import AdminGate from "../../layouts/AdminGate.astro";
+import { seeOther } from "../../lib/admin/paths";
+
+export const prerender = false;
+
+if (Astro.request.method === "POST") {
+  await Astro.locals.supabase?.auth.signOut({ scope: "local" });
+  return seeOther("/admin/connexion?au-revoir");
+}
+---
+
+<AdminGate title="Déconnexion">
+  <form class="panel" method="post">
+    <h1 class="panel-head">Se déconnecter</h1>
+    <div class="panel-body">
+      <p>Fermer ta session sur cet appareil ?</p>
+      <button class="button full" type="submit">Se déconnecter</button>
+      <a href="/admin">Revenir à l'admin</a>
+    </div>
+  </form>
+</AdminGate>

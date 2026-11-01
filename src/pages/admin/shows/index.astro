@@ -1,0 +1,54 @@
+---
+/**
+ * Les shows dans l'admin : tous, brouillons compris, du plus récent au plus ancien (ceux sans date en tête), avec les
+ * filtres de cms/README.md (9.2) : statut, type, étiquette, artiste, et la recherche. Les filtres sont dans l'adresse :
+ * une liste filtrée se garde en favori ou se partage avec l'équipe. Servie en HTML ou en JSON, comme chaque écran.
+ */
+import type { Screen } from "../../../components/admin/types";
+import Admin from "../../../layouts/Admin.astro";
+import { duration, parisDateTime } from "../../../lib/admin/format";
+import { json, wantsJson } from "../../../lib/admin/views";
+
+export const prerender = false;
+
+const PER_PAGE = 50;
+const admin = Astro.locals.admin!;
+const params = Astro.url.searchParams;
+const filters = {
+  q: params.get("q")?.trim() ?? "",
+  status: params.get("status") ?? "",
+  type: params.get("type") ?? "",
+  tag: params.get("tag") ?? "",
+  artist: params.get("artist") ?? "",
+  order: params.get("order") === "oldest" ? "oldest" : "recent",
+};
+const page = Math.max(1, Math.trunc(Number(params.get("page"))) || 1);
+const [result, choices] = await Promise.all([admin.listShows({ ...filters, limit: PER_PAGE, offset: (page - 1) * PER_PAGE }), admin.showChoices()]);
+const screen: Screen = {
+  name: "shows",
+  title: "Shows",
+  data: {
+    rows: result.items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      artists: item.artists.join(", "),
+      type: item.type,
+      date: item.broadcastAt ? parisDateTime(item.broadcastAt) : "Sans date",
+      duration: item.durationSeconds ? duration(item.durationSeconds) : "",
+      tracks: item.tracks,
+      hasSound: item.hasSound,
+      status: item.status,
+      fromRadioCult: item.fromRadioCult,
+    })),
+    total: result.total,
+    page,
+    pages: Math.max(1, Math.ceil(result.total / PER_PAGE)),
+    filters,
+    artists: choices.artists,
+    tags: choices.tags,
+  },
+};
+if (wantsJson(Astro.request)) return json(screen);
+---
+
+<Admin screen={screen} />

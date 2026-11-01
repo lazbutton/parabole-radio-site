@@ -1,0 +1,42 @@
+---
+/**
+ * Le gabarit de l'entrée de l'admin : la connexion, et les pages qu'on voit avant d'y être (refus, panne,
+ * déconnexion). Il garde le design du site (src/styles/admin-gate.css) ; les écrans de travail, eux, ont le gabarit
+ * Admin, une interface d'administration classique.
+ */
+import logo from "../assets/logo-barre.png";
+import "../styles/admin-gate.css";
+
+interface Props {
+  /** Le titre de l'onglet. */
+  title: string;
+}
+const { title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>{title} — Admin Parabole</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>"
+    />
+    <link rel="preload" href="/PARABOLE%20RADIO/FONTS/MonumentGrotesk-Regular.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/PARABOLE%20RADIO/FONTS/MonumentGrotesk-Bold.woff2" as="font" type="font/woff2" crossorigin />
+  </head>
+  <body class="gate-page">
+    <header class="gate-top">
+      <a class="gate-logo" href="/admin" data-astro-prefetch="false" aria-label="Admin de Parabole Radio">
+        <img src={logo.src} width={logo.width} height={logo.height} alt="" />
+        <span>Admin</span>
+      </a>
+    </header>
+    <main class="gate">
+      <slot />
+    </main>
+  </body>
+</html>

@@ -1,0 +1,38 @@
+---
+/**
+ * Le tableau de bord de l'admin : les chiffres des rubriques et les derniers brouillons. Les autres blocs prévus
+ * (imports Radio Cult à relire, prochains événements, images sans texte alternatif : cms/README.md, 9.2) viendront
+ * avec leurs écrans. Comme chaque écran de l'admin, il est servi en HTML au premier affichage et en JSON quand
+ * l'application navigue (src/components/admin/router.tsx).
+ */
+import type { Screen } from "../../components/admin/types";
+import Admin from "../../layouts/Admin.astro";
+import { since } from "../../lib/admin/format";
+import { json, wantsJson } from "../../lib/admin/views";
+
+export const prerender = false;
+
+const overview = await Astro.locals.admin!.overview();
+const now = new Date();
+const screen: Screen = {
+  name: "dashboard",
+  title: "Tableau de bord",
+  data: {
+    stats: [
+      { label: "Shows publiés", value: overview.shows.published, href: "/admin/shows?status=published" },
+      { label: "Shows en brouillon", value: overview.shows.draft, href: "/admin/shows?status=draft" },
+      { label: "Artistes publiés", value: overview.artists.published, href: "/admin/artistes?status=published" },
+      { label: "Artistes en brouillon", value: overview.artists.draft, href: "/admin/artistes?status=draft" },
+    ],
+    drafts: overview.drafts.map((draft) => ({
+      href: `/admin/${draft.kind === "show" ? "shows" : "artistes"}/${draft.id}`,
+      title: draft.title,
+      kind: draft.kind === "show" ? "Show" : "Artiste",
+      since: since(draft.updatedAt, now),
+    })),
+  },
+};
+if (wantsJson(Astro.request)) return json(screen);
+---
+
+<Admin screen={screen} />

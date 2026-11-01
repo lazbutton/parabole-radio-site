@@ -8,9 +8,10 @@ Ce dossier en pose la base :
 - la **base** Postgres de Supabase et ses **règles d'accès** (RLS) ;
 - les **comptes de l'équipe** : Supabase Auth, adresse et mot de passe pour commencer, deux rôles ;
 - les **fonctions de lecture** dont le site a besoin, typées ;
-- un **jeu d'exemples** et des **tests** qui tournent sans compte Supabase.
+- un **jeu d'exemples** et des **tests** qui tournent sans compte Supabase ;
+- les **lectures et écritures de l'admin** (`src/admin/`) : la saisie vérifiée champ par champ, puis écrite sous le rôle de la personne connectée.
 
-Les écrans d'administration (`/admin`) viendront ensuite, dans le projet Astro. La section 9 dit ce qu'ils devront couvrir.
+Les écrans d'administration (`/admin`) sont dans le projet Astro. La section 9 dit ce qu'ils doivent couvrir, et ce qui est déjà fait.
 
 **Sommaire**
 
@@ -48,8 +49,11 @@ cms/
 │   ├── access.ts          lire et écrire sous un rôle : asPublic(), asMember()
 │   ├── local-supabase.ts  ce que Supabase fournit d'office, recréé pour PGlite
 │   ├── read/              les fonctions de lecture du site
+│   ├── admin/             les lectures et écritures de l'admin, et la vérification des saisies
 │   ├── labels.ts          libellés français pour l'admin
 │   ├── slug.ts            slugify(), isSlug()
+│   ├── paris.ts           l'heure de Paris (champs date et heure de l'admin)
+│   ├── tracklist.ts       minutages et tracklist collée en texte (aussi dans le navigateur)
 │   └── index.ts           ce que le projet Astro importe
 ├── drizzle/               les migrations (SQL), appliquées dans l'ordre
 ├── seed/exemples.ts       le jeu d'exemples
@@ -292,11 +296,11 @@ Côté écrans d'admin, la connexion appellera `supabase.auth.signInWithPassword
 
 ### 4.4 Appliquer les migrations
 
-Depuis un ordinateur, avec la chaîne **Session pooler** :
+Depuis un ordinateur, avec la chaîne **Session pooler**. Le CMS est un paquet de l'espace de travail npm du site : `npm install`, à la racine du projet, l'installe aussi. Les commandes `db:*` se lancent depuis `cms/` :
 
 ```bash
-cd cms
 npm install
+cd cms
 ```
 
 ```bash
@@ -342,7 +346,7 @@ npm run db:seed -- --distant --supprimer
 
 ## 5. Variables d'environnement
 
-Le modèle est dans `cms/.env.example`. Les variables `PUBLIC_*` peuvent aller dans le navigateur ; **les autres restent sur le serveur**.
+Le modèle est dans `cms/.env.example`. Les variables `PUBLIC_*` peuvent aller dans le navigateur ; **les autres restent sur le serveur**. En local, le site lit le `.env` de la racine ; les scripts du CMS (`db:migrate`, `db:seed`), celui de `cms/`. L'admin ne se sert pas encore de la clé secrète : elle servira à l'écran Équipe.
 
 | Variable | Où | Valeur |
 |---|---|---|
@@ -362,11 +366,11 @@ Sur Vercel, sans `DATABASE_URL`, `connect()` s'arrête avec un message clair : i
 
 ## 6. Travailler en local
 
-Pas besoin de compte Supabase :
+Pas besoin de compte Supabase pour les données. À la racine du projet, puis dans `cms/` :
 
 ```bash
-cd cms
 npm install
+cd cms
 npm run db:migrate
 npm run db:seed
 ```
@@ -385,27 +389,40 @@ Les dates partent du jour du seed. Un événement à venir le reste donc.
 
 **Une seule base locale à la fois.** PGlite ouvre `cms/.pglite` pour un seul processus. Arrêter le serveur de développement avant `db:seed`, ou l'inverse.
 
+### L'admin en local
+
+La connexion passe par Supabase Auth, que PGlite ne fournit pas. Avec la seule base PGlite, l'admin s'ouvre, mais un compte connecté n'y trouve pas sa fiche d'équipe (« Ce compte ne fait pas partie de l'équipe »). Deux façons de travailler :
+
+- **Sur le projet en ligne.** Dans le `.env` de la racine : `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_PUBLISHABLE_KEY` et `DATABASE_URL` (Session pooler). On travaille alors sur la vraie base : ce qu'on y crée existe pour de bon.
+- **Sur un Supabase local**, sans rien toucher en ligne. Il faut Docker et la CLI Supabase. Dans un dossier hors du dépôt, `supabase init`, puis dans `supabase/config.toml`, comme en ligne : `[auth] enable_signup = false` et `minimum_password_length = 12`. Laisser `[auth.email] enable_signup = true` : à `false`, il coupe toute connexion par e-mail, pas seulement les inscriptions. Ensuite :
+
+  ```bash
+  supabase start -x realtime,storage-api,imgproxy,studio,postgres-meta,edge-runtime,logflare,vector,supavisor,mailpit
+  ```
+
+  La commande affiche l'adresse (`http://127.0.0.1:54321`), la clé publiable et la base (`postgresql://postgres:postgres@127.0.0.1:54322/postgres`). Avec cette base en `DATABASE_URL` : `npm run db:migrate`, puis `npm run db:seed -- --distant`. Les comptes se créent par l'API d'administration d'Auth, avec la clé secrète locale, et leur fiche `member` en SQL (section 4.5). Pour y brancher le site, mettre ces trois valeurs dans `.env.development.local`, à la racine : `npm run dev` les préfère au `.env`.
+
 ---
 
 ## 7. Lire depuis le site
 
-Le projet Astro importera ce dossier comme un paquet de l'espace de travail npm : `"workspaces": ["cms"]` dans le `package.json` de la racine, puis `import … from "@parabole/cms"`. Vite compile directement les sources TypeScript.
+Le projet Astro importe ce dossier comme un paquet de l'espace de travail npm : `"workspaces": ["cms"]` dans le `package.json` de la racine, puis `import … from "@parabole/cms"`. Vite compile directement les sources TypeScript. Un module à part, `@parabole/cms/tracklist`, sert aussi dans le navigateur : il ne tire ni la base ni Node.
 
-```ts
-// Projet Astro, src/lib/cms.ts
-import { connect, createReader } from "@parabole/cms";
-
-const { db } = await connect(); // DATABASE_URL sur Vercel, PGlite en local
-export const cms = createReader(db, { mediaBaseUrl: import.meta.env.PUBLIC_MEDIA_URL });
-```
+La base s'ouvre une fois par instance du serveur, à la première requête qui en a besoin (`src/lib/cms.ts` du site, `database()`) : rien ne s'y connecte pendant la construction.
 
 ```astro
 ---
-// Projet Astro, une page
-import { cms } from "../lib/cms";
+// Projet Astro, une page rendue à la demande
+import { createReader } from "@parabole/cms";
+import { database } from "../lib/cms";
+
+export const prerender = false;
+const cms = createReader(await database(), { mediaBaseUrl: import.meta.env.PUBLIC_MEDIA_URL });
 const { items, total } = await cms.listShows({ type: "dj_set", genre: Astro.url.searchParams.get("genre") ?? undefined, period: "past" });
 ---
 ```
+
+Les écrans d'admin, eux, ne créent rien : la garde (`src/middleware.ts`) laisse dans `Astro.locals.admin` les fonctions de `createAdmin()`, liées à l'identifiant de la session vérifiée.
 
 Toutes les lectures se font sous le rôle `anon`, en lecture seule. Elles ne voient donc que le publié. Une valeur lue dans une adresse et inconnue (type, catégorie, slug mal formé) donne une liste vide ou `null`, jamais une erreur.
 
@@ -448,13 +465,14 @@ npm test
 npm run typecheck
 ```
 
-69 tests, sur une base PGlite en mémoire : aucun compte, aucun réseau, une dizaine de secondes. Ils couvrent :
+106 tests, sur une base PGlite en mémoire : aucun compte, aucun réseau, une dizaine de secondes. `npm test` marche aussi depuis la racine du projet. Ils couvrent :
 
 - **les migrations** : elles passent sur une base vide, et leur relance ne change rien. Chaque table publique a sa RLS et ses règles. Le schéma Drizzle et la base sont d'accord. drizzle-kit n'a plus rien à générer : une migration oubliée fait échouer le test ;
 - **le seed** : il passe, se rejoue sans doublon, se retire sans toucher au reste, et marque bien tout comme exemple ;
 - **les lectures** : filtres, pagination, tracklist, index A–Z, événements à venir et passés, pages ;
 - **la recherche** : français, accents, débuts de mots, brouillons jamais visibles, saisies piégées ;
 - **les règles d'accès**, sous des rôles simulés comme ceux de Supabase : le public, un compte sans fiche, un éditeur, un admin, le dernier admin, et l'ancienne version de `auth.uid()`.
+- **l'admin** : la saisie vérifiée champ par champ, la tracklist collée, les minutages, l'heure de Paris aux changements d'heure ; puis, sous le rôle d'un éditeur, la création d'un show avec un artiste et une étiquette nés à la volée, la publication, la tracklist remplacée, l'enregistrement concurrent, la suppression ; et le refus d'un compte hors de l'équipe.
 
 PGlite tourne sous Postgres 18, Supabase sous Postgres 17. Pour vérifier aussi le vrai moteur de Supabase, avec ses rôles et ses droits, Docker suffit :
 
@@ -491,10 +509,12 @@ Trois règles :
 
 Sous `/admin`, dans le projet Astro, rendus côté serveur, en français, pensés pour le téléphone autant que pour l'ordinateur.
 
+**Où on en est.** Première tranche faite (novembre 2026) : tout le 9.1 (connexion, garde, déconnexion, mot de passe), les écrans **Shows** (liste, fiche, tracklist collée et réordonnée) et **Artistes** (index A–Z, fiche), avec Enregistrer, Publier, Dépublier et Supprimer. Ces écrans forment une application React (Radix Themes) : on passe de l'un à l'autre sans recharger la page, la recherche et les filtres s'appliquent en direct, une fiche modifiée retient la navigation ; la connexion garde le style du site. Les écritures passent par `createAdmin()` (`src/admin/`), sous le rôle de la personne connectée ; un enregistrement fait par quelqu'un d'autre entre-temps est signalé avant d'être remplacé. Pas encore : le reste du tableau de bord, les événements, les étiquettes, les pages, la médiathèque, l'équipe, les imports Radio Cult, l'envoi des images (9.3), « Retrouver la piste » SoundCloud, « Trouver les liens Hopper », l'aperçu sur le site et l'invalidation du cache.
+
 ### 9.1 Connexion et session
 
 - **`/admin/connexion`** : adresse et mot de passe, puis « Entrer ». Le serveur appelle `signInWithPassword` ; la session est gardée en cookies (`@supabase/ssr`). En cas d'échec, un seul message, que l'adresse soit connue ou non. Plus tard, avec le lien magique : un champ e-mail, « Recevoir mon lien » (`signInWithOtp`, `shouldCreateUser: false`), et `/admin/auth/callback` qui échange le code du lien contre une session.
-- **Changer son mot de passe** depuis l'admin (`supabase.auth.updateUser({ password })`), 12 caractères au moins.
+- **Changer son mot de passe** depuis l'admin (`supabase.auth.updateUser({ password })`), 12 caractères au moins. Le mot de passe actuel est vérifié d'abord : une session restée ouverte sur un ordinateur partagé ne suffit pas.
 - **Garde de toutes les pages `/admin`** (middleware Astro) :
   - vérifier la session côté serveur (`supabase.auth.getUser()` ou `getClaims()`) ;
   - lire la fiche `member` ;

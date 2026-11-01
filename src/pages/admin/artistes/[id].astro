@@ -1,0 +1,43 @@
+---
+/**
+ * La fiche d'un artiste : la créer (/admin/artistes/nouveau) ou la modifier (cms/README.md, 9.2). Même contrat que la
+ * fiche d'un show : l'écran en GET (HTML ou JSON), la fiche envoyée par l'écran (ArtistEditor) en POST, et une
+ * réponse en JSON.
+ */
+import { readArtistForm, type AdminArtist } from "@parabole/cms";
+import type { Screen } from "../../../components/admin/types";
+import Admin from "../../../layouts/Admin.astro";
+import { artistFormFrom, intentOf } from "../../../lib/admin/forms";
+import { seeOther } from "../../../lib/admin/paths";
+import { artistSheet, json, wantsJson } from "../../../lib/admin/views";
+
+export const prerender = false;
+
+const admin = Astro.locals.admin!;
+const isNew = Astro.params.id === "nouveau";
+const artist: AdminArtist | null = isNew ? null : await admin.getArtist(Astro.params.id ?? "");
+const posted = Astro.request.method === "POST";
+if (!isNew && !artist) return posted ? json({ ok: false, errors: { form: "Cet artiste n'existe plus : il a peut-être été supprimé." } }, 404) : seeOther("/admin/artistes");
+
+if (posted) {
+  const data = await Astro.request.formData();
+  const intent = intentOf(data);
+  if (intent === "delete") {
+    if (!artist) return json({ ok: false, errors: { form: "Cet artiste n'est pas encore créé." } }, 400);
+    const removed = await admin.deleteArtist(artist.id);
+    return json({ ok: true, redirect: "/admin/artistes", message: `« ${removed?.name ?? artist.name} » supprimé` });
+  }
+  const read = readArtistForm(artistFormFrom(data));
+  if (Object.keys(read.errors).length) return json({ ok: false, errors: read.errors }, 422);
+  const status = intent === "publish" ? "published" : intent === "unpublish" ? "draft" : undefined;
+  const version = String(data.get("version") ?? "");
+  const result = await admin.saveArtist({ id: artist?.id, version: artist ? version : undefined, values: read.values, status });
+  if (!result.ok) return json({ ok: false, errors: result.errors, version: result.version }, 422);
+  return json({ ok: true, created: isNew, sheet: artistSheet(await admin.getArtist(result.id)) });
+}
+
+const screen: Screen = { name: "artist", title: artist?.name ?? "Nouvel artiste", data: { sheet: artistSheet(artist) } };
+if (wantsJson(Astro.request)) return json(screen);
+---
+
+<Admin screen={screen} />
