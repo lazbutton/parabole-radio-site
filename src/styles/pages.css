@@ -12,8 +12,8 @@ html:not([data-page="accueil"]) #page {
 
 .feuille {
   position: relative;
-  width: min(720px, calc(100vw - 32px));
-  margin: 24px auto;
+  width: min(720px, calc(100vw - 2 * var(--marge)));   /* entre les marges de l'écran (socle.css) */
+  margin: var(--ecart) auto;
   border: 2px solid #fff039;
   background:
     repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 3px),   /* lignes de balayage, comme PROGRAMMATION */
@@ -31,7 +31,6 @@ html:not([data-page="accueil"]) #page {
 .feuille-corps a:hover { color: #ffffff; }
 .feuille-corps a:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
 @media (max-width: 640px) {
-  .feuille { margin: 16px auto; }
   .feuille-tete { padding: 14px 16px 12px; }
   .feuille-tete h1 { font-size: 24px; }
   .feuille-corps { padding: 16px 16px 22px; font-size: 13px; }

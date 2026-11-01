@@ -2,8 +2,8 @@
 // Le ClientRouter d'Astro charge la page demandée sans recharger l'onglet. Sa fonction de remplacement habituelle
 // remplace tout le <body> et y redépose les éléments marqués transition:persist : ils sont déplacés, et un <iframe>
 // déplacé se recharge (le chat perdrait sa conversation). Celle-ci ne touche qu'au contenu de la page : la tête du
-// document (titre, styles), les attributs de <html> (data-page) et <main id="page">. Le fond, l'en-tête et son
-// bandeau son, la ligne du bas, les panneaux et le chat ne bougent pas d'un pixel ; le son et la vidéo continuent.
+// document (titre, styles), les attributs de <html> (data-page) et <main id="page">. Le fond, l'en-tête, la ligne du
+// bas, les panneaux et le chat ne bougent pas d'un pixel ; le son et la vidéo continuent.
 import { swapFunctions, type TransitionBeforeSwapEvent } from "astro:transitions/client";
 import { refreshNowPlaying } from "./nowplaying";
 import { pageChanged } from "./panels";

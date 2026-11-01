@@ -1,19 +1,20 @@
 // ---------- AUDIO : LA RADIO D'ABORD, LES VIDÉOS MUETTES ----------
 // Les navigateurs interdisent le son avant une interaction du visiteur : on essaie de lancer la radio au premier clic,
-// appui ou touche, et on réessaie jusqu'à ce qu'elle joue vraiment. La touche jaune de la barre du haut bascule entre
-// la radio et le son des vidéos ; la touche de lecture du bandeau lance et arrête la radio. Un flux coupé se reconnecte
-// tout seul. L'élément <audio> et ce module vivent dans la coque : la navigation ne les touche jamais.
+// appui ou touche, et on réessaie jusqu'à ce qu'elle joue vraiment. La touche RADIO / VIDÉO de l'en-tête bascule entre
+// la radio et le son des vidéos ; les touches ÉCOUTER (celle de l'accueil, celle de l'en-tête sur les autres rubriques)
+// lancent et arrêtent la radio. Un flux coupé se reconnecte tout seul. L'élément <audio> et ce module vivent dans la
+// coque : la navigation ne les touche jamais.
 
 const playerEl = document.getElementById("player");
-/** Le flux, donné par l'adaptateur de la station et écrit dans la page au build (Band.astro). */
+/** Le flux, donné par l'adaptateur de la station et écrit dans la page au build (TopBar.astro). */
 export const STREAM_URL = playerEl?.dataset.flux ?? "";
 
 export interface RadioControl {
   /** Appelés par le direct : la station est-elle à l'antenne, et que joue-t-elle. */
   setOnAir(on: boolean): void;
   setMeta(d: { title: string; artist?: string } | null): void;
-  /** Lu par l'oscilloscope : les 4 096 derniers échantillons des basses, ou null sans analyse. */
-  signal(): { data: Float32Array<ArrayBuffer>; rate: number; kick: Float32Array<ArrayBuffer> } | null;
+  /** Lu par BEAT : les 20 dernières ms de la grosse caisse, ou null sans analyse. */
+  signal(): Float32Array<ArrayBuffer> | null;
 }
 
 export const radioControl: RadioControl | null = (function audioControl() {
@@ -21,30 +22,28 @@ export const radioControl: RadioControl | null = (function audioControl() {
   const radio = document.getElementById("radioStream") as HTMLAudioElement | null;
   const btn = document.getElementById("soundToggle");
   const player = playerEl;
-  const toggle = document.getElementById("playerToggle") as HTMLButtonElement;
   const volume = document.getElementById("playerVolume") as HTMLInputElement;
   const status = document.getElementById("playerStatus")!;
   if (!v || !radio || !player) return null;
   v.muted = true; // les vidéos muettes par défaut
   v.volume = 0.7;
   let mode: "radio" | "video" = "radio";
-  let userChose = false; // vrai dès que le visiteur touche la touche jaune ou le lecteur
+  let userChose = false; // vrai dès que le visiteur touche RADIO / VIDÉO ou une touche ÉCOUTER
   let wanted = false; // le visiteur veut la radio : un flux coupé se reconnecte
   let retry: ReturnType<typeof setTimeout> | undefined,
     retryDelay = 3000;
   let onAir = STREAM_URL ? "ON AIR" : "OFF AIR"; // affiné par le direct (setOnAir)
   player.dataset.air = STREAM_URL ? "on" : "off";
 
-  // L'analyse du son pour l'oscilloscope, sur ordinateur avec Chrome ou Edge (le moteur où elle a été testée) : le flux
-  // passe alors par Web Audio, où l'oscilloscope le lit. Pas sur téléphone (le son qui passe par là peut s'arrêter
-  // quand l'écran se verrouille), ni dans Safari ou Firefox. Le flux doit se laisser lire par les autres sites (CORS ;
-  // Radio Cult le permet) : s'il refuse, la radio joue comme avant et l'oscilloscope reprend sa simulation.
+  // L'analyse du son pour le pouls de la musique (BEAT, qui fait battre le globe), sur ordinateur avec Chrome ou Edge
+  // (le moteur où elle a été testée) : le flux passe alors par Web Audio, où BEAT le lit. Pas sur téléphone (le son qui
+  // passe par là peut s'arrêter quand l'écran se verrouille), ni dans Safari ou Firefox. Le flux doit se laisser lire
+  // par les autres sites (CORS ; Radio Cult le permet) : s'il refuse, la radio joue comme avant, et le globe tourne
+  // à sa propre vitesse.
   const uaData = (navigator as Navigator & { userAgentData?: { mobile: boolean } }).userAgentData;
   const analysis = {
     ctx: null as AudioContext | null,
-    analyser: null as AnalyserNode | null,
     gain: null as GainNode | null,
-    data: null as Float32Array<ArrayBuffer> | null,
     kickAnalyser: null as AnalyserNode | null,
     kick: null as Float32Array<ArrayBuffer> | null,
     wanted: !!(
@@ -57,59 +56,46 @@ export const radioControl: RadioControl | null = (function audioControl() {
   };
   if (analysis.wanted) radio.crossOrigin = "anonymous";
   // Une fois le flux en lecture et le contexte lancé (il faut un clic ou une touche), le son passe par le graphe : vers
-  // les haut-parleurs à travers le volume, et vers l'oscilloscope à travers un passe-bas.
+  // les haut-parleurs à travers le volume, et vers BEAT à travers un passe-bas.
   function analyse() {
     const a = analysis;
-    if (!a.wanted || a.analyser || !a.ctx || a.ctx.state !== "running") return;
+    if (!a.wanted || a.kickAnalyser || !a.ctx || a.ctx.state !== "running") return;
     try {
-      const lowpass = a.ctx.createBiquadFilter(),
-        analyser = a.ctx.createAnalyser(),
-        gain = a.ctx.createGain();
-      lowpass.type = "lowpass";
-      lowpass.frequency.value = 1200; // l'oscilloscope montre le beat, pas le souffle
-      analyser.fftSize = 4096;
+      const gain = a.ctx.createGain();
       const source = a.ctx.createMediaElementSource(radio!); // dès lors, le son passe par le graphe
       source.connect(gain).connect(a.ctx.destination);
-      source.connect(lowpass).connect(analyser);
       const kickFilter = a.ctx.createBiquadFilter(),
         kickAnalyser = a.ctx.createAnalyser();
       kickFilter.type = "lowpass";
       kickFilter.frequency.value = 150; // la grosse caisse, pour les beats (BEAT)
       kickAnalyser.fftSize = 1024; // environ 20 ms
       source.connect(kickFilter).connect(kickAnalyser);
-      Object.assign(a, {
-        analyser,
-        gain,
-        data: new Float32Array(analyser.fftSize),
-        kickAnalyser,
-        kick: new Float32Array(kickAnalyser.fftSize),
-      });
+      Object.assign(a, { gain, kickAnalyser, kick: new Float32Array(kickAnalyser.fftSize) });
       applyVolume();
     } catch (e) {
       a.wanted = false;
     }
   }
-  // ... sur chaque beat trouvé (BEAT), le panneau ON AIR s'illumine
+  // ... sur chaque beat trouvé (BEAT), le témoin ON AIR de l'en-tête s'illumine
   player.addEventListener("beat", () => {
     if (player.dataset.state !== "playing") return;
-    const sign = player.querySelector(".player-onair");
+    const sign = player.querySelector(".ecoute-point");
     if (sign && sign.animate)
-      sign.animate([{ boxShadow: "0 0 16px #fff039" }, { boxShadow: "0 0 0 rgba(255,240,57,0)" }], { duration: 300, easing: "ease-out" });
+      sign.animate([{ boxShadow: "0 0 12px 3px #fff039" }, { boxShadow: "0 0 0 0 rgba(255,240,57,0)" }], { duration: 300, easing: "ease-out" });
   });
 
   function setState(state: string) {
     player!.dataset.state = state;
-    status.textContent = onAir; // la connexion se voit au témoin et au symbole qui clignotent, pas ici
-    toggle.setAttribute(
-      "aria-label",
-      state === "playing" || state === "loading" || state === "error" ? "Arrêter la radio" : "Écouter la radio",
-    );
+    status.textContent = onAir; // la connexion se voit au témoin qui clignote et à la touche ÉCOUTER, pas ici
   }
   const restState = () => setState(STREAM_URL ? "idle" : "off");
+  // la touche RADIO / VIDÉO montre la source qui joue (allumée) ; un clic passe à l'autre
   function setLabel() {
     if (!btn) return;
-    btn.textContent = mode === "radio" ? "RADIO" : "VIDÉO";
-    btn.title = mode === "radio" ? "Son : radio en direct — cliquer pour le son des vidéos" : "Son : vidéos — cliquer pour la radio";
+    btn.dataset.mode = mode;
+    const label = mode === "radio" ? "Son : radio en direct. Passer au son des vidéos" : "Son : vidéos. Revenir à la radio";
+    btn.setAttribute("aria-label", label);
+    btn.title = label;
   }
   function startRadio() {
     if (!STREAM_URL) return Promise.reject(new Error("pas de flux (adaptateur de la station)"));
@@ -176,7 +162,7 @@ export const radioControl: RadioControl | null = (function audioControl() {
       if (!wanted || !radio.getAttribute("src")) return; // pas la remise à zéro de stopRadio
       // un échec avant que l'analyse n'ait jamais démarré peut être le flux qui refuse les autres sites (CORS) :
       // désormais, le jouer comme avant, sans l'analyse
-      if (ev === "error" && radio.crossOrigin && !analysis.analyser) {
+      if (ev === "error" && radio.crossOrigin && !analysis.kickAnalyser) {
         analysis.wanted = false;
         radio.removeAttribute("crossorigin");
       }
@@ -189,8 +175,8 @@ export const radioControl: RadioControl | null = (function audioControl() {
     }),
   );
 
-  // Le volume, gardé dans ce navigateur, et une touche muet. Avec l'analyse, les deux sont un gain placé après la prise
-  // de l'oscilloscope : il lit le son à plein niveau. Un iPhone ne laisse pas une page régler le volume (ce sont les
+  // Le volume, gardé dans ce navigateur, et une touche muet. Avec l'analyse, les deux sont un gain placé à côté de la
+  // prise de BEAT : il lit le son à plein niveau. Un iPhone ne laisse pas une page régler le volume (ce sont les
   // boutons du téléphone) : là, seule la touche muet reste.
   const volumeWrap = document.getElementById("playerVolumeWrap")!;
   const mute = document.getElementById("playerMute")!;
@@ -236,7 +222,7 @@ export const radioControl: RadioControl | null = (function audioControl() {
       return;
     } // respecter le choix du visiteur
     const target = e.target as Element | null;
-    if (target && target.closest && target.closest("#soundToggle, #playerToggle, #playerVolume, #playerMute, [data-ecouter], .window-bar")) return; // déplacer un panneau n'est pas demander du son
+    if (target && target.closest && target.closest("#soundToggle, #playerVolume, #playerMute, [data-ecouter], .window-bar")) return; // déplacer un panneau n'est pas demander du son
     playRadio().then(detach).catch(playFailed);
   }
   function detach() {
@@ -245,7 +231,7 @@ export const radioControl: RadioControl | null = (function audioControl() {
   if (STREAM_URL)
     (["click", "keydown", "touchend"] as const).forEach((ev) => window.addEventListener(ev, tryStart, { passive: true }));
 
-  // la touche jaune bascule radio <-> son des vidéos
+  // la touche RADIO / VIDÉO bascule radio <-> son des vidéos
   if (btn)
     btn.addEventListener("click", () => {
       userChose = true;
@@ -256,16 +242,14 @@ export const radioControl: RadioControl | null = (function audioControl() {
       }
     });
 
-  // la touche de lecture du bandeau lance et arrête la radio ; la grande touche ÉCOUTER de l'accueil aussi (elle est
-  // dans le contenu de la page, d'où l'écoute sur le document)
+  // les touches ÉCOUTER lancent et arrêtent la radio : celle de l'en-tête, et la grande de l'accueil (elle est dans le
+  // contenu de la page, d'où l'écoute sur le document)
   function toggleRadio() {
     userChose = true;
     detach();
     if (wanted) stopRadio();
     else playRadio().catch(playFailed);
   }
-  toggle.disabled = !STREAM_URL;
-  toggle.addEventListener("click", toggleRadio);
   document.addEventListener("click", (e) => {
     if (STREAM_URL && (e.target as Element).closest?.("[data-ecouter]")) toggleRadio();
   });
@@ -303,10 +287,9 @@ export const radioControl: RadioControl | null = (function audioControl() {
     },
     signal() {
       const a = analysis;
-      if (!a.analyser || !a.kickAnalyser || !a.data || !a.kick || !a.ctx) return null;
-      a.analyser.getFloatTimeDomainData(a.data);
+      if (!a.kickAnalyser || !a.kick) return null;
       a.kickAnalyser.getFloatTimeDomainData(a.kick);
-      return { data: a.data, rate: a.ctx.sampleRate, kick: a.kick };
+      return a.kick;
     },
   };
 })();

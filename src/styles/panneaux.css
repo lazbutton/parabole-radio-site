@@ -5,9 +5,9 @@
    l'autre. Sur l'accueil et sur ordinateur, PROGRAMMATION est toujours ouvert (html[data-page="accueil"]). */
 .popup {
   position: fixed;
-  right: 24px;
-  bottom: 120px;
-  width: min(420px, calc(100vw - 24px));
+  right: var(--marge);
+  bottom: var(--bas);   /* HISTORIQUE et CHAT : juste au-dessus de la ligne du bas (socle.css) */
+  width: min(420px, calc(100vw - 2 * var(--marge)));
   border: 2px solid #fff039;
   background:
     repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 3px),   /* lignes de balayage */
@@ -51,32 +51,31 @@
 .popup-chat { height: min(480px, 55vh); background: #000000; }
 .popup-chat iframe { display: block; width: 100%; height: 100%; border: 0; }
 /* ---------- PROGRAMMATION : un guide des programmes ----------
-   Un panneau au centre à droite de la fenêtre, comme sur la maquette : son milieu est celui de la place libre entre
-   l'en-tête (--barre-h, bandeau son compris) et la ligne du bas (--band-h, posé par panels.ts). Dedans, la journée comme
-   une ligne : les émissions en sont les arrêts, la musique en continu remplit les creux, l'émission à l'antenne est
+   Un panneau en haut à droite, comme sur la maquette : sur la marge de l'écran, en haut de la place libre (--haut, sur
+   la même ligne que le globe), et jusqu'au-dessus de la ligne du bas (--bas) au plus. Dedans, la journée comme une
+   ligne : les émissions en sont les arrêts, la musique en continu remplit les creux, l'émission à l'antenne est
    ON AIR, avec son avancement en barre de segments. */
 .popup-schedule {
-  --free: calc(100vh - var(--barre-h) - 16px - var(--band-h, 110px) - 16px);
-  top: calc(var(--barre-h) + 16px + max(0px, var(--free) - 520px) * 0.3); bottom: auto;   /* un peu au-dessus du milieu */
-  width: min(400px, calc(100vw - 24px)); max-height: min(520px, var(--free));   /* à la taille du contenu, 520 px au plus */
+  --free: calc(100vh - var(--haut) - var(--bas));
+  top: var(--haut); bottom: auto;
+  width: min(400px, calc(100vw - 2 * var(--marge))); max-height: min(520px, var(--free));   /* à la taille du contenu, 520 px au plus */
   flex-direction: column;
 }
-@supports (height: 100dvh) { .popup-schedule { --free: calc(100dvh - var(--barre-h) - 16px - var(--band-h, 110px) - 16px); } }
+@supports (height: 100dvh) { .popup-schedule { --free: calc(100dvh - var(--haut) - var(--bas)); } }
 .popup-schedule.open { display: flex; }
-/* sur ordinateur, il s'ouvre un peu en retrait du bord droit. Sur l'accueil il est toujours là : la touche
-   PROGRAMMATION et la croix n'existent alors que sur écran étroit, où le panneau cacherait la page */
+/* sur l'accueil et sur ordinateur, il est toujours là : la touche PROGRAMMATION et la croix n'existent alors que sur
+   écran étroit, où le panneau cacherait la page */
 @media (min-width: 821px) {
-  .popup-schedule { right: 128px; }
   html[data-page="accueil"] .popup-schedule { display: flex; }
   html[data-page="accueil"] .popup-schedule .popup-close, html[data-page="accueil"] #scheduleToggle { display: none; }
 }
 /* sur l'accueil, pas assez large pour les mettre côte à côte : il s'arrête au-dessus de ce qui passe (affiché comme
-   la chaîne, tele.css, environ 110 px de haut) */
+   la chaîne, tele.css, environ 125 px de haut) */
 @media (min-width: 821px) and (max-width: 1100px) {
-  html[data-page="accueil"] .popup-schedule { --free: calc(100vh - var(--barre-h) - 16px - var(--band-h, 110px) - 150px); }
+  html[data-page="accueil"] .popup-schedule { --free: calc(100vh - var(--haut) - var(--bas) - 125px - var(--ecart)); }
 }
-/* assez large : HISTORIQUE et CHAT s'ouvrent à côté du panneau, pas dessus (128 + 400 + 16 px) */
-@media (min-width: 1100px) { .popup:not(.popup-schedule) { right: 544px; } }
+/* assez large : HISTORIQUE et CHAT s'ouvrent à côté du panneau, pas dessus (la marge, 400 px, l'écart) */
+@media (min-width: 1100px) { .popup:not(.popup-schedule) { right: calc(var(--marge) + 400px + var(--ecart)); } }
 .sched-head { flex-shrink: 0; display: grid; grid-template-columns: 1fr auto; align-items: end; column-gap: 12px; padding: 16px 16px 13px; border-bottom: 1px dashed rgba(255,240,57,0.45); }
 .sched-head .sched-date { grid-column: 1 / -1; }
 /* le titre et l'heure de la station, en grand : le jaune des titres télé, un léger flou */
@@ -189,8 +188,3 @@ html:not([data-page="accueil"]) .sched-head { padding-right: 56px; }
   border: 1px solid #333;
 }
 @media (prefers-reduced-motion: reduce) { .popup-row.now .sig i { animation: none !important; } }
-
-/* écran étroit : les panneaux sont centrés (100vw - 24px de large) */
-@media (max-width: 820px) {
-  .popup { right: 12px; }
-}

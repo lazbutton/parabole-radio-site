@@ -20,15 +20,13 @@ const wide = () => !!window.matchMedia && window.matchMedia("(min-width: 821px)"
 const schedulePinned = () => wide() && document.documentElement.dataset.page === "accueil";
 
 /**
- * La hauteur de la ligne du bas (--band-h ; le bandeau son est en haut, dans --barre-h) : PROGRAMMATION se centre dans
- * la place au-dessus, les autres panneaux s'ouvrent dessus, et le contenu des rubriques s'arrête là. Elle change quand
- * la ligne passe à la ligne sur un écran étroit : suivie.
+ * La hauteur de la ligne du bas (--band-h ; celle de l'en-tête, --barre-h, est fixe), d'où --bas (socle.css) :
+ * PROGRAMMATION s'arrête au-dessus, les autres panneaux s'ouvrent dessus, et le contenu des rubriques s'arrête là.
+ * Elle change quand la ligne passe à la ligne sur un écran étroit : suivie.
  */
 function setBandHeight() {
-  const band = document.getElementById("floatBottom"),
-    height = band ? band.offsetHeight : 0;
-  document.documentElement.style.setProperty("--band-h", height + "px");
-  return height;
+  const band = document.getElementById("floatBottom");
+  document.documentElement.style.setProperty("--band-h", (band ? band.offsetHeight : 0) + "px");
 }
 const bandEl = document.getElementById("floatBottom");
 if (bandEl && "ResizeObserver" in window) new ResizeObserver(() => setBandHeight()).observe(bandEl);
@@ -42,8 +40,7 @@ export function togglePopup(which: Which) {
     popups[k].classList.remove("open");
   });
   if (willOpen) {
-    const bandHeight = setBandHeight();
-    if (which !== "schedule" && !("moved" in target.dataset)) target.style.bottom = bandHeight + 12 + "px"; // les autres : au-dessus de la ligne du bas, s'ils n'ont pas été déplacés
+    setBandHeight(); // les autres s'ouvrent au-dessus de la ligne du bas (--bas, panneaux.css), s'ils n'ont pas été déplacés
     target.classList.add("open");
     restoreWindow(target);
     ({ schedule: loadSchedule, lastplayed: loadHistory, chat: loadChat })[which]();
@@ -96,8 +93,8 @@ function save() {
     localStorage.setItem(SAVED_KEY, JSON.stringify(saved));
   } catch (e) {}
 }
-// sous la barre du haut (menu compris)
-const barBottom = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--barre-h")) || 44;
+// sous l'en-tête (bandeau et menu compris) : sa hauteur mesurée, --barre-h n'étant qu'un calcul pas encore résolu
+const barBottom = () => document.querySelector(".tete")?.getBoundingClientRect().bottom ?? 0;
 const place = (panel: HTMLElement, left: number, top: number) => {
   // un bout de la barre de titre reste à portée
   const width = panel.offsetWidth;
@@ -118,8 +115,6 @@ function resetWindow(panel: HTMLElement) {
     panel.style[k] = "";
   });
   delete panel.dataset.moved;
-  const band = document.getElementById("floatBottom");
-  if (panel !== popups.schedule && band) panel.style.bottom = band.offsetHeight + 12 + "px";
 }
 
 if (windowsOn) {
