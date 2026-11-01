@@ -11,12 +11,19 @@ import { artist, artistRole, contentStatus, eventArtist, media, SEARCH_CONFIG, s
 import { freeSlug, versionOf, type NotSaved, type Saved } from "./common.ts";
 import { isUuid, type ArtistValues } from "./input.ts";
 
-export type AdminArtistRow = { id: string; slug: string; name: string; role: ArtistRole; status: ContentStatus; shows: number; hasPhoto: boolean; updatedAt: Date };
+export type AdminArtistRow = { id: string; slug: string; name: string; role: ArtistRole; status: ContentStatus; shows: number; hasPhoto: boolean; hasBio: boolean; updatedAt: Date };
 
 /** L'index A–Z de l'admin : une lettre par groupe, « # » à la fin. */
 export type AdminArtistIndex = { total: number; groups: { letter: string; artists: AdminArtistRow[] }[] };
 
-export type AdminArtistFilters = { q?: string; role?: string; status?: string };
+/** Les filtres de l'index ; `missing` : ce qui manque à la fiche, « photo » ou « bio ». */
+export type AdminArtistFilters = { q?: string; role?: string; status?: string; missing?: string };
+
+/** Une fiche sans photo : le tableau de bord les compte, l'index les filtre. */
+export const lacksPhoto = () => sql`${artist.photoId} is null`;
+
+/** Une fiche sans bio (ou rien que des espaces). */
+export const lacksBio = () => sql`coalesce(btrim(${artist.bio}), '') = ''`;
 
 /** La recherche sur le nom et la bio, sans les accents ni les majuscules. */
 function matching(input: string): SQL | undefined {
@@ -34,6 +41,8 @@ export async function listArtists(tx: Tx, filters: AdminArtistFilters = {}): Pro
   if (filters.q) conditions.push(matching(filters.q));
   if (filters.role && oneOf(artistRole.enumValues, filters.role)) conditions.push(eq(artist.role, filters.role));
   if (filters.status && oneOf(contentStatus.enumValues, filters.status)) conditions.push(eq(artist.status, filters.status));
+  if (filters.missing === "photo") conditions.push(lacksPhoto());
+  else if (filters.missing === "bio") conditions.push(lacksBio());
   const rows = await tx
     .select({
       id: artist.id,
@@ -43,6 +52,7 @@ export async function listArtists(tx: Tx, filters: AdminArtistFilters = {}): Pro
       status: artist.status,
       shows: sql<number>`(select count(*) from ${showArtist} sa where sa.artist_id = ${outer(artist.id)})`.mapWith(Number),
       hasPhoto: sql<boolean>`${artist.photoId} is not null`,
+      hasBio: sql<boolean>`not ${lacksBio()}`,
       updatedAt: artist.updatedAt,
     })
     .from(artist)
