@@ -296,7 +296,7 @@ export function SheetBar({
   );
 }
 
-/** L'emplacement d'une image (pochette, photo), en attendant l'envoi vers Cloudflare R2 (prochaine étape). */
+/** L'emplacement d'une image (pochette, photo), en attendant l'envoi vers Supabase Storage (prochaine étape). */
 export function MediaSlot({ media, kind }: { media: MediaView; kind: "pochette" | "photo" }) {
   return (
     <Flex gap="3" align="start">
@@ -313,7 +313,7 @@ export function MediaSlot({ media, kind }: { media: MediaView; kind: "pochette" 
           </Text>
         )}
         <Text as="p" size="1" color="gray">
-          L'envoi des images arrive à la prochaine étape, avec le stockage Cloudflare R2.
+          L'envoi des images arrive à la prochaine étape.
         </Text>
       </Flex>
     </Flex>
