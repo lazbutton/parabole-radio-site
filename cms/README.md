@@ -6,7 +6,7 @@ Ce dossier en pose la base :
 
 - le **modèle de données**, en Drizzle, et ses migrations ;
 - la **base** Postgres de Supabase et ses **règles d'accès** (RLS) ;
-- les **comptes de l'équipe** : Supabase Auth, lien magique, deux rôles ;
+- les **comptes de l'équipe** : Supabase Auth, adresse et mot de passe pour commencer, deux rôles ;
 - les **fonctions de lecture** dont le site a besoin, typées ;
 - un **jeu d'exemples** et des **tests** qui tournent sans compte Supabase.
 
@@ -243,7 +243,7 @@ Le détail des règles :
 
 **Comment le site lit.** Le serveur se connecte en propriétaire des tables, que la RLS laisse passer. Chaque lecture prend donc, le temps de sa transaction, le rôle `anon` (`asPublic()`, dans `src/access.ts`). Les requêtes filtrent aussi le publié elles-mêmes : deux barrières plutôt qu'une. Les écrans d'admin écriront de même sous le rôle de la personne connectée (`asMember()`).
 
-**Les comptes.** La connexion se fait par lien magique, et seulement pour l'équipe. Les inscriptions restent fermées dans Supabase : un compte n'existe que si un admin l'a invité. Un compte sans fiche dans `member` n'a pas plus de droits que le public. Les auditeurs n'ont jamais de compte : My Parabole garde ses favoris dans le navigateur.
+**Les comptes.** La connexion est réservée à l'équipe : pour l'instant par adresse et mot de passe, plus tard par lien magique (section 4.3). Les inscriptions restent fermées dans Supabase : un compte n'existe que si un admin l'a créé. Un compte sans fiche dans `member` n'a pas plus de droits que le public. Les auditeurs n'ont jamais de compte : My Parabole garde ses favoris dans le navigateur.
 
 ---
 
@@ -271,16 +271,24 @@ Remplacer `[YOUR-PASSWORD]` par le mot de passe de la base.
 
 ### 4.3 Régler la connexion de l'équipe (Auth)
 
+**Pour l'instant : adresse et mot de passe, sans aucun e-mail.** Envoyer des e-mails demande un domaine vérifié chez un service d'envoi (Resend…), que Parabole n'a pas encore. En attendant, l'admin crée les comptes avec un mot de passe, et rien ne part par e-mail.
+
 1. **Authentication → Sign In / Providers** :
    - **Email** activé, avec **Confirm email** ;
-   - **Allow new users to sign up** : **désactivé**. Personne ne crée de compte seul : l'admin invite.
+   - **Allow new users to sign up** : **désactivé**. Personne ne crée de compte seul : l'admin le fait.
 2. **Authentication → URL Configuration** :
    - **Site URL** : l'adresse du site (aujourd'hui `https://parabole-radio-site.vercel.app`) ;
-   - **Redirect URLs** : `https://parabole-radio-site.vercel.app/admin/**`, `http://localhost:4321/admin/**`, plus celles des aperçus Vercel si l'admin doit y marcher (`https://parabole-radio-site-*-lazbuttons-projects.vercel.app/admin/**`).
-3. **Authentication → Emails → SMTP Settings** : brancher un vrai service d'envoi (Brevo, Resend, Postmark…). Le service intégré n'écrit qu'aux membres de l'organisation Supabase, et quelques fois par heure seulement. Il ne suffit pas pour inviter l'équipe.
-4. **Authentication → Emails → Templates** : traduire **Magic Link** (« Ton lien pour entrer dans l'admin de Parabole ») et **Invite user** (« Tu es invité·e dans l'équipe de Parabole Radio »).
+   - **Redirect URLs** : `https://parabole-radio-site.vercel.app/admin/**`, `http://localhost:4321/admin/**`, plus celles des aperçus Vercel si l'admin doit y marcher (`https://parabole-radio-site-*-lazbuttons-projects.vercel.app/admin/**`). Inutiles pour le mot de passe, elles serviront au lien magique.
+3. **Authentication → Attack Protection** : un mot de passe d'au moins 12 caractères.
 
-Côté écrans d'admin, la connexion appellera `supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo } })`. Avec `shouldCreateUser: false`, une adresse inconnue ne reçoit rien et ne crée aucun compte.
+Côté écrans d'admin, la connexion appellera `supabase.auth.signInWithPassword({ email, password })`. Un mot de passe oublié ne se réinitialise pas par e-mail : un admin en pose un nouveau (tableau de bord, ou écran Équipe).
+
+**Plus tard : le lien magique**, quand un domaine sera vérifié dans Resend. Rien ne change dans la base :
+
+1. Resend : ajouter le domaine (région Europe), poser ses enregistrements DNS, créer une clé d'API limitée à l'envoi.
+2. **Authentication → Emails → SMTP Settings** : hôte `smtp.resend.com`, port `465`, utilisateur `resend`, mot de passe la clé d'API, expéditeur `admin@<domaine>`, nom « Parabole Radio ». Le service intégré de Supabase ne suffit pas : il n'écrit qu'aux membres de l'organisation Supabase, et quelques fois par heure seulement.
+3. **Authentication → Emails → Templates** : traduire **Magic Link** (« Ton lien pour entrer dans l'admin de Parabole ») et **Invite user** (« Tu es invité·e dans l'équipe de Parabole Radio »).
+4. L'écran de connexion appelle alors `supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo } })`. Avec `shouldCreateUser: false`, une adresse inconnue ne reçoit rien et ne crée aucun compte.
 
 ### 4.4 Appliquer les migrations
 
@@ -306,7 +314,7 @@ Pour suivre les migrations, Drizzle tient le schéma `drizzle` (table `__drizzle
 
 ### 4.5 Nommer le premier admin
 
-1. **Authentication → Users → Add user → Send invitation**, avec sa propre adresse. Cliquer le lien reçu.
+1. **Authentication → Users → Add user → Create new user** : son adresse, un mot de passe, et **Auto Confirm User** coché. Aucun e-mail ne part.
 2. **SQL Editor** :
 
 ```sql
@@ -314,7 +322,7 @@ insert into public.member (user_id, email, name, role)
 select id, email, 'Prénom', 'admin' from auth.users where email = 'adresse@exemple.fr';
 ```
 
-Les membres suivants seront invités depuis l'écran **Équipe** de l'admin (section 9).
+Les membres suivants se créent de la même façon (rôle `editor` ou `admin`), puis depuis l'écran **Équipe** de l'admin (section 9). Le mot de passe se transmet par un canal sûr (Signal, de vive voix), jamais par un message en clair laissé dans une boîte mail.
 
 ### 4.6 Des exemples en ligne (facultatif)
 
@@ -342,7 +350,7 @@ Le modèle est dans `cms/.env.example`. Les variables `PUBLIC_*` peuvent aller d
 | `DATABASE_URL` | `cms/.env`, en local | Chaîne **Session pooler** (port 5432), pour `db:migrate`. Vide : base locale PGlite |
 | `PUBLIC_SUPABASE_URL` | Vercel, `.env` | `https://<ref>.supabase.co` (Project Settings → Data API) |
 | `PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Vercel, `.env` | Clé publiable `sb_publishable_…` (Project Settings → API Keys ; l'ancienne clé `anon` fait le même travail) |
-| `SUPABASE_SECRET_KEY` | Vercel seulement | Clé secrète `sb_secret_…` (l'ancienne `service_role`) : sert à inviter les membres, rien d'autre |
+| `SUPABASE_SECRET_KEY` | Vercel seulement | Clé secrète `sb_secret_…` (l'ancienne `service_role`) : sert à créer les comptes de l'équipe, rien d'autre |
 | `PUBLIC_MEDIA_URL` | Vercel, `.env` | Adresse publique du seau R2, par un domaine à soi : `https://media.<domaine>` |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | Vercel | Jeton R2 limité à ce seau, en lecture et écriture : pour les envois de fichiers |
 | `CRON_SECRET` | Vercel | Une longue chaîne aléatoire : protège l'import quotidien Radio Cult |
@@ -485,8 +493,8 @@ Sous `/admin`, dans le projet Astro, rendus côté serveur, en français, pensé
 
 ### 9.1 Connexion et session
 
-- **`/admin/connexion`** : un champ e-mail, puis « Recevoir mon lien ». Le serveur appelle `signInWithOtp` avec `shouldCreateUser: false`. Le message est le même que l'adresse soit connue ou non.
-- **`/admin/auth/callback`** : échange le code du lien contre une session, gardée en cookies (`@supabase/ssr`).
+- **`/admin/connexion`** : adresse et mot de passe, puis « Entrer ». Le serveur appelle `signInWithPassword` ; la session est gardée en cookies (`@supabase/ssr`). En cas d'échec, un seul message, que l'adresse soit connue ou non. Plus tard, avec le lien magique : un champ e-mail, « Recevoir mon lien » (`signInWithOtp`, `shouldCreateUser: false`), et `/admin/auth/callback` qui échange le code du lien contre une session.
+- **Changer son mot de passe** depuis l'admin (`supabase.auth.updateUser({ password })`), 12 caractères au moins.
 - **Garde de toutes les pages `/admin`** (middleware Astro) :
   - vérifier la session côté serveur (`supabase.auth.getUser()` ou `getClaims()`) ;
   - lire la fiche `member` ;
@@ -506,7 +514,7 @@ Sous `/admin`, dans le projet Astro, rendus côté serveur, en français, pensé
 | **Étiquettes** | Par type, avec leur nombre de shows | Type*, nom*, slug ; fusionner deux étiquettes (les shows de l'une passent à l'autre) |
 | **Pages** | Titre, statut, date de modification | Titre*, slug*, corps (Markdown avec aperçu), statut |
 | **Médiathèque** | Grille des fichiers, ceux sans texte alternatif en tête | Texte alternatif, crédit, où le fichier sert ; supprimer seulement s'il ne sert plus (et sur R2 aussi) |
-| **Équipe** (admin seulement) | Nom, adresse, rôle, dernière connexion | Inviter : adresse, nom, rôle. Le serveur appelle `supabase.auth.admin.inviteUserByEmail(email, { redirectTo })` avec la clé secrète, puis écrit la fiche `member` sous le rôle de l'admin. Changer un rôle, retirer un membre (la base garde toujours un admin) |
+| **Équipe** (admin seulement) | Nom, adresse, rôle, dernière connexion | Ajouter : adresse, nom, rôle. Le serveur crée le compte avec la clé secrète (`supabase.auth.admin.createUser({ email, password, email_confirm: true })`, mot de passe tiré au hasard et montré une seule fois à l'admin), puis écrit la fiche `member` sous le rôle de l'admin. Plus tard, avec les e-mails : `inviteUserByEmail` à la place. Poser un nouveau mot de passe, changer un rôle, retirer un membre (la base garde toujours un admin) |
 | **Imports Radio Cult** | Journal des imports : créés, mis à jour, laissés | — |
 
 Pour chaque contenu : **Enregistrer** (brouillon), **Publier**, **Dépublier**, **Aperçu** (la page du site, brouillon compris, pour l'équipe seulement), **Supprimer**, avec confirmation. Publier un show exige une date de diffusion : la base refuse sinon, et l'écran doit le dire avant.
@@ -557,7 +565,7 @@ Côté Cloudflare :
 |---|:-:|:-:|
 | Créer, modifier, publier, supprimer shows, artistes, événements, étiquettes, pages, fichiers | ✓ | ✓ |
 | Voir l'équipe | ✓ | ✓ |
-| Inviter, changer de rôle, retirer un membre | | ✓ |
+| Ajouter, changer de rôle, retirer un membre | | ✓ |
 
 Les écrans masquent ce qu'un rôle ne peut pas faire, mais c'est la base qui décide : un bouton oublié ne donne aucun droit. Si l'équipe veut un jour réserver la publication aux admins, il suffit d'une migration qui change les règles `*_update` des contenus.
 
