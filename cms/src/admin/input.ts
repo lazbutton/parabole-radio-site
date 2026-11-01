@@ -290,3 +290,77 @@ export function readArtistForm(input: ArtistForm): { form: ArtistForm; values: A
 
   return { form, errors, values: { name, slug, slugFromTitle, role: role as ArtistRole, bio: bio || null, links: values } };
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Vidéos de fond
+// ---------------------------------------------------------------------------------------------------------------
+
+/** Les vidéos que le fond sait passer dans tous les navigateurs. */
+export const CLIP_TYPES = ["video/mp4", "video/webm"] as const;
+export type ClipType = (typeof CLIP_TYPES)[number];
+
+/**
+ * Le fichier d'un clip tel que l'écran l'envoie, une fois la vidéo et son image d'attente déposées sur le stockage :
+ * leurs adresses, et ce que le navigateur a lu de la vidéo (taille en octets, durée en secondes, dimensions en pixels).
+ */
+export type ClipFileForm = { videoUrl: string; posterUrl: string; mimeType: string; size: string; duration: string; width: string; height: string };
+
+export type ClipFile = {
+  videoUrl: string;
+  posterUrl: string | null;
+  mimeType: ClipType;
+  sizeBytes: number | null;
+  durationSeconds: number | null;
+  width: number | null;
+  height: number | null;
+};
+
+/** Une adresse de fichier : https://… (Vercel Blob), ou un chemin du site (« /PARABOLE RADIO/… »). */
+function isFileAddress(text: string): boolean {
+  if (text.length > LIMITS.url) return false;
+  if (/^\/[^/]/.test(text)) return true;
+  try {
+    return new URL(text).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/** Un nombre positif lu dans un champ, arrondi à l'unité (1 au moins) ; null s'il manque ou ne veut rien dire. */
+function positive(text: string): number | null {
+  const value = Number(text);
+  return text.trim() && Number.isFinite(value) && value > 0 ? Math.max(1, Math.round(value)) : null;
+}
+
+/** Le titre d'un clip : une ligne, vide permis (le site montre alors son numéro seul). */
+export function readClipTitle(text: string): { title: string; errors: FieldErrors } {
+  const title = clean(text);
+  return { title, errors: title.length > LIMITS.title ? { title: `${LIMITS.title} caractères au plus.` } : {} };
+}
+
+/** Vérifie le fichier d'un clip : les valeurs pour la base, les erreurs par champ (« video » pour le fichier). */
+export function readClipFile(input: ClipFileForm): { values: ClipFile; errors: FieldErrors } {
+  const errors: FieldErrors = {};
+  const videoUrl = clean(input.videoUrl);
+  const posterUrl = clean(input.posterUrl);
+  const mimeType = clean(input.mimeType);
+  if (!isFileAddress(videoUrl)) errors.video = "L'adresse de la vidéo manque ou n'est pas valable.";
+  else if (posterUrl && !isFileAddress(posterUrl)) errors.video = "L'adresse de l'image d'attente n'est pas valable.";
+  else if (!oneOf(CLIP_TYPES, mimeType)) errors.video = "Une vidéo MP4 ou WebM seulement.";
+  let width = positive(input.width);
+  let height = positive(input.height);
+  // L'une sans l'autre ne dit rien du cadre.
+  if (width === null || height === null) width = height = null;
+  return {
+    errors,
+    values: {
+      videoUrl,
+      posterUrl: posterUrl || null,
+      mimeType: mimeType as ClipType,
+      sizeBytes: positive(input.size),
+      durationSeconds: positive(input.duration),
+      width,
+      height,
+    },
+  };
+}

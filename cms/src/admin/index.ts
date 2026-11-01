@@ -12,13 +12,15 @@
 import { asMember, type Tx } from "../access.ts";
 import type { Db } from "../db.ts";
 import { deleteArtist, getArtist, listArtists, saveArtist, type AdminArtistFilters, type ArtistSave } from "./artists.ts";
-import type { NotSaved, Saved } from "./common.ts";
+import { addClip, deleteClip, getClip, listClips, moveClip, replaceClipFile, updateClip, type ClipAdd, type ClipChange } from "./clips.ts";
+import type { NotSaved } from "./common.ts";
+import type { ClipFile } from "./input.ts";
 import { fieldErrorsFrom } from "./errors.ts";
 import { deleteShow, getShow, listShows, saveShow, showChoices, type AdminShowFilters, type ShowSave } from "./shows.ts";
 import { getMember, overview } from "./team.ts";
 
 /** Un refus de la base qui tient à la saisie devient des erreurs par champ ; le reste remonte tel quel. */
-async function saving(run: () => Promise<Saved | NotSaved>): Promise<Saved | NotSaved> {
+async function saving<T extends { ok: true }>(run: () => Promise<T | NotSaved>): Promise<T | NotSaved> {
   try {
     return await run();
   } catch (error) {
@@ -53,14 +55,30 @@ export function createAdmin(db: Db, userId: string) {
     saveArtist: (save: ArtistSave) => saving(() => as((tx) => saveArtist(tx, save))),
     /** Supprime un artiste. Rend son nom, ou null s'il n'existait plus. */
     deleteArtist: (id: string) => as((tx) => deleteArtist(tx, id)),
+    /** Les vidéos de fond, dans l'ordre de la liste, celles mises de côté comprises. */
+    listClips: () => as((tx) => listClips(tx)),
+    /** Une vidéo de fond, ou null. */
+    getClip: (id: string) => as((tx) => getClip(tx, id)),
+    /** Ajoute une vidéo de fond (son fichier est déjà sur le stockage), à la fin de la liste. */
+    addClip: (clip: ClipAdd) => saving(() => as((tx) => addClip(tx, clip))),
+    /** Change le titre d'une vidéo de fond, ou la met dans la rotation ou de côté. */
+    updateClip: (id: string, change: ClipChange) => saving(() => as((tx) => updateClip(tx, id, change))),
+    /** Remplace le fichier d'une vidéo de fond. Rend les adresses de l'ancien, à effacer du stockage. */
+    replaceClipFile: (id: string, file: ClipFile) => saving(() => as((tx) => replaceClipFile(tx, id, file))),
+    /** Monte ou descend une vidéo de fond d'une place. Faux si elle n'existe plus. */
+    moveClip: (id: string, direction: "up" | "down") => as((tx) => moveClip(tx, id, direction)),
+    /** Supprime une vidéo de fond. Rend les adresses de ses fichiers, à effacer du stockage, ou null. */
+    deleteClip: (id: string) => as((tx) => deleteClip(tx, id)),
   };
 }
 
 export type Admin = ReturnType<typeof createAdmin>;
 
 export type { AdminArtist, AdminArtistFilters, AdminArtistIndex, AdminArtistRow, ArtistSave } from "./artists.ts";
+export type { AdminClip, ClipAdd, ClipChange, ClipFiles } from "./clips.ts";
 export type { NotSaved, Saved } from "./common.ts";
 export {
+  CLIP_TYPES,
   emptyArtistForm,
   emptyShowForm,
   isUuid,
@@ -68,9 +86,14 @@ export {
   mergeTracks,
   NEW_PICK,
   readArtistForm,
+  readClipFile,
+  readClipTitle,
   readShowForm,
   type ArtistForm,
   type ArtistValues,
+  type ClipFile,
+  type ClipFileForm,
+  type ClipType,
   type FieldErrors,
   type ShowForm,
   type ShowValues,

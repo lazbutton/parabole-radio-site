@@ -29,6 +29,20 @@
       "when": 1793545093965,
       "tag": "0003_stockage",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793547124851,
+      "tag": "0004_fond",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793547139174,
+      "tag": "0005_fond_acces",
+      "breakpoints": true
     }
   ]
 }
