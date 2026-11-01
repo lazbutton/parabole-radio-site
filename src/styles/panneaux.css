@@ -1,53 +1,65 @@
-/* Les panneaux PROGRAMMATION, HISTORIQUE et CHAT : des fenêtres au design du site, remplies par les scripts
-   (src/scripts/panels.ts, schedule.ts, history.ts). Comme le bandeau, ils restent d'une page à l'autre.
-   Sur l'accueil et sur ordinateur, PROGRAMMATION est toujours ouvert (html[data-page="accueil"]). */
+/* Les panneaux PROGRAMMATION, HISTORIQUE et CHAT, remplis par les scripts (src/scripts/panels.ts, schedule.ts,
+   history.ts), écrits comme les titres télé (tele.css) : une plaque sombre où l'image passe encore, floutée (le texte
+   d'une rubrique dessous ne se mêle pas au leur), des lignes de balayage, un cadre jaune qui bave en rouge et cyan comme
+   la touche ÉCOUTER, du texte jaune et blanc aux couleurs qui bavent. Comme le bandeau, ils restent d'une page à
+   l'autre. Sur l'accueil et sur ordinateur, PROGRAMMATION est toujours ouvert (html[data-page="accueil"]). */
 .popup {
   position: fixed;
   right: 24px;
   bottom: 120px;
   width: min(420px, calc(100vw - 24px));
   border: 2px solid #fff039;
-  background: #000000;
+  background:
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 3px),   /* lignes de balayage */
+    rgba(0,0,0,0.72);
+  -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px);
+  box-shadow: -2px 0 rgba(255,0,72,0.5), 2px 0 rgba(0,200,255,0.45);   /* le cadre bave */
   color: #ffffff;
+  text-transform: uppercase;
+  text-shadow: -1.5px 0 rgba(255,0,72,0.55), 1.5px 0 rgba(0,200,255,0.5), 0 2px 5px rgba(0,0,0,0.6);
   z-index: 40;
   display: none;
 }
 .popup.open { display: block; }
-.popup-meta { margin-left: auto; font-size: 8px; letter-spacing: 0.12em; opacity: 0.7; white-space: nowrap; }
+/* la barre de titre : le nom du panneau en grand jaune, et à sa droite ce qu'il montre, en petit blanc */
 .popup-head {
-  height: 34px; padding: 0 44px 0 12px;
-  display: flex; align-items: center;
-  background: #fff039; color: #000dff;
-  font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  display: flex; align-items: baseline; gap: 12px; padding: 16px 56px 13px 16px;
+  border-bottom: 1px dashed rgba(255,240,57,0.45);
+  color: #fff039; font-size: 22px; font-weight: 700; letter-spacing: 0.04em; line-height: 1;
+  text-shadow: -2px 0 rgba(255,0,72,0.6), 2px 0 rgba(0,200,255,0.55), 0 0 12px rgba(255,240,57,0.4), 0 2px 6px rgba(0,0,0,0.55);
+}
+.popup-meta {
+  margin-left: auto; color: #ffffff; font-size: 9px; letter-spacing: 0.14em; opacity: 0.75; white-space: nowrap;
+  text-shadow: -1.5px 0 rgba(255,0,72,0.55), 1.5px 0 rgba(0,200,255,0.5);
 }
 .popup-close {
-  position: absolute; top: 4px; right: 4px;
-  width: 26px; height: 26px;
-  background: #000dff; color: #fff039;
-  border: none;
-  font-size: 16px; font-weight: 900; line-height: 1;
-  cursor: pointer; border-radius: 0;
+  position: absolute; top: 12px; right: 12px;
+  width: 28px; height: 28px;
+  background: rgba(0,0,0,0.35); color: #fff039;
+  border: 2px solid #fff039; border-radius: 0;
+  box-shadow: -2px 0 rgba(255,0,72,0.5), 2px 0 rgba(0,200,255,0.45);
+  font-size: 16px; font-weight: 900; line-height: 1; text-shadow: inherit;
+  cursor: pointer;
 }
-.popup-close:hover { background: #000000; }
+.popup-close:hover { background: #fff039; color: #000dff; text-shadow: none; }
+.popup-close:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
 /* FENÊTRES : la barre de titre d'un panneau le déplace (souris et pavé tactile seulement) */
 .window-bar { cursor: grab; user-select: none; -webkit-user-select: none; }
 .popup.dragging .window-bar { cursor: grabbing; }
 .popup.dragging iframe { pointer-events: none; }   /* le cadre du chat ne doit pas capter la souris en plein déplacement */
-.popup-body { max-height: min(440px, 55vh); overflow-y: auto; scrollbar-color: #fff039 #000000; }
+.popup-body { max-height: min(440px, 55vh); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #fff039 transparent; }
 .popup-chat { height: min(480px, 55vh); background: #000000; }
 .popup-chat iframe { display: block; width: 100%; height: 100%; border: 0; }
-/* ---------- PROGRAMMATION : un panneau au centre à droite de la fenêtre, comme sur la maquette ----------
-   Son milieu est celui de la place libre entre la barre du haut (--barre-h) et le bandeau (--band-h, posé par
-   panels.ts). Dedans, la journée comme une ligne : les émissions en sont les arrêts, la musique en continu remplit
-   les creux, l'émission à l'antenne est une carte jaune avec son avancement. */
+/* ---------- PROGRAMMATION : un guide des programmes ----------
+   Un panneau au centre à droite de la fenêtre, comme sur la maquette : son milieu est celui de la place libre entre
+   l'en-tête (--barre-h, bandeau son compris) et la ligne du bas (--band-h, posé par panels.ts). Dedans, la journée comme
+   une ligne : les émissions en sont les arrêts, la musique en continu remplit les creux, l'émission à l'antenne est
+   ON AIR, avec son avancement en barre de segments. */
 .popup-schedule {
   --free: calc(100vh - var(--barre-h) - 16px - var(--band-h, 110px) - 16px);
   top: calc(var(--barre-h) + 16px + max(0px, var(--free) - 520px) * 0.3); bottom: auto;   /* un peu au-dessus du milieu */
   width: min(400px, calc(100vw - 24px)); max-height: min(520px, var(--free));   /* à la taille du contenu, 520 px au plus */
   flex-direction: column;
-  background:
-    repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 3px),   /* lignes de balayage */
-    #000000;
 }
 @supports (height: 100dvh) { .popup-schedule { --free: calc(100dvh - var(--barre-h) - 16px - var(--band-h, 110px) - 16px); } }
 .popup-schedule.open { display: flex; }
@@ -58,99 +70,117 @@
   html[data-page="accueil"] .popup-schedule { display: flex; }
   html[data-page="accueil"] .popup-schedule .popup-close, html[data-page="accueil"] #scheduleToggle { display: none; }
 }
+/* sur l'accueil, pas assez large pour les mettre côte à côte : il s'arrête au-dessus de ce qui passe (affiché comme
+   la chaîne, tele.css, environ 110 px de haut) */
+@media (min-width: 821px) and (max-width: 1100px) {
+  html[data-page="accueil"] .popup-schedule { --free: calc(100vh - var(--barre-h) - 16px - var(--band-h, 110px) - 150px); }
+}
 /* assez large : HISTORIQUE et CHAT s'ouvrent à côté du panneau, pas dessus (128 + 400 + 16 px) */
 @media (min-width: 1100px) { .popup:not(.popup-schedule) { right: 544px; } }
-.sched-head { flex-shrink: 0; display: grid; grid-template-columns: 1fr auto; align-items: end; column-gap: 12px; padding: 16px 16px 14px; border-bottom: 2px solid #fff039; }
+.sched-head { flex-shrink: 0; display: grid; grid-template-columns: 1fr auto; align-items: end; column-gap: 12px; padding: 16px 16px 13px; border-bottom: 1px dashed rgba(255,240,57,0.45); }
 .sched-head .sched-date { grid-column: 1 / -1; }
-.sched-clock { color: #ffffff; font-size: 22px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
-.sched-clock::before { content: ''; display: inline-block; width: 7px; height: 7px; margin: 0 7px 4px 0; background: #fff039; animation: playerBlink 1.2s steps(2) infinite; }   /* l'heure de la station, en direct */
-.sched-title { color: #ffffff; font-size: 22px; font-weight: 700; letter-spacing: 0.04em; line-height: 1; text-transform: uppercase; }
-.sched-date { margin-top: 7px; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.75; }
+/* le titre et l'heure de la station, en grand : le jaune des titres télé, un léger flou */
+.sched-title, .sched-clock {
+  color: #fff039; font-size: 24px; font-weight: 700; letter-spacing: 0.04em; line-height: 1; filter: blur(0.35px);
+  text-shadow: -2px 0 rgba(255,0,72,0.6), 2px 0 rgba(0,200,255,0.55), 0 0 12px rgba(255,240,57,0.4), 0 2px 6px rgba(0,0,0,0.55);
+}
+.sched-clock { font-size: 22px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sched-clock::before { content: ''; display: inline-block; width: 7px; height: 7px; margin: 0 8px 4px 0; background: #fff039; animation: playerBlink 1.2s steps(2) infinite; }   /* en direct */
+.sched-date { margin-top: 8px; color: #ffffff; font-size: 10px; font-weight: 700; letter-spacing: 0.14em; opacity: 0.85; }
 @media (max-width: 820px) { .sched-head { padding-right: 56px; } .sched-clock { display: none; } }
 /* hors de l'accueil, la croix est là aussi sur ordinateur : l'horloge lui laisse la place */
 html:not([data-page="accueil"]) .sched-head { padding-right: 56px; }
-.popup-schedule .popup-close { top: 14px; right: 14px; width: 28px; height: 28px; background: #fff039; color: #000dff; }
-.popup-schedule .popup-close:hover { background: #ffffff; }
-.sched-days { flex-shrink: 0; display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid #222; }
+.popup-schedule .popup-close { top: 14px; right: 14px; }
+/* les sept jours : celui qu'on regarde s'allume en jaune, comme la touche ÉCOUTER à l'écoute */
+.sched-days { flex-shrink: 0; display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; padding: 10px 12px; border-bottom: 1px dashed rgba(255,240,57,0.45); }
 .sched-day {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  padding: 10px 0 8px; background: none; color: #ffffff;
-  border: none; border-right: 1px solid #222; font: inherit; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 7px 0 6px; background: none; color: #ffffff;
+  border: none; font: inherit; text-transform: inherit; text-shadow: inherit; cursor: pointer;
 }
-.sched-day:last-child { border-right: none; }
 .sched-day:hover { color: #fff039; }
-.sched-day:focus-visible { outline: 2px solid #ffffff; outline-offset: -2px; }
-.sched-day .dow { font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.7; }
+.sched-day:focus-visible { outline: 2px solid #ffffff; outline-offset: 1px; }
+.sched-day .dow { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; opacity: 0.75; }
 .sched-day .num { font-size: 18px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
 .sched-day .dots { display: flex; gap: 2px; height: 4px; }        /* une par émission ce jour-là, 3 au plus */
 .sched-day .dots i { width: 4px; height: 4px; background: #fff039; }
-.sched-day[aria-selected="true"] { background: #fff039; color: #000dff; box-shadow: inset 0 -3px 0 #000dff; }
+.sched-day[aria-selected="true"] { background: #fff039; color: #000dff; text-shadow: none; box-shadow: -2px 0 rgba(255,0,72,0.6), 2px 0 rgba(0,200,255,0.55); }
 .sched-day[aria-selected="true"] .dow { opacity: 1; }
 .sched-day[aria-selected="true"] .dots i { background: #000dff; }
-.sched-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 8px 0 24px; scrollbar-color: #fff039 #000000;
+.sched-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 8px 0 24px; scrollbar-width: thin; scrollbar-color: #fff039 transparent;
   -webkit-mask: linear-gradient(#000 calc(100% - 28px), transparent); mask: linear-gradient(#000 calc(100% - 28px), transparent); }
-.sched-row { display: grid; grid-template-columns: 54px 18px minmax(0, 1fr); }
-.sched-time { padding: 11px 0 0 14px; color: #fff039; font-size: 12px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
-.sched-time small { display: block; color: #ffffff; font-size: 9px; font-weight: 400; opacity: 0.45; }
+.sched-row { display: grid; grid-template-columns: 58px 18px minmax(0, 1fr); }
+.sched-time { padding: 11px 0 0 14px; color: #fff039; font-size: 13px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.sched-time small { display: block; margin-top: 2px; color: #ffffff; font-size: 9px; opacity: 0.5; }
 .sched-rail { position: relative; }
-.sched-rail::before { content: ''; position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: #000dff; }   /* la ligne */
-.sched-rail::after { content: ''; position: absolute; left: 4px; top: 14px; width: 10px; height: 10px; background: #000dff; }   /* l'arrêt */
+.sched-rail::before { content: ''; position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: rgba(255,240,57,0.55); }   /* la ligne */
+.sched-rail::after { content: ''; position: absolute; left: 4px; top: 14px; width: 10px; height: 10px; background: #fff039; box-shadow: -1.5px 0 rgba(255,0,72,0.6), 1.5px 0 rgba(0,200,255,0.55); }   /* l'arrêt */
 .sched-row:first-child .sched-rail::before { top: 14px; }
 .sched-row:last-child .sched-rail::before { bottom: auto; height: 14px; }
 .sched-body { align-self: start; min-width: 0; padding: 10px 14px 12px 8px; }   /* colle à son texte ; la ligne court sur toute la rangée */
-.sched-name { font-size: 14px; font-weight: 700; line-height: 1.2; letter-spacing: 0.01em; text-transform: uppercase; overflow-wrap: anywhere; }
-.sched-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 5px; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.7; }
-.sched-tag { padding: 2px 5px; border: 1px solid currentColor; }
+.sched-name { color: #ffffff; font-size: 14px; font-weight: 700; line-height: 1.2; letter-spacing: 0.04em; overflow-wrap: anywhere; }
+.sched-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; font-size: 9px; font-weight: 700; letter-spacing: 0.14em; opacity: 0.7; }
+.sched-tag { padding: 2px 5px; border: 1px solid #fff039; color: #fff039; box-shadow: -1px 0 rgba(255,0,72,0.5), 1px 0 rgba(0,200,255,0.45); }
 .sched-live { font-weight: 700; }
 /* la musique en continu entre les émissions : une ligne en pointillés, plus discrète */
-.sched-row.gap .sched-rail::before { background: repeating-linear-gradient(#3a3a3a 0 4px, transparent 4px 8px); }
-.sched-row.gap .sched-rail::after { left: 6px; top: 16px; width: 6px; height: 6px; background: #555; }
-.sched-row.gap .sched-time { color: #888; font-weight: 400; }
-.sched-row.gap .sched-name { font-size: 11px; font-weight: 400; letter-spacing: 0.02em; text-transform: none; opacity: 0.55; }
-/* passée : atténuée ; à l'antenne : une carte jaune, avec son avancement */
-.sched-row.past { opacity: 0.4; }
-.sched-row.now .sched-rail::after { background: #fff039; box-shadow: 0 0 10px #fff039; }
-.sched-row.now .sched-body { margin: 4px 16px 8px 4px; padding: 12px 14px 14px; background: #fff039; color: #000dff; box-shadow: 5px 5px 0 #000dff; }
-.sched-row.now .sched-live::before { content: ''; display: inline-block; width: 6px; height: 6px; margin: 0 5px 1px 0; background: #000dff; animation: playerBlink 1.2s steps(2) infinite; }
-.sched-row.now .sched-name { font-size: 15px; font-weight: 700; opacity: 1; }
-.sched-row.now .sched-meta { opacity: 1; }
+.sched-row.gap .sched-rail::before { background: repeating-linear-gradient(rgba(255,240,57,0.4) 0 3px, transparent 3px 7px); }
+.sched-row.gap .sched-rail::after { left: 6px; top: 16px; width: 6px; height: 6px; background: rgba(255,240,57,0.5); box-shadow: none; }
+.sched-row.gap .sched-time { color: rgba(255,255,255,0.6); }
+.sched-row.gap .sched-name { font-size: 11px; letter-spacing: 0.12em; opacity: 0.55; }
+/* passée : atténuée ; à l'antenne : ON AIR, son nom en jaune derrière une flèche, son avancement en segments */
+.sched-row.past { opacity: 0.38; }
+.sched-row.now { background: linear-gradient(90deg, rgba(255,240,57,0.16), rgba(255,240,57,0.02) 80%); box-shadow: inset 3px 0 0 #fff039; }
+.sched-row.now .sched-rail::after { box-shadow: 0 0 10px #fff039, -1.5px 0 rgba(255,0,72,0.6), 1.5px 0 rgba(0,200,255,0.55); }
+.sched-row.now .sched-body { padding: 10px 14px 14px 8px; }
+.sched-row.now .sched-name {
+  color: #fff039; font-size: 17px; line-height: 1.15; filter: blur(0.3px);
+  text-shadow: -2px 0 rgba(255,0,72,0.6), 2px 0 rgba(0,200,255,0.55), 0 0 12px rgba(255,240,57,0.4), 0 2px 6px rgba(0,0,0,0.55);
+}
+.sched-row.now .sched-name::before { content: ''; display: inline-block; width: 9px; height: 11px; margin: 0 8px 1px 0; background: currentColor; clip-path: polygon(0 0, 100% 50%, 0 100%); }
+.sched-row.now .sched-meta { color: #ffffff; opacity: 1; }
+.sched-row.now .sched-live { color: #fff039; }
+.sched-row.now .sched-live::before { content: ''; display: inline-block; width: 6px; height: 6px; margin: 0 6px 1px 0; background: #fff039; animation: playerBlink 1.2s steps(2) infinite; }
 @media (prefers-reduced-motion: reduce) { .sched-clock::before, .sched-row.now .sched-live::before { animation: none; } }
-.sched-progress { height: 6px; margin-top: 10px; background: rgba(0,13,255,0.2); }
-.sched-progress i { display: block; height: 100%; background: #000dff; }
+.sched-progress { height: 8px; margin-top: 10px; background: repeating-linear-gradient(90deg, rgba(255,255,255,0.22) 0 5px, transparent 5px 7px); }
+.sched-progress i { display: block; height: 100%; background: repeating-linear-gradient(90deg, #fff039 0 5px, transparent 5px 7px); filter: drop-shadow(-1.5px 0 rgba(255,0,72,0.6)) drop-shadow(1.5px 0 rgba(0,200,255,0.55)); }
+/* ---------- HISTORIQUE : le journal de diffusion ----------
+   Des rangées comme celles de PROGRAMMATION : l'heure en jaune, le morceau en blanc, son artiste en jaune ; celui à
+   l'antenne sur une bande jaune, son nom en jaune. */
 .popup-section {
-  padding: 5px 12px;
-  background: #111; color: #fff039;
-  font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 12px 14px 6px;
+  color: #fff039; font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
 }
 .popup-row {
   display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px;
-  padding: 10px 12px; border-bottom: 1px solid #222;
-  font-size: 11px; line-height: 1.3; text-transform: uppercase;
+  padding: 10px 14px; border-bottom: 1px dashed rgba(255,240,57,0.2);
+  font-size: 11px; line-height: 1.3;
 }
 .popup-row .when { color: #fff039; font-weight: 700; font-variant-numeric: tabular-nums; }
-.popup-row .what { font-weight: 700; overflow-wrap: anywhere; }
-.popup-row .sub { display: block; margin-top: 2px; color: #fff039; font-weight: 400; font-size: 10px; }
+.popup-row .what { color: #ffffff; font-weight: 700; letter-spacing: 0.04em; overflow-wrap: anywhere; }
+.popup-row .sub { display: block; margin-top: 3px; color: #fff039; font-weight: 700; font-size: 10px; letter-spacing: 0.06em; }
 .popup-row .foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-top: 6px; }
 .popup-row .foot .sig { margin-top: 0; }
 /* le lien Hopper : ouvre le morceau sur la plateforme de l'auditeur */
 .hppr {
   display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px;
-  border: 1px solid #fff039; color: #fff039; text-decoration: none;
+  background: rgba(0,0,0,0.3); border: 1px solid #fff039; color: #fff039; text-decoration: none;
+  box-shadow: -1px 0 rgba(255,0,72,0.5), 1px 0 rgba(0,200,255,0.45);
   font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap;
 }
-.hppr:hover { background: #fff039; color: #000dff; }
+.hppr:hover { background: #fff039; color: #000dff; text-shadow: none; }
 .hppr:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
-.popup-row.now { background: #000dff; box-shadow: inset 4px 0 0 #fff039; }
+.popup-row.now { background: linear-gradient(90deg, rgba(255,240,57,0.16), rgba(255,240,57,0.02) 80%); box-shadow: inset 3px 0 0 #fff039; }
+.popup-row.now .what { color: #fff039; text-shadow: -2px 0 rgba(255,0,72,0.6), 2px 0 rgba(0,200,255,0.55), 0 0 12px rgba(255,240,57,0.4), 0 2px 6px rgba(0,0,0,0.55); }
 /* chaque morceau a son petit code-barres, tiré de son titre ; celui à l'antenne bouge */
 .popup-row .sig { display: flex; align-items: flex-end; gap: 1px; height: 12px; margin-top: 6px; }
-.popup-row .sig i { width: 3px; background: #000dff; }
+.popup-row .sig i { width: 3px; background: rgba(255,240,57,0.45); }
 .popup-row.now .sig i { background: #fff039; animation: sigBar 0.7s ease-in-out infinite alternate; }
 .popup-row.now .sig i:nth-child(3n) { animation-duration: 0.5s; }
 .popup-row.now .sig i:nth-child(3n+1) { animation-duration: 0.9s; }
 @keyframes sigBar { to { height: 15%; } }
 .popup-empty {
   padding: 26px 16px 30px; text-align: center;
-  color: #fff039; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; line-height: 1.6; text-transform: uppercase;
+  color: #fff039; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; line-height: 1.6;
 }
 /* une mire au-dessus de chaque message d'attente */
 .popup-empty::before {

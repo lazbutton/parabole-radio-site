@@ -1,0 +1,147 @@
+/* L'univers télé, en clin d'œil (EVOLUTION_DU_PROJET.md, décisions du 31 octobre) : le zapping entre deux clips (la
+   neige, src/scripts/neige.ts, et la chaîne affichée, src/scripts/background.ts) et l'allumage du téléviseur au
+   chargement de l'onglet. D'après « CRT TV Effect » de Karl Saunders (https://codepen.io/Mobius1/pen/zZpoXj) : la
+   neige d'un canevas en basse résolution, l'allumage, le texte de la chaîne aux couleurs qui bavent. Aucun son. */
+
+/* ---------- LA NEIGE : sur la vidéo, sous le voile bleu et les lignes du filtre cathodique ---------- */
+.neige {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  opacity: 0; transition: opacity 0.14s linear;
+}
+.neige.visible { opacity: 1; transition: none; }   /* elle tombe d'un coup, comme quand on change de chaîne */
+
+/* ---------- L'AFFICHAGE À L'ÉCRAN : la chaîne au zapping, et ce qui passe sur l'accueil ----------
+   Le texte d'un téléviseur : jaune, en capitales, les couleurs qui bavent, une ombre pour rester lisible sur l'image. */
+.osd, .direct {
+  color: #fff039; text-transform: uppercase;
+  text-shadow: -2px 0 rgba(255,0,72,0.6), 2px 0 rgba(0,200,255,0.55), 0 0 12px rgba(255,240,57,0.4), 0 2px 6px rgba(0,0,0,0.55);
+}
+
+/* ---------- LA CHAÎNE : son numéro et le nom du clip, à droite du globe, quelques secondes ---------- */
+.osd {
+  position: absolute; top: calc(var(--barre-h) + 34px); left: 216px; z-index: 2;
+  max-width: min(440px, calc(100vw - 240px));
+  pointer-events: none;
+  opacity: 0; transition: opacity 0.5s linear;
+}
+.osd.visible { opacity: 1; transition: none; animation: osdGlitch 2.8s linear infinite; }
+.osd-chaine { font-size: 48px; font-weight: 700; line-height: 1; letter-spacing: 0.04em; filter: blur(0.4px); }
+.osd-titre { margin-top: 10px; color: #ffffff; font-size: 13px; font-weight: 700; letter-spacing: 0.14em; line-height: 1.35; filter: blur(0.3px); }
+.osd-titre:empty { display: none; }
+.osd.visible .osd-chaine, .osd.visible .osd-titre { animation: osdTremble 0.1s steps(2) infinite; }
+@keyframes osdTremble { 50% { transform: translateX(1px); } }
+@keyframes osdGlitch {
+  0%, 62%, 66%, 100% { transform: none; }
+  63% { transform: skewX(38deg) scaleY(1.12); }
+  64% { transform: skewX(-24deg); }
+  65% { transform: translateX(6px); }
+}
+@media (max-width: 640px) {
+  .osd { top: calc(var(--barre-h) + 172px); left: 14px; max-width: calc(100vw - 28px); }
+  .osd-chaine { font-size: 36px; }
+  .osd-titre { margin-top: 7px; font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .osd.visible, .osd.visible .osd-chaine, .osd.visible .osd-titre { animation: none; }
+}
+
+/* ---------- CE QUI PASSE, sur l'accueil : en bas à gauche, au-dessus de la ligne du bas ----------
+   Comme la chaîne, en plus petit et à demeure : la touche ÉCOUTER (▶ PLAY d'un magnétoscope), ON AIR et le lieu, le
+   titre et les logos de ses plateformes, le sous-titre (remplis par nowplaying.ts). Il s'allume en clignant à chaque
+   arrivée sur l'accueil ; au chargement, après l'allumage. Sur un grand écran, il s'arrête avant PROGRAMMATION (128 px
+   du bord, 400 px de large) ; plus étroit, PROGRAMMATION s'arrête au-dessus de lui (panneaux.css). */
+.direct {
+  position: fixed; z-index: 10;
+  left: 24px; bottom: calc(var(--band-h, 60px) + 18px);
+  max-width: min(560px, calc(100vw - 48px));
+  animation: allumageCligne 0.42s linear both;
+}
+html.allumage .direct { animation-delay: 1.5s; }
+@media (min-width: 1101px) { .direct { max-width: min(560px, calc(100vw - 600px)); } }
+.direct-ligne { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 9px; }
+.direct-ecouter {
+  display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 10px 0 8px;
+  background: rgba(0,0,0,0.35); color: #fff039; border: 2px solid #fff039; border-radius: 0; cursor: pointer;
+  box-shadow: -2px 0 rgba(255,0,72,0.5), 2px 0 rgba(0,200,255,0.45);   /* le cadre bave aussi */
+  font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; line-height: 1; text-transform: uppercase;
+  text-shadow: inherit;
+}
+.direct-ecouter .icon { width: 11px; height: 11px; filter: drop-shadow(-1.5px 0 rgba(255,0,72,0.6)) drop-shadow(1.5px 0 rgba(0,200,255,0.55)); }
+.direct-ecouter:hover { background: #fff039; color: #000dff; text-shadow: none; }
+.direct-ecouter:hover .icon { filter: none; }
+.direct-ecouter:focus-visible { outline: 2px solid #ffffff; outline-offset: 3px; }
+/* l'état du lecteur (data-state sur #player, dans l'en-tête) : à l'écoute, la touche s'allume et propose d'arrêter */
+.direct-icone-pause, .direct-mot-pause { display: none; }
+body:has(#player:is([data-state="playing"], [data-state="loading"], [data-state="error"])) .direct-ecouter { background: #fff039; color: #000dff; text-shadow: none; }
+body:has(#player:is([data-state="playing"], [data-state="loading"], [data-state="error"])) .direct-ecouter .icon { filter: none; }
+body:has(#player:is([data-state="playing"], [data-state="loading"], [data-state="error"])) :is(.direct-icone-lire, .direct-mot-lire) { display: none; }
+body:has(#player:is([data-state="playing"], [data-state="loading"], [data-state="error"])) :is(.direct-icone-pause, .direct-mot-pause) { display: block; }
+body:has(#player[data-state="off"]) .direct-ecouter { display: none; }   /* pas de flux */
+.direct-etat, .direct-lieu { color: #ffffff; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; line-height: 1; white-space: nowrap; }
+.direct-etat::before { content: ''; display: inline-block; width: 7px; height: 7px; margin: 0 7px 1px 0; background: #fff039; animation: playerBlink 1.2s steps(2) infinite; }
+body:has(#player[data-air="off"]) .direct-etat::before { background: #777777; animation: none; }
+.direct-lieu { opacity: 0.75; }
+.direct-titre-ligne { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; }
+.direct-titre { min-width: 0; font-size: 26px; font-weight: 700; letter-spacing: 0.04em; line-height: 1.05; overflow-wrap: anywhere; filter: blur(0.35px); }
+/* à droite du titre, les plateformes où Hopper trouve le morceau (hopper.ts) : leurs logos d'avant, du même jaune, aux
+   couleurs qui bavent ; chacun ouvre le morceau sur sa plateforme, en passant par hppr.fr */
+.direct-plateformes { --h: 20px; display: inline-flex; align-items: center; gap: 12px; }
+.direct-plateformes[hidden] { display: none; }
+.direct-plateformes a { --c: #fff039; display: inline-flex; align-items: center; color: var(--c); text-decoration: none; transition: transform 0.15s; }
+.direct-plateformes a:hover { --c: #ffffff; transform: translateY(-1px); }
+.direct-plateformes a:focus-visible { outline: 2px solid #ffffff; outline-offset: 3px; }
+.direct-plateformes .logo {
+  display: block; height: var(--h); width: calc(var(--h) * var(--r, 1));
+  fill: currentColor;
+  filter: drop-shadow(-1.5px 0 rgba(255,0,72,0.6)) drop-shadow(1.5px 0 rgba(0,200,255,0.55)) drop-shadow(0 2px 3px rgba(0,0,0,0.5));
+}
+/* YouTube en lettres, comme son logo de 2005 : « You », puis « Tube » dans un écran arrondi ; Beatport en minuscules */
+.logo-mot { font-size: calc(var(--h) * 0.84); font-weight: 700; letter-spacing: -0.01em; line-height: 1; text-transform: none; white-space: nowrap; }
+.logo-mot b { display: inline-block; margin-left: 2px; padding: 2px 4px 1px; border-radius: 5px; background: var(--c); color: #000000; text-shadow: none; box-shadow: -1.5px 0 rgba(255,0,72,0.6), 1.5px 0 rgba(0,200,255,0.55); }
+.direct-sous-titre { margin-top: 7px; color: #ffffff; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; line-height: 1.35; overflow-wrap: anywhere; filter: blur(0.25px); }
+.direct-sous-titre[hidden] { display: none; }
+@media (max-width: 820px) {
+  .direct { left: 14px; right: 14px; bottom: calc(var(--band-h, 160px) + 12px); }
+  .direct-titre { font-size: 21px; }
+  .direct-titre-ligne { gap: 6px 12px; }
+  .direct-plateformes { --h: 16px; gap: 10px; }
+  .direct-etat, .direct-lieu, .direct-sous-titre { font-size: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .direct, .direct-etat::before { animation: none; }
+}
+
+/* ---------- L'ALLUMAGE : au chargement de l'onglet seulement (html.allumage, posé dans Base.astro) ----------
+   Un point blanc s'étire en ligne, la ligne s'ouvre sur la neige, puis l'image arrive (background.ts) ; l'en-tête, la
+   ligne du bas et les panneaux s'allument avec, en clignant. */
+.allumage-ligne { display: none; }
+html.allumage .allumage-ligne {
+  display: block; position: fixed; left: 0; right: 0; top: 50%; z-index: 1;
+  height: 4px; margin-top: -2px;
+  background: #ffffff;
+  box-shadow: 0 0 16px 4px rgba(255,255,255,0.85), 0 0 70px 18px rgba(150,170,255,0.55);
+  pointer-events: none;
+  opacity: 0;
+  animation: allumageLigne 0.8s cubic-bezier(0.2, 0.8, 0.3, 1) 0.1s both;
+}
+@keyframes allumageLigne {
+  0% { transform: scale(0.004, 1); opacity: 1; }
+  40% { transform: scale(1, 1); opacity: 1; }
+  62% { transform: scale(1, 3); opacity: 1; }
+  100% { transform: scale(1, 40); opacity: 0; }
+}
+html.allumage #fond { animation: allumageFond 0.85s cubic-bezier(0.3, 0.9, 0.3, 1) 0.1s both; }
+@keyframes allumageFond {
+  0%, 42% { clip-path: inset(50% 0 50% 0); filter: brightness(3.5); }
+  100% { clip-path: inset(0 0 0 0); filter: brightness(1); }
+}
+html.allumage .tete { animation: allumageCligne 0.42s linear 0.5s both; }
+html.allumage #floatBottom { animation: allumageCligne 0.42s linear 0.62s both; }
+html.allumage .popup-schedule, html.allumage .micro-spec { animation: allumageCligne 0.42s linear 0.78s both; }
+@keyframes allumageCligne {
+  0% { opacity: 0; }
+  35% { opacity: 1; }
+  45% { opacity: 0.25; }
+  60%, 100% { opacity: 1; }
+}

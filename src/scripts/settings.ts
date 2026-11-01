@@ -47,24 +47,28 @@ export const HOPPER_URL = "/api/hopper";
 // Les clips de fond. UN clip : il boucle sans couture (rien à faire).
 // Pour en faire tourner plusieurs : déposer les vidéos dans le MÊME dossier
 //   public/PARABOLE RADIO/VIDEO/BACKGROUND/
-// et ajouter chaque chemin ci-dessous. Ils passent au hasard (jamais deux fois le même de suite).
+// et ajouter chaque chemin ci-dessous. Ils passent au hasard (jamais deux fois le même de suite), avec de la neige
+// entre deux, comme quand on zappe. Chaque clip est une chaîne : avec CHAINE_AU_ZAPPING, son numéro (sa place dans la
+// liste) et son titre s'affichent quelques secondes à son arrivée ; sans titre, le numéro seul.
 // À côté de chaque clip, une image .jpg du même nom (sa première image) s'affiche pendant qu'il charge :
 //   ffmpeg -i background16.mp4 -frames:v 1 -q:v 4 background16.jpg
-export const bgPlaylist = [
-  "/PARABOLE RADIO/VIDEO/BACKGROUND/background.mp4", // Baile Furacão 2000
-  "/PARABOLE RADIO/VIDEO/BACKGROUND/background2.mp4", // babyfather – killuminatti
-  "/PARABOLE RADIO/VIDEO/BACKGROUND/background3.mp4", // Daft Punk 1996
-  "/PARABOLE RADIO/VIDEO/BACKGROUND/background4.mp4", // Kiss FM Paris (INA)
-  "/PARABOLE RADIO/VIDEO/BACKGROUND/background5.mp4", // logobi Black Panthers
-  "/PARABOLE RADIO/VIDEO/BACKGROUND/background6.mp4", // Etran de L'Aïr – Imouha
-  "/PARABOLE RADIO/VIDEO/BACKGROUND/background7.mp4", // Mafia K1 Fry – Pour ceux
-  "/PARABOLE RADIO/VIDEO/BACKGROUND/background8.mp4", // Pirate Radio London / Rush FM
-  "/PARABOLE RADIO/VIDEO/BACKGROUND/background9.mp4", // Wah Wah Watson + Herbie Hancock
-  "/PARABOLE RADIO/VIDEO/BACKGROUND/background10.mp4", // Ça va péter
-  "/PARABOLE RADIO/VIDEO/BACKGROUND/background11.mp4", // Nata Karim (série malienne)
-  "/PARABOLE RADIO/VIDEO/BACKGROUND/background12.mp4", // Radio Cité Future / Radio Verte 1981 (INA)
-  "/PARABOLE RADIO/VIDEO/BACKGROUND/background13.mp4", // Radio pirate mode d'emploi 1977 (INA)
-  "/PARABOLE RADIO/VIDEO/BACKGROUND/background14.mp4", // Sankara / Zidane
-  "/PARABOLE RADIO/VIDEO/BACKGROUND/background15.mp4", // clip court
+// Afficher la chaîne (numéro et titre du clip) à chaque zapping : éteint pour le moment, la neige zappe seule.
+export const CHAINE_AU_ZAPPING = false;
+export const bgPlaylist: { src: string; titre?: string }[] = [
+  { src: "/PARABOLE RADIO/VIDEO/BACKGROUND/background.mp4", titre: "Baile Furacão 2000" },
+  { src: "/PARABOLE RADIO/VIDEO/BACKGROUND/background2.mp4", titre: "babyfather – killuminatti" },
+  { src: "/PARABOLE RADIO/VIDEO/BACKGROUND/background3.mp4", titre: "Daft Punk 1996" },
+  { src: "/PARABOLE RADIO/VIDEO/BACKGROUND/background4.mp4", titre: "Kiss FM Paris (INA)" },
+  { src: "/PARABOLE RADIO/VIDEO/BACKGROUND/background5.mp4", titre: "logobi Black Panthers" },
+  { src: "/PARABOLE RADIO/VIDEO/BACKGROUND/background6.mp4", titre: "Etran de L'Aïr – Imouha" },
+  { src: "/PARABOLE RADIO/VIDEO/BACKGROUND/background7.mp4", titre: "Mafia K1 Fry – Pour ceux" },
+  { src: "/PARABOLE RADIO/VIDEO/BACKGROUND/background8.mp4", titre: "Pirate Radio London / Rush FM" },
+  { src: "/PARABOLE RADIO/VIDEO/BACKGROUND/background9.mp4", titre: "Wah Wah Watson + Herbie Hancock" },
+  { src: "/PARABOLE RADIO/VIDEO/BACKGROUND/background10.mp4", titre: "Ça va péter" },
+  { src: "/PARABOLE RADIO/VIDEO/BACKGROUND/background11.mp4", titre: "Nata Karim (série malienne)" },
+  { src: "/PARABOLE RADIO/VIDEO/BACKGROUND/background12.mp4", titre: "Radio Cité Future / Radio Verte 1981 (INA)" },
+  { src: "/PARABOLE RADIO/VIDEO/BACKGROUND/background13.mp4", titre: "Radio pirate mode d'emploi 1977 (INA)" },
+  { src: "/PARABOLE RADIO/VIDEO/BACKGROUND/background14.mp4", titre: "Sankara / Zidane" },
+  { src: "/PARABOLE RADIO/VIDEO/BACKGROUND/background15.mp4" }, // clip court, sans titre
 ];
 // ========================== FIN DES RÉGLAGES ==========================

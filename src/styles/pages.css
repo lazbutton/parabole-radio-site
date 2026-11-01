@@ -1,8 +1,8 @@
 /* Le contenu des pages : <main id="page">, la seule partie que la navigation remplace (src/scripts/router.ts).
-   L'accueil n'y met que son texte micrographique : le direct, c'est le reste de la page. Les autres rubriques y
-   posent une « feuille » au design des panneaux, par-dessus la vidéo. Elle défile dans sa propre zone, entre la barre
-   du haut et le bandeau (--band-h, tenu à jour par panels.ts) : elle ne passe jamais sous la ligne transparente du
-   bandeau, qui garde la vidéo derrière elle, comme sur l'accueil. */
+   L'accueil y met ce qui passe (affiché comme la chaîne, tele.css) et son texte micrographique : le direct, c'est le
+   reste de la page. Les autres rubriques y posent une « feuille » au design des panneaux, par-dessus la vidéo. Elle
+   défile dans sa propre zone, entre l'en-tête (--barre-h) et la ligne du bas (--band-h, tenue à jour par panels.ts) :
+   elle ne passe jamais sous cette ligne transparente, qui garde la vidéo derrière elle, comme sur l'accueil. */
 #page { position: relative; z-index: 10; }
 html:not([data-page="accueil"]) #page {
   position: fixed; left: 0; right: 0; top: var(--barre-h); bottom: var(--band-h, 110px);

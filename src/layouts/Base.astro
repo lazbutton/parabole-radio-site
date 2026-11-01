@@ -1,23 +1,24 @@
 ---
 /**
- * Le gabarit de toutes les pages. Il pose la « coque » qui ne quitte jamais l'écran : le fond (vidéo, globe), la barre
- * du haut et son menu, le bandeau du lecteur, les panneaux (dont le chat) et le mode staff. Seul <main id="page">
- * change d'une rubrique à l'autre : le ClientRouter d'Astro charge la page sans rechargement, et une fonction de
- * remplacement maison (src/scripts/router.ts) ne remplace que ce <main>. Le son, la vidéo et le cadre du chat ne
- * sont donc jamais déplacés ni recréés.
+ * Le gabarit de toutes les pages. Il pose la « coque » qui ne quitte jamais l'écran : le fond (vidéo, neige du zapping,
+ * globe), l'en-tête (la barre du haut, son menu et, collé dessous, le bandeau son), la ligne du bas, les panneaux (dont
+ * le chat) et le mode staff. Seul <main id="page"> change d'une rubrique à l'autre : le ClientRouter d'Astro charge la
+ * page sans rechargement, et une fonction de remplacement maison (src/scripts/router.ts) ne remplace que ce <main>. Le
+ * son, la vidéo et le cadre du chat ne sont donc jamais déplacés ni recréés.
  *
  * <html data-page> dit quelle rubrique est ouverte : les styles s'en servent (PROGRAMMATION toujours ouvert sur
  * l'accueil), et la fonction de remplacement le recopie à chaque navigation.
  */
 import { ClientRouter } from "astro:transitions";
 import Background from "../components/Background.astro";
-import Band from "../components/Band.astro";
+import BottomBar from "../components/BottomBar.astro";
 import Icons from "../components/Icons.astro";
 import Panels from "../components/Panels.astro";
 import Staff from "../components/Staff.astro";
 import TopBar from "../components/TopBar.astro";
 import type { Page } from "../lib/menu";
 import "../styles/socle.css";
+import "../styles/tele.css";
 import "../styles/bandeau.css";
 import "../styles/panneaux.css";
 import "../styles/staff.css";
@@ -43,6 +44,12 @@ const url = new URL(Astro.url.pathname, Astro.site);
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- L'allumage du téléviseur (src/styles/tele.css), posé avant le premier affichage. Seulement au chargement de
+         l'onglet : la navigation remplace les attributs de <html> sans relancer ce script, et background.ts l'enlève
+         une fois l'image arrivée. Sans script, ou avec « réduire les animations », la page s'affiche telle quelle. -->
+    <script is:inline>
+      if (!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) document.documentElement.classList.add("allumage");
+    </script>
     <title>{documentTitle}</title>
     <meta name="description" content={description} />
 
@@ -73,7 +80,7 @@ const url = new URL(Astro.url.pathname, Astro.site);
     <main id="page">
       <slot />
     </main>
-    <Band />
+    <BottomBar />
     <Panels />
     <Staff />
     <script>
