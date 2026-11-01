@@ -1,0 +1,208 @@
+/* Le bandeau du bas, sur toutes les pages : le lecteur ON AIR, puis la ligne du dessous (PREVIOUS, réseaux sociaux,
+   contributeurs, touches des panneaux). Il ne quitte jamais la page : la navigation ne remplace que <main id="page">. */
+
+.bottom-social {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: 0.5rem;
+}
+.bottom-social a {
+  background: #000000;
+  color: #ffffff;
+  border: 2px solid #fff039;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0;
+  font-size: 0.9rem;
+  transition: 0.2s;
+  text-decoration: none;
+}
+.bottom-social a:hover { background: #fff039; transform: scale(0.96); }
+
+/* ---------- LES TOUCHES (PROGRAMMATION, HISTORIQUE, CHAT) ---------- */
+.donate-btn {
+  background: #000000;
+  color: #ffffff;
+  border: 2px solid #fff039;
+  height: 34px;
+  padding: 0 1rem;
+  margin-left: 0.5rem;
+  font-weight: 700;
+  font-size: 0.85rem;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  border-radius: 0;
+  transition: 0.15s;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.donate-btn:hover { background: #fff039; color: #000dff; transform: scale(0.97); }
+.donate-btn[hidden] { display: none; }
+
+/* Le lien contributeurs : même taille et même forme que .donate-btn, en jaune */
+.donate-btn.cycle-subtitle {
+  background: #fff039;
+  color: #000dff;
+  border: 2px solid #fff039;
+  justify-content: center;
+  width: 325px;
+  max-width: 90vw;
+  transition: 0.15s ease;
+}
+.donate-btn.cycle-subtitle:hover { background: #000dff; color: #fff039; transform: scale(0.97); text-decoration: none; }
+
+/* ---------- LA COUCHE FLOTTANTE : le bandeau au pied de la page ----------
+   Après les touches : sa règle « > * { margin-left: 0 } » l'emporte sur leur marge, comme dans index.html. */
+#floatLayer { position: fixed; inset: 0; z-index: 20; pointer-events: none; }
+#floatLayer .float-item { pointer-events: auto; }
+.float-bottom { position: absolute; left: 0; right: 0; bottom: 0; }
+.float-actions {
+  margin-left: auto;
+  display: flex; align-items: center;
+  flex-wrap: wrap; justify-content: flex-end;
+  gap: 0.5rem;
+}
+.float-actions > * { margin-left: 0; }
+
+/* Sur écran étroit, la ligne sous le bandeau passe à la ligne : le morceau d'avant, puis les touches, centrées */
+@media (max-width: 820px) {
+  .bottom-row { flex-wrap: wrap; padding: 8px 12px 12px; }
+  .player-previous { flex-basis: 100%; }
+  .float-actions { margin-left: 0; width: 100%; justify-content: center; gap: 8px; }
+  .donate-btn { margin-left: 0; }
+  .donate-btn.cycle-subtitle { width: 100%; max-width: 100%; }
+  /* les réseaux sociaux après HISTORIQUE, pour partager la dernière ligne */
+  .bottom-social { order: 10; margin-left: 0; }
+}
+
+/* ---------- LE LECTEUR DE LA STATION (son flux et ce qui passe, src/scripts/audio.ts et nowplaying.ts) ----------
+   Un bandeau sur toute la largeur : la touche de lecture, le panneau ON AIR, une bande d'oscilloscope, le titre qui
+   défile, la progression, le son. Dessous, le morceau d'avant et les liens.
+   data-state sur #player : off (pas de flux) · idle · loading · playing · error
+   data-air sur #player : on · off (ce que dit le direct de la station) */
+.player {
+  display: flex; align-items: center; gap: 18px;
+  height: 44px; padding-right: 16px;
+  background: #000000;
+  color: #ffffff;
+  border-top: 2px solid #fff039; border-bottom: 2px solid #fff039;
+  margin-bottom: 12px;                                           /* un peu au-dessus de la ligne du dessous */
+  text-shadow: 0 1px 3px rgba(0,0,0,0.85);                       /* lisible sur la vidéo */
+}
+/* le panneau ON AIR, bleu sur jaune quand la station est à l'antenne ; une seule largeur quoi qu'il dise, pour que
+   le bandeau ne bouge jamais. Son témoin clignote pendant l'écoute, plus vite pendant la connexion. */
+.player-onair {
+  display: flex; align-items: center; justify-content: center; gap: 7px; flex-shrink: 0;
+  width: 104px; height: 24px;
+  border: 2px solid #555; color: #777; background: rgba(0,0,0,0.6); text-shadow: none;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.14em; white-space: nowrap;
+}
+.player[data-air="on"]:not([data-state="off"]) .player-onair { background: #fff039; border-color: #fff039; color: #000dff; }
+.player-dot { width: 7px; height: 7px; background: currentColor; flex-shrink: 0; }
+.player[data-state="playing"] .player-dot { animation: playerBlink 1.2s steps(2) infinite; }
+.player[data-state="loading"] .player-dot,
+.player[data-state="error"] .player-dot { animation: playerBlink 0.6s steps(2) infinite; }
+@keyframes playerBlink { 50% { opacity: 0; } }
+/* la touche de lecture, au début du bandeau : juste le symbole lecture / pause, en jaune, immobile */
+.player-toggle {
+  width: 40px; height: 40px; flex-shrink: 0; margin-left: 4px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; color: #fff039;
+  border: none; border-radius: 0; cursor: pointer;
+}
+.player-toggle:hover { color: #ffffff; }
+.player-toggle:focus-visible { outline: 2px solid #ffffff; outline-offset: -2px; }
+.player-toggle:disabled { color: #444; cursor: not-allowed; }
+.player-toggle .icon, .player-mute .icon { filter: drop-shadow(0 1px 2px rgba(0,0,0,0.75)); }
+.player-toggle .icon { width: 22px; height: 22px; }
+.player-icon-pause,
+.player[data-state="playing"] .player-icon-play,
+.player[data-state="loading"] .player-icon-play,
+.player[data-state="error"] .player-icon-play { display: none; }
+.player[data-state="playing"] .player-icon-pause,
+.player[data-state="loading"] .player-icon-pause,
+.player[data-state="error"] .player-icon-pause { display: block; }
+/* le titre défile comme la barre du haut quand il est trop long */
+.player-ticker { flex: 2 1 0; min-width: 0; overflow: hidden; white-space: nowrap; }   /* 2 parts de la place libre */
+.player-ticker-track { display: inline-flex; }
+.player-ticker-item { display: inline-flex; align-items: center; gap: 8px; padding-right: 36px; font-size: 13px; font-weight: 700; text-transform: uppercase; }
+.player-ticker-item .artist { color: #fff039; font-weight: 400; }
+.player-ticker-item .artist::before { content: '■'; margin-right: 8px; font-size: 7px; vertical-align: 2px; }
+.player-ticker.scrolling .player-ticker-track { animation: playerTicker 16s linear infinite; }
+.player-ticker:hover .player-ticker-track { animation-play-state: paused; }
+@keyframes playerTicker { to { transform: translateX(-50%); } }
+.player[data-state="off"] .player-progress,
+.player[data-state="off"] .player-sound { display: none; }
+/* la progression du morceau EST l'oscilloscope (dessiné par src/scripts/scope.ts) : ce qui a joué est plat, ce qui
+   reste bouge encore avec le son ; le temps écoulé à gauche, la durée à droite */
+.player-progress { flex: 3 1 0; min-width: 0; display: flex; align-items: center; gap: 10px; }   /* 3 parts */
+.player-scope { flex: 1; min-width: 0; height: 30px; display: block; }
+.player-time { min-width: 30px; font-size: 10px; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+.player-time.total { text-align: right; opacity: 0.6; }
+/* le son : une touche muet, et le volume en rampe de segments allumés jusqu'à --v (posé par audio.ts), sous le vrai
+   curseur, invisible, qui fait le travail (souris, toucher, clavier) */
+.player-sound { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.player-mute {
+  width: 18px; height: 18px; padding: 0; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; color: #ffffff; cursor: pointer;
+}
+.player-mute:hover { color: #fff039; }
+.player-mute:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+.player-mute .icon { width: 16px; height: 16px; }
+.player-mute .icon-sound-off, .player-mute[aria-pressed="true"] .icon-sound-on { display: none; }
+.player-mute[aria-pressed="true"] .icon-sound-off { display: block; }
+.player-volume-wrap { --v: 90%; position: relative; display: block; width: 60px; height: 14px; }
+.player-volume-bars {
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, #fff039 var(--v), rgba(255,255,255,0.35) var(--v));
+  clip-path: polygon(0 100%, 100% 0, 100% 100%);
+  -webkit-mask: repeating-linear-gradient(90deg, #000 0 3px, transparent 3px 5px);
+          mask: repeating-linear-gradient(90deg, #000 0 3px, transparent 3px 5px);
+}
+.player-volume-wrap.muted .player-volume-bars { background: linear-gradient(90deg, rgba(255,255,255,0.6) var(--v), rgba(255,255,255,0.35) var(--v)); }
+.player-volume {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;
+  -webkit-appearance: none; appearance: none; background: transparent; opacity: 0; cursor: pointer;
+}
+.player-volume::-webkit-slider-thumb { -webkit-appearance: none; width: 2px; height: 14px; }
+.player-volume::-moz-range-thumb { width: 2px; height: 14px; border: 0; }
+.player-volume-wrap:has(:focus-visible) { outline: 2px solid #ffffff; outline-offset: 3px; }
+.player[data-novolume] .player-volume-wrap { display: none; }   /* iPhone : ce sont les boutons du téléphone */
+@media (prefers-reduced-motion: reduce) {
+  .player-dot, .player-ticker-track { animation: none !important; }
+}
+/* écrans plus étroits : la progression rétrécit, perd ses temps, puis disparaît ; le volume part (la touche muet
+   reste) */
+@media (max-width: 820px) {
+  .player { gap: 10px; padding-right: 12px; }
+  .player-time { display: none; }
+  .player-volume-wrap { display: none; }
+}
+@media (max-width: 560px) {
+  .player-progress { display: none; }
+  .player-onair { width: 88px; font-size: 10px; letter-spacing: 0.1em; }
+}
+
+/* sous le bandeau : le morceau d'avant (il ouvre HISTORIQUE), puis les liens et les touches des panneaux */
+.bottom-row { display: flex; align-items: center; gap: 12px; padding: 8px 16px; }   /* transparente : la vidéo se voit */
+.player-previous {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0; background: none; border: none; color: #ffffff; cursor: pointer;
+  font-size: 11px; text-align: left; white-space: nowrap;
+}
+.player-previous[hidden] { display: none; }
+.player-previous-label { flex-shrink: 0; padding: 3px 6px; border: 1px solid #fff039; color: #fff039; font-size: 9px; font-weight: 700; letter-spacing: 0.12em; }
+.player-previous-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; opacity: 0.9; text-shadow: 0 1px 3px #000000; }   /* lisible sur la vidéo */
+.player-previous:hover .player-previous-text { color: #fff039; opacity: 1; }
+.player-previous:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }

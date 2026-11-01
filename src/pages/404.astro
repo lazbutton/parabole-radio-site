@@ -1,0 +1,14 @@
+---
+/** Une adresse qui ne mène nulle part : la coque reste (le direct ne s'arrête pas), avec une mire. */
+import Base from "../layouts/Base.astro";
+import Sheet from "../components/Sheet.astro";
+---
+
+<Base page="introuvable" title="Page introuvable">
+  <Sheet title="Page introuvable" meta="erreur 404">
+    <div class="bientot">
+      <p class="bientot-titre">Pas de signal</p>
+      <p>Cette page n’existe pas, ou plus. Le direct, lui, continue : <a href="/">retour à l’accueil</a>.</p>
+    </div>
+  </Sheet>
+</Base>

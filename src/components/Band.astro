@@ -1,0 +1,83 @@
+---
+/**
+ * Le bandeau du bas, sur toutes les pages : le lecteur ON AIR (touche de lecture, panneau ON AIR, oscilloscope qui sert
+ * de barre de progression, titre qui défile, muet et volume), puis la ligne du dessous : le morceau d'avant
+ * (PREVIOUS), les réseaux sociaux, le bouton contributeurs et les touches des panneaux.
+ * Il n'est jamais remplacé ni déplacé : le son, l'analyse Web Audio et l'oscilloscope continuent d'une page à l'autre.
+ * Le flux vient de l'adaptateur de la station (src/lib/station), écrit ici au build : data-flux.
+ */
+import { stream } from "../lib/station";
+---
+
+<div id="floatLayer">
+  <div id="floatBottom" class="float-item float-bottom">
+    <!-- Le lecteur de la station : le flux (data-flux) et ce qui passe (/api/direct) -->
+    <div id="player" class="player" data-state="off" data-air="off" data-flux={stream}>
+      <button id="playerToggle" class="player-toggle" type="button" aria-label="Écouter la radio" disabled>
+        <svg class="icon player-icon-play" aria-hidden="true"><use href="#icon-play"></use></svg>
+        <svg class="icon player-icon-pause" aria-hidden="true"><use href="#icon-pause"></use></svg>
+      </button>
+      <span class="player-onair"><span class="player-dot"></span><span id="playerStatus">OFF AIR</span></span>
+      <div id="playerProgress" class="player-progress unknown">
+        <span id="playerElapsed" class="player-time">--:--</span>
+        <canvas id="playerScope" class="player-scope" aria-hidden="true"></canvas>
+        <span id="playerDuration" class="player-time total">--:--</span>
+      </div>
+      <div id="playerTicker" class="player-ticker">
+        <div id="playerTickerTrack" class="player-ticker-track">
+          <span class="player-ticker-item"><span class="title">Parabole Radio</span><span class="artist">Paris 18</span></span>
+        </div>
+      </div>
+      <div class="player-sound">
+        <button id="playerMute" class="player-mute" type="button" aria-label="Couper le son" aria-pressed="false">
+          <svg class="icon icon-sound-on" aria-hidden="true"><use href="#icon-sound"></use></svg>
+          <svg class="icon icon-sound-off" aria-hidden="true"><use href="#icon-sound-off"></use></svg>
+        </button>
+        <label id="playerVolumeWrap" class="player-volume-wrap"
+          ><span class="player-volume-bars" aria-hidden="true"></span><input
+            id="playerVolume"
+            class="player-volume"
+            type="range"
+            min="0"
+            max="100"
+            value="90"
+            aria-label="Volume"
+          /></label
+        >
+      </div>
+    </div>
+
+    <!-- Le morceau d'avant (il ouvre HISTORIQUE), puis réseaux sociaux, contributeurs, programmation, historique, chat -->
+    <div class="bottom-row">
+      <button id="playerPrevious" class="player-previous" type="button" hidden
+        ><span class="player-previous-label">PREVIOUS</span><span id="playerPreviousText" class="player-previous-text"></span></button
+      >
+      <div class="float-actions">
+        <div class="bottom-social">
+          <a href="https://www.instagram.com/paraboleradio/" target="_blank" rel="noopener noreferrer" aria-label="Instagram"
+            ><svg class="icon" aria-hidden="true"><use href="#icon-instagram"></use></svg></a
+          >
+          <a href="https://www.youtube.com/@parabole_radio" target="_blank" rel="noopener noreferrer" aria-label="YouTube"
+            ><svg class="icon" aria-hidden="true"><use href="#icon-youtube"></use></svg></a
+          >
+          <a href="https://soundcloud.com/parabole-radio" target="_blank" rel="noopener noreferrer" aria-label="SoundCloud"
+            ><svg class="icon" aria-hidden="true"><use href="#icon-soundcloud"></use></svg></a
+          >
+        </div>
+        <a id="rotatingTextLink" class="donate-btn cycle-subtitle" href="#" target="_blank" rel="noopener noreferrer"
+          >RECHERCHE DE CONTRIBUTEURS RADIO</a
+        >
+        <button id="scheduleToggle" class="donate-btn" type="button"
+          ><svg class="icon" aria-hidden="true"><use href="#icon-calendar"></use></svg> PROGRAMMATION</button
+        >
+        <button id="lastPlayedToggle" class="donate-btn" type="button"
+          ><svg class="icon" aria-hidden="true"><use href="#icon-history"></use></svg> HISTORIQUE</button
+        >
+        <button id="chatToggle" class="donate-btn" type="button" hidden
+          ><svg class="icon" aria-hidden="true"><use href="#icon-comment"></use></svg> CHAT</button
+        >
+      </div>
+    </div>
+  </div>
+</div>
+<audio id="radioStream" preload="none"></audio>

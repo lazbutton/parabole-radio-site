@@ -1,0 +1,29 @@
+---
+/**
+ * Les panneaux, remplis par les données de la station (notre API, src/pages/api/) : PROGRAMMATION, au centre à droite
+ * comme sur la maquette, puis HISTORIQUE et CHAT, juste au-dessus du bandeau. Ce sont des fenêtres : on les déplace
+ * par leur barre de titre, et elles gardent leur place d'une visite à l'autre (src/scripts/panels.ts).
+ * Ils ne sont jamais remplacés à la navigation : le cadre du chat, créé au premier clic, ne se recharge pas.
+ */
+---
+
+<div id="schedulePopup" class="popup popup-schedule" role="dialog" aria-labelledby="scheduleHead">
+  <div class="sched-head">
+    <div id="scheduleHead" class="sched-title">Programmation</div>
+    <div id="scheduleClock" class="sched-clock" aria-hidden="true"></div>
+    <div id="scheduleDate" class="sched-date">7 jours · heure de Paris</div>
+  </div>
+  <button id="scheduleClose" class="popup-close" type="button" aria-label="Fermer la programmation">&times;</button>
+  <div id="scheduleDays" class="sched-days" role="tablist" aria-label="Jours"></div>
+  <div id="scheduleList" class="sched-list"></div>
+</div>
+<div id="lastPlayedPopup" class="popup" role="dialog" aria-labelledby="historyHead">
+  <div id="historyHead" class="popup-head">Historique<span class="popup-meta" aria-hidden="true">journal de diffusion</span></div>
+  <button id="lastPlayedClose" class="popup-close" type="button" aria-label="Fermer l'historique">&times;</button>
+  <div id="historyList" class="popup-body"></div>
+</div>
+<div id="chatPopup" class="popup" role="dialog" aria-labelledby="chatHead">
+  <div id="chatHead" class="popup-head">Chat<span class="popup-meta" aria-hidden="true">en direct · radio cult</span></div>
+  <button id="chatClose" class="popup-close" type="button" aria-label="Fermer le chat">&times;</button>
+  <div id="chatBody" class="popup-chat"></div>
+</div>

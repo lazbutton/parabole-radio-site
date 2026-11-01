@@ -3,3 +3,6 @@ ETAT_DES_LIEUX.md
 .claude/
 .vercel
 .env*
+node_modules/
+dist/
+.astro/
