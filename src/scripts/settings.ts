@@ -50,7 +50,11 @@ export const CLIPS_URL = "/api/fond";
 // Les clips de fond se gèrent dans l'admin (Vidéos de fond) : ajouter, remplacer, retirer, renommer, ranger. La liste
 // ci-dessous n'est que le secours, quand celle de l'admin ne répond pas (base injoignable) : les clips d'origine,
 // livrés avec le site dans public/PARABOLE RADIO/VIDEO/BACKGROUND/. Ils passent au hasard (jamais deux fois le même
-// de suite). À côté de chaque clip, une image .jpg du même nom (sa première image) s'affiche pendant qu'il charge.
+// de suite), avec de la neige entre deux, comme quand on zappe. Chaque clip est une chaîne : avec CHAINE_AU_ZAPPING,
+// son numéro (sa place dans la liste) et son titre s'affichent quelques secondes à son arrivée ; sans titre, le numéro
+// seul. À côté de chaque clip d'origine, une image .jpg du même nom (sa première image) s'affiche pendant qu'il charge.
+// Afficher la chaîne (numéro et titre du clip) à chaque zapping : éteint pour le moment, la neige zappe seule.
+export const CHAINE_AU_ZAPPING = false;
 export const bgPlaylist: { src: string; titre?: string }[] = [
   { src: "/PARABOLE RADIO/VIDEO/BACKGROUND/background.mp4", titre: "Baile Furacão 2000" },
   { src: "/PARABOLE RADIO/VIDEO/BACKGROUND/background2.mp4", titre: "babyfather – killuminatti" },

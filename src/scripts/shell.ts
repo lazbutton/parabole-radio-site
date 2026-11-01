@@ -4,7 +4,7 @@
 import "./audio"; // AUDIO : le flux, la touche de lecture, le volume, l'analyse Web Audio
 import "./background"; // la playlist des vidéos de fond
 import "./panels"; // PROGRAMMATION, HISTORIQUE, CHAT, et les fenêtres
-import "./nowplaying"; // NOW PLAYING : ce qui passe, le titre qui défile, PREVIOUS
+import "./nowplaying"; // NOW PLAYING : ce qui passe, le titre qui défile, l'affichage de l'accueil
 import "./beat"; // BEAT : le pouls de la musique
 import "./scope"; // SCOPE : l'oscilloscope du bandeau
 import "./globe"; // GLOBE : le logo audioréactif

@@ -1,0 +1,40 @@
+---
+/**
+ * La ligne du bas, sur toutes les pages, transparente sur la vidéo : les réseaux sociaux, le bouton contributeurs et les
+ * touches des panneaux. Le lecteur, lui, est en haut (Band.astro, sous la barre du haut). Elle n'est jamais remplacée :
+ * sa hauteur (--band-h, panels.ts) borne le contenu des rubriques et place les panneaux juste au-dessus.
+ */
+---
+
+<div id="floatLayer">
+  <div id="floatBottom" class="float-item float-bottom">
+    <!-- Réseaux sociaux, contributeurs, programmation, historique, chat -->
+    <div class="bottom-row">
+      <div class="float-actions">
+        <div class="bottom-social">
+          <a href="https://www.instagram.com/paraboleradio/" target="_blank" rel="noopener noreferrer" aria-label="Instagram"
+            ><svg class="icon" aria-hidden="true"><use href="#icon-instagram"></use></svg></a
+          >
+          <a href="https://www.youtube.com/@parabole_radio" target="_blank" rel="noopener noreferrer" aria-label="YouTube"
+            ><svg class="icon" aria-hidden="true"><use href="#icon-youtube"></use></svg></a
+          >
+          <a href="https://soundcloud.com/parabole-radio" target="_blank" rel="noopener noreferrer" aria-label="SoundCloud"
+            ><svg class="icon" aria-hidden="true"><use href="#icon-soundcloud"></use></svg></a
+          >
+        </div>
+        <a id="rotatingTextLink" class="donate-btn cycle-subtitle" href="#" target="_blank" rel="noopener noreferrer"
+          >RECHERCHE DE CONTRIBUTEURS RADIO</a
+        >
+        <button id="scheduleToggle" class="donate-btn" type="button"
+          ><svg class="icon" aria-hidden="true"><use href="#icon-calendar"></use></svg> PROGRAMMATION</button
+        >
+        <button id="lastPlayedToggle" class="donate-btn" type="button"
+          ><svg class="icon" aria-hidden="true"><use href="#icon-history"></use></svg> HISTORIQUE</button
+        >
+        <button id="chatToggle" class="donate-btn" type="button" hidden
+          ><svg class="icon" aria-hidden="true"><use href="#icon-comment"></use></svg> CHAT</button
+        >
+      </div>
+    </div>
+  </div>
+</div>
