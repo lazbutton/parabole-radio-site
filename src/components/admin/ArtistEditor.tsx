@@ -1,17 +1,20 @@
 /**
- * La fiche d'un artiste (cms/README.md, 9.2) : à gauche nom, adresse, bio et liens (dans l'ordre) ; à droite la
- * publication, le rôle, la photo, ses shows. Même enregistrement que la fiche d'un show, sans quitter l'écran.
+ * La fiche d'un artiste (cms/README.md, 9.2) : la barre de la fiche en haut (sheet.tsx), puis le nom en grand, le
+ * rôle, la bio et les liens (dans l'ordre) ; à côté, la photo, ses shows et les informations. Même enregistrement que
+ * la fiche d'un show, sans quitter l'écran.
  */
 import { LABELS } from "@parabole/cms/labels";
 import type { ArtistForm, FieldErrors } from "@parabole/cms";
-import { ArrowDownIcon, ArrowUpIcon, Cross2Icon, DragHandleDots2Icon, PlusIcon } from "@radix-ui/react-icons";
-import { Button, Flex, Grid, IconButton, SegmentedControl, Text, TextField, Tooltip } from "@radix-ui/themes";
-import { useMemo, useState } from "react";
-import { PageHeader, StatusBadge } from "./AdminShell";
-import { MarkdownEditor } from "./MarkdownEditor";
+import { ArrowDownIcon, ArrowUpIcon, DotsHorizontalIcon, DragHandleDots2Icon, ExternalLinkIcon, PersonIcon, PlusIcon, TrashIcon } from "@radix-ui/react-icons";
+import { Badge, Button, DataList, DropdownMenu, Flex, IconButton, SegmentedControl, Text, TextField } from "@radix-ui/themes";
+import { useEffect, useMemo, useState } from "react";
+import { StatusBadge, TypeTile } from "./marks";
+import { forgetRecent, rememberRecent } from "./recents";
 import { useBlocker, useRouter } from "./router";
-import { Field, filledPlaces, FormError, MediaSlot, mergeSaved, placeErrors, postForm, PublishCard, SaveBar, Section, useSheetKeys, type Intent, type SaveIntent } from "./sheet";
+import { Field, filledPlaces, FormError, MediaSlot, mergeSaved, placeErrors, postForm, Property, Section, SheetBar, SidePanel, TitleInput, useSheetKeys, type Intent, type SaveIntent } from "./sheet";
 import { useSortable } from "./sortable";
+import { counted } from "./text";
+import { TextEditor } from "./TextEditor";
 import { useNotify } from "./toast";
 import type { ArtistEditorData, ArtistSheet, SaveResponse } from "./types";
 
@@ -51,6 +54,11 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
   const set = <K extends keyof EditorForm>(field: K, value: EditorForm[K]) => setForm((current) => ({ ...current, [field]: value }));
   const url = sheet.id ? `/admin/artistes/${sheet.id}` : "/admin/artistes/nouveau";
 
+  // La fiche rejoint les « ouverts récemment » de la recherche (⌘K), sous son nom enregistré.
+  useEffect(() => {
+    if (sheet.id) rememberRecent({ href: `/admin/artistes/${sheet.id}`, title: sheet.form.name || "Sans nom", kind: "artist" });
+  }, [sheet.id, sheet.form.name]);
+
   /** Envoie la fiche ; vrai si elle est enregistrée. */
   async function save(intent: SaveIntent): Promise<boolean> {
     if (busy) return false;
@@ -85,6 +93,7 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
     setBusy("delete");
     const result = await postForm<SaveResponse<ArtistSheet>>(url, formData(form, "delete", sheet.version));
     if (result.ok && "redirect" in result) {
+      forgetRecent(url);
       router.invalidate();
       router.setBlocker(null);
       notify({ kind: "success", title: result.message ?? "Artiste supprimé" });
@@ -96,105 +105,128 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
 
   useBlocker(dirty, () => save("save"));
   useSheetKeys(dirty, () => void save("save"));
-  const title = form.name.trim() || (sheet.id ? "Sans nom" : "Nouvel artiste");
-  const linked = [sheet.shows.length && `${sheet.shows.length} show${sheet.shows.length > 1 ? "s" : ""}`, sheet.events && `${sheet.events} événement${sheet.events > 1 ? "s" : ""}`]
-    .filter(Boolean)
-    .join(" et ");
+  const name = form.name.trim() || (sheet.id ? "Sans nom" : "Nouvel artiste");
+  const linked = [sheet.shows.length && counted(sheet.shows.length, "show"), sheet.events && counted(sheet.events, "événement")].filter(Boolean).join(" et ");
 
   return (
     <form
       noValidate
+      className="admin-sheet"
       onSubmit={(event) => {
         event.preventDefault();
         void save("save");
       }}
     >
-      <PageHeader title={title} crumbs={[{ label: "Artistes", href: "/admin/artistes" }]} badge={sheet.id ? <StatusBadge status={sheet.status} /> : undefined} />
-      <FormError message={errors.form} />
-      <Grid columns={{ initial: "1", md: "minmax(0, 1fr) 340px" }} gap="5" align="start">
-        <Flex direction="column" gap="5" minWidth="0">
-          <Section title="Informations">
-            <Field label="Nom" htmlFor="name" error={errors.name}>
-              <TextField.Root id="name" size="3" value={form.name} onChange={(e) => set("name", e.target.value)} color={errors.name ? "red" : undefined} autoComplete="off" />
-            </Field>
-            <Field label="Adresse" htmlFor="slug" optional hint="Le bout d'adresse de sa page : minuscules, chiffres et tirets. Vide, il est tiré du nom." error={errors.slug}>
-              <TextField.Root id="slug" value={form.slug} onChange={(e) => set("slug", e.target.value)} color={errors.slug ? "red" : undefined} autoComplete="off" autoCapitalize="off" />
-            </Field>
-            <MarkdownEditor label="Bio" value={form.bio} onChange={(value) => set("bio", value)} error={errors.bio} rows={10} />
-          </Section>
-          <LinksEditor links={form.links} onChange={(links) => set("links", links)} errors={errors} />
-        </Flex>
-
-        <Flex direction="column" gap="5" minWidth="0">
-          <PublishCard
-            status={sheet.status}
-            created={sheet.created}
-            updated={sheet.updated}
-            deleteTitle={sheet.id ? `Supprimer « ${sheet.form.name} » ?` : undefined}
-            deleteNote={`La fiche sera supprimée${linked ? `, et l'artiste retiré de ${linked}` : ""}.`}
-            onDelete={remove}
-            deleting={busy === "delete"}
-          />
-          <Section title="Rôle">
-            <SegmentedControl.Root value={form.role} onValueChange={(value) => set("role", value)} aria-label="Rôle">
-              {Object.entries(LABELS.artistRole).map(([value, label]) => (
-                <SegmentedControl.Item key={value} value={value}>
-                  {label}
-                </SegmentedControl.Item>
-              ))}
-            </SegmentedControl.Root>
-            {errors.role && (
-              <Text size="1" color="red">
-                {errors.role}
-              </Text>
-            )}
-          </Section>
-          <Section title="Photo">
-            <MediaSlot media={sheet.photo} />
-          </Section>
-          {sheet.id && (
-            <Section title="Ses shows" aside={<Text size="2" color="gray">{sheet.shows.length || ""}</Text>}>
-              {sheet.shows.length ? (
-                <Flex direction="column" gap="1" className="admin-list">
-                  {sheet.shows.map((show) => (
-                    <a key={show.id} className="admin-list-item" href={`/admin/shows/${show.id}`} data-astro-prefetch="false">
-                      <Flex direction="column" minWidth="0">
-                        <Text size="2" weight="medium" className="admin-break">
-                          {show.title}
-                        </Text>
-                        <Text size="1" color="gray">
-                          {LABELS.showType[show.type]} · {show.date}
-                        </Text>
-                      </Flex>
-                      <StatusBadge status={show.status} size="1" />
-                    </a>
+      <SheetBar
+        back={{ label: "Artistes", href: "/admin/artistes" }}
+        name={name}
+        status={sheet.status}
+        isNew={!sheet.id}
+        dirty={dirty}
+        busy={busy}
+        updated={sheet.updated}
+        onSave={(intent) => void save(intent)}
+        deleteTitle={sheet.id ? `Supprimer « ${sheet.form.name} » ?` : undefined}
+        deleteNote={`La fiche sera supprimée${linked ? `, et l'artiste retiré de ${linked}` : ""}.`}
+        onDelete={remove}
+      />
+      <div className="admin-sheet-body">
+        <FormError message={errors.form} />
+        <div className="admin-sheet-grid">
+          <div className="admin-sheet-main">
+            <TitleInput id="name" label="Nom de l'artiste" value={form.name} onChange={(value) => set("name", value)} placeholder="Nom de l'artiste" error={errors.name} />
+            <div className="admin-props">
+              <Property label="Rôle" icon={<PersonIcon />} hint={form.role === "resident" ? "Résident : une émission régulière sur Parabole." : "Invité : de passage, le temps d'un show ou d'un événement."} error={errors.role}>
+                <SegmentedControl.Root value={form.role} onValueChange={(value) => set("role", value)} aria-label="Rôle" size="2">
+                  {Object.entries(LABELS.artistRole).map(([value, label]) => (
+                    <SegmentedControl.Item key={value} value={value}>
+                      {label}
+                    </SegmentedControl.Item>
                   ))}
-                </Flex>
-              ) : (
-                <Text size="2" color="gray">
-                  Aucun show pour l'instant. On relie un artiste à un show depuis la fiche du show.
-                </Text>
+                </SegmentedControl.Root>
+              </Property>
+            </div>
+            <Section title="Bio">
+              <TextEditor id="bio" label="Bio" value={form.bio} onChange={(value) => set("bio", value)} error={errors.bio} placeholder="Qui est-ce, ce qu'on entend dans ses shows, d'où ça vient…" />
+            </Section>
+            <LinksEditor links={form.links} onChange={(links) => set("links", links)} errors={errors} />
+          </div>
+
+          <aside className="admin-sheet-side" aria-label="Photo, shows et informations">
+            <SidePanel title="Photo">
+              <MediaSlot media={sheet.photo} kind="photo" />
+            </SidePanel>
+            {sheet.id && (
+              <SidePanel title="Ses shows" aside={sheet.shows.length ? <Badge color="gray" radius="full">{sheet.shows.length}</Badge> : undefined}>
+                {sheet.shows.length ? (
+                  <div className="admin-mini-list">
+                    {sheet.shows.map((show) => (
+                      <a key={show.id} className="admin-mini-item" href={`/admin/shows/${show.id}`} data-astro-prefetch="false">
+                        <TypeTile type={show.type} size={28} />
+                        <Flex direction="column" minWidth="0" flexGrow="1">
+                          <Text size="2" weight="medium" className="admin-break">
+                            {show.title}
+                          </Text>
+                          <Text size="1" color="gray">
+                            {LABELS.showType[show.type]} · {show.date}
+                          </Text>
+                        </Flex>
+                        {show.status === "draft" && <StatusBadge status="draft" />}
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <Text size="2" color="gray">
+                    Aucun show pour l'instant. On relie un artiste à un show depuis la fiche du show.
+                  </Text>
+                )}
+              </SidePanel>
+            )}
+            <SidePanel title="Informations">
+              <Field label="Adresse sur le site" htmlFor="slug" optional hint="Minuscules, chiffres et tirets. Vide, elle est tirée du nom." error={errors.slug}>
+                <TextField.Root
+                  id="slug"
+                  value={form.slug}
+                  onChange={(e) => set("slug", e.target.value)}
+                  color={errors.slug ? "red" : undefined}
+                  autoComplete="off"
+                  autoCapitalize="off"
+                  className="admin-mono"
+                />
+              </Field>
+              {(sheet.created || sheet.radiocultArtistId) && (
+                <DataList.Root size="1" className="admin-facts">
+                  {sheet.created && (
+                    <DataList.Item>
+                      <DataList.Label minWidth="80px">Créé</DataList.Label>
+                      <DataList.Value>{sheet.created}</DataList.Value>
+                    </DataList.Item>
+                  )}
+                  {sheet.updated && (
+                    <DataList.Item>
+                      <DataList.Label minWidth="80px">Modifié</DataList.Label>
+                      <DataList.Value>{sheet.updated}</DataList.Value>
+                    </DataList.Item>
+                  )}
+                  {sheet.radiocultArtistId && (
+                    <DataList.Item>
+                      <DataList.Label minWidth="80px">Radio Cult</DataList.Label>
+                      <DataList.Value>
+                        <Text className="admin-break">{sheet.radiocultArtistId}, relié par l'import de la programmation</Text>
+                      </DataList.Value>
+                    </DataList.Item>
+                  )}
+                </DataList.Root>
               )}
-            </Section>
-          )}
-          {sheet.radiocultArtistId && (
-            <Section title="Radio Cult">
-              <Text size="2" className="admin-break">
-                Identifiant {sheet.radiocultArtistId}
-              </Text>
-              <Text size="1" color="gray">
-                Rempli par l'import de la programmation : il relie les créneaux Radio Cult à cette fiche.
-              </Text>
-            </Section>
-          )}
-        </Flex>
-      </Grid>
-      <SaveBar status={sheet.status} dirty={dirty} busy={busy} isNew={!sheet.id} onSave={(intent) => void save(intent)} />
+            </SidePanel>
+          </aside>
+        </div>
+      </div>
     </form>
   );
 }
 
-/** Les liens d'un artiste, dans l'ordre d'affichage : libellé et adresse. */
+/** Les liens d'un artiste, dans l'ordre d'affichage : libellé et adresse, comme les lignes d'une tracklist. */
 function LinksEditor({ links, onChange, errors }: { links: LinkRow[]; onChange(links: LinkRow[]): void; errors: FieldErrors }) {
   const sortable = useSortable(links, onChange);
   const update = (index: number, field: "label" | "url", value: string) => onChange(links.map((link, i) => (i === index ? { ...link, [field]: value } : link)));
@@ -205,74 +237,86 @@ function LinksEditor({ links, onChange, errors }: { links: LinkRow[]; onChange(l
   return (
     <Section
       title="Liens"
+      count={
+        links.length > 0 && (
+          <Badge color="gray" radius="full">
+            {links.length}
+          </Badge>
+        )
+      }
       aside={
         <Button type="button" variant="soft" onClick={add}>
           <PlusIcon /> Ajouter un lien
         </Button>
       }
     >
-      <Text size="2" color="gray">
+      <Text as="p" size="2" color="gray" mb="2">
         Dans l'ordre d'affichage. Sans libellé, le nom du site est repris (Instagram, SoundCloud…).
       </Text>
       {errors.links && (
-        <Text size="1" color="red">
+        <Text as="p" size="1" color="red" mb="2">
           {errors.links}
         </Text>
       )}
       {links.length > 0 && (
-        <Flex direction="column" gap="2" ref={(element) => void (sortable.container.current = element)}>
+        <div className="admin-links" ref={(element) => void (sortable.container.current = element)}>
           {links.map((link, index) => {
             const problems = [errors[`links.${index}.label`], errors[`links.${index}.url`]].filter(Boolean);
+            const href = /^https?:\/\//.test(link.url.trim()) ? link.url.trim() : null;
             return (
-              <div key={link.key} className={sortable.dragging === index ? "admin-link admin-dragging" : "admin-link"} data-sort-index={index}>
+              <div key={link.key} className="admin-link" data-sort-index={index} data-dragging={sortable.dragging === index || undefined} data-invalid={problems.length > 0 || undefined}>
                 <span className="admin-grip" aria-hidden {...sortable.handle(index)}>
                   <DragHandleDots2Icon />
                 </span>
-                <TextField.Root
-                  className="admin-link-label"
+                <input
+                  className="admin-cell admin-link-label"
                   value={link.label}
                   onChange={(e) => update(index, "label", e.target.value)}
                   placeholder="Libellé"
                   aria-label={`Libellé du lien ${index + 1}`}
+                  aria-invalid={errors[`links.${index}.label`] ? true : undefined}
                   data-link={index}
                   autoComplete="off"
                 />
-                <TextField.Root
-                  className="admin-link-url"
+                <input
+                  className="admin-cell admin-link-url"
                   value={link.url}
                   onChange={(e) => update(index, "url", e.target.value)}
                   placeholder="https://…"
                   inputMode="url"
                   aria-label={`Adresse du lien ${index + 1}`}
-                  color={errors[`links.${index}.url`] ? "red" : undefined}
+                  aria-invalid={errors[`links.${index}.url`] ? true : undefined}
                   autoComplete="off"
                   autoCapitalize="off"
                 />
-                <Flex gap="1" className="admin-link-actions">
-                  <Tooltip content="Monter">
-                    <IconButton type="button" size="1" variant="ghost" color="gray" disabled={index === 0} onClick={() => sortable.move(index, index - 1)} aria-label={`Monter le lien ${index + 1}`}>
-                      <ArrowUpIcon />
+                {href ? (
+                  <IconButton asChild size="1" variant="ghost" color="gray" className="admin-link-open">
+                    <a href={href} target="_blank" rel="noopener noreferrer" aria-label={`Ouvrir le lien ${index + 1}`}>
+                      <ExternalLinkIcon />
+                    </a>
+                  </IconButton>
+                ) : (
+                  <span className="admin-link-open" />
+                )}
+                <DropdownMenu.Root>
+                  <DropdownMenu.Trigger>
+                    <IconButton type="button" size="1" variant="ghost" color="gray" aria-label={`Actions du lien ${index + 1}`}>
+                      <DotsHorizontalIcon />
                     </IconButton>
-                  </Tooltip>
-                  <Tooltip content="Descendre">
-                    <IconButton
-                      type="button"
-                      size="1"
-                      variant="ghost"
-                      color="gray"
-                      disabled={index === links.length - 1}
-                      onClick={() => sortable.move(index, index + 1)}
-                      aria-label={`Descendre le lien ${index + 1}`}
-                    >
-                      <ArrowDownIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip content="Retirer">
-                    <IconButton type="button" size="1" variant="ghost" color="red" onClick={() => onChange(links.filter((_, i) => i !== index))} aria-label={`Retirer le lien ${index + 1}`}>
-                      <Cross2Icon />
-                    </IconButton>
-                  </Tooltip>
-                </Flex>
+                  </DropdownMenu.Trigger>
+                  <DropdownMenu.Content align="end" size="1">
+                    <DropdownMenu.Item disabled={index === 0} onSelect={() => sortable.move(index, index - 1)}>
+                      <ArrowUpIcon /> Monter
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item disabled={index === links.length - 1} onSelect={() => sortable.move(index, index + 1)}>
+                      <ArrowDownIcon /> Descendre
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Separator />
+                    <DropdownMenu.Item color="red" onSelect={() => onChange(links.filter((_, i) => i !== index))}>
+                      <TrashIcon /> Retirer
+                    </DropdownMenu.Item>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Root>
                 {problems.length > 0 && (
                   <Text size="1" color="red" className="admin-link-error">
                     {problems.join(" ")}
@@ -281,7 +325,7 @@ function LinksEditor({ links, onChange, errors }: { links: LinkRow[]; onChange(l
               </div>
             );
           })}
-        </Flex>
+        </div>
       )}
     </Section>
   );

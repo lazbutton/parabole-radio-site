@@ -26,12 +26,26 @@ const href = Astro.url.pathname + Astro.url.search;
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="robots" content="noindex, nofollow" />
-    <meta name="color-scheme" content="light" />
+    <meta name="color-scheme" content="light dark" />
     <title>{screen.title} — Admin Parabole</title>
     <link
       rel="icon"
       href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>"
     />
+    <!--
+      L'apparence choisie dans le menu du compte (src/components/admin/appearance.ts), sinon celle du système : posée
+      avant le premier affichage, pour qu'un écran sombre ne s'allume pas en blanc.
+    -->
+    <script is:inline>
+      (() => {
+        let choice = "system";
+        try {
+          choice = localStorage.getItem("admin-apparence") || "system";
+        } catch {}
+        const dark = choice === "dark" || (choice !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.classList.toggle("dark", dark);
+      })();
+    </script>
   </head>
   <body>
     <AdminApp client:load viewer={viewer} href={href} screen={screen} />

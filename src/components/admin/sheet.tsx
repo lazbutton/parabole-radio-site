@@ -1,17 +1,19 @@
 /**
- * Ce que partagent les fiches (show, artiste) : un champ avec son libellé et ses messages, la carte « Publication »
- * (statut, dates, suppression confirmée par un AlertDialog), la barre d'enregistrement collée en bas de l'écran,
- * l'emplacement d'une image, et l'envoi au serveur (postForm, qui sert aussi au mot de passe).
+ * Ce que partagent les fiches (show, artiste). En haut, la barre de la fiche : où l'on est, le statut, l'état de
+ * l'enregistrement et toutes les actions au même endroit (Enregistrer, Publier ; Dépublier et Supprimer dans le menu
+ * « … »). Sur téléphone, les actions descendent en bas de l'écran, sous le pouce. Dans le corps : le titre en grand,
+ * qui s'écrit sur place, les propriétés en lignes (libellé à gauche, valeur à droite), les sections, et le panneau
+ * de côté (image, son, informations). Plus l'envoi au serveur (postForm, qui sert aussi au mot de passe).
  */
-import { ExclamationTriangleIcon, ImageIcon, TrashIcon } from "@radix-ui/react-icons";
-import { AlertDialog, Badge, Box, Button, Card, DataList, Flex, Heading, Kbd, Text, Tooltip } from "@radix-ui/themes";
-import { useEffect, useRef, type ReactNode } from "react";
+import { ArrowLeftIcon, CheckIcon, DotsHorizontalIcon, ExclamationTriangleIcon, EyeNoneIcon, ImageIcon, TrashIcon } from "@radix-ui/react-icons";
+import { AlertDialog, Button, DropdownMenu, Flex, Heading, IconButton, Kbd, Spinner, Text, Tooltip } from "@radix-ui/themes";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { FieldErrors } from "@parabole/cms";
-import { StatusBadge } from "./AdminShell";
+import { StatusBadge, useModKey } from "./marks";
 import type { MediaView } from "./types";
 
 export type Intent = "save" | "publish" | "unpublish" | "delete";
-/** Ce qu'envoie la barre d'enregistrement : tout sauf la suppression, qui a son bouton dans la carte Publication. */
+/** Ce qu'envoient les boutons de la barre : tout sauf la suppression, qui passe par une confirmation. */
 export type SaveIntent = Exclude<Intent, "delete">;
 
 /** Un champ : son libellé (facultatif ou non), le contrôle, une aide, l'erreur. */
@@ -42,159 +44,278 @@ export function Field({ label, htmlFor, optional, hint, error, children }: { lab
   );
 }
 
-/** Une carte de la fiche, avec son titre. */
-export function Section({ title, children, aside }: { title: string; children: ReactNode; aside?: ReactNode }) {
+/**
+ * Une propriété de la fiche, en ligne : le libellé (avec son icône) à gauche, la valeur à droite, puis l'aide et
+ * l'erreur. Sur téléphone, le libellé passe au-dessus.
+ */
+export function Property({ label, icon, htmlFor, hint, error, children }: { label: string; icon: ReactNode; htmlFor?: string; hint?: ReactNode; error?: string; children: ReactNode }) {
   return (
-    <Card size="2" className="admin-card">
-      <Flex justify="between" align="center" gap="3" mb="3">
-        <Heading as="h2" size="3">
+    <div className="admin-prop" data-invalid={error ? true : undefined}>
+      <Text as={htmlFor ? "label" : "div"} size="2" color="gray" className="admin-prop-label" {...(htmlFor ? { htmlFor } : {})}>
+        <span aria-hidden>{icon}</span>
+        {label}
+      </Text>
+      <div className="admin-prop-value">
+        {children}
+        {hint && (
+          <Text as="p" size="1" color="gray">
+            {hint}
+          </Text>
+        )}
+        {error && (
+          <Text as="p" size="1" color="red" role="alert">
+            {error}
+          </Text>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const fieldSizing = () => typeof CSS !== "undefined" && CSS.supports("field-sizing", "content");
+
+/**
+ * Le titre de la fiche, en grand, qui s'écrit sur place et passe à la ligne s'il est long. Entrée enregistre, comme
+ * dans un champ de formulaire.
+ */
+export function TitleInput({ id, label, value, onChange, placeholder, error }: { id: string; label: string; value: string; onChange(value: string): void; placeholder: string; error?: string }) {
+  const field = useRef<HTMLTextAreaElement>(null);
+  // Les navigateurs sans `field-sizing` (Firefox) : la hauteur suit le texte à la main.
+  useEffect(() => {
+    const element = field.current;
+    if (!element || fieldSizing()) return;
+    element.style.height = "auto";
+    element.style.height = `${element.scrollHeight}px`;
+  }, [value]);
+  return (
+    <div className="admin-title-field">
+      <textarea
+        ref={field}
+        id={id}
+        className="admin-title-input"
+        rows={1}
+        value={value}
+        placeholder={placeholder}
+        aria-label={label}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-erreur` : undefined}
+        autoComplete="off"
+        onChange={(event) => onChange(event.target.value.replace(/\s*\n\s*/g, " "))}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+          event.preventDefault();
+          event.currentTarget.form?.requestSubmit();
+        }}
+      />
+      {error && (
+        <Text as="p" size="2" color="red" role="alert" id={`${id}-erreur`}>
+          {error}
+        </Text>
+      )}
+    </div>
+  );
+}
+
+/** Un bloc du corps de la fiche (Description, Tracklist, Liens) : son titre, un compte, des actions à droite. */
+export function Section({ title, count, aside, children }: { title: string; count?: ReactNode; aside?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="admin-section">
+      <Flex justify="between" align="center" gap="3" wrap="wrap" mb="3">
+        <Flex align="center" gap="2">
+          <Heading as="h2" size="4">
+            {title}
+          </Heading>
+          {count}
+        </Flex>
+        {aside}
+      </Flex>
+      {children}
+    </section>
+  );
+}
+
+/** Un bloc du panneau de côté (Pochette, Son, Informations). */
+export function SidePanel({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="admin-side-panel">
+      <Flex justify="between" align="center" gap="2" mb="3">
+        <Heading as="h2" size="1" weight="bold" color="gray" className="admin-side-title">
           {title}
         </Heading>
         {aside}
       </Flex>
-      <Flex direction="column" gap="4">
+      <Flex direction="column" gap="3">
         {children}
       </Flex>
-    </Card>
+    </section>
   );
 }
 
-/** La carte « Publication » : statut, dates, et la suppression, confirmée. */
-export function PublishCard({
+/**
+ * La barre de la fiche, collée en haut : le retour à la liste, le nom, le statut ; puis l'état de l'enregistrement
+ * et les actions. Un brouillon a Enregistrer et Publier ; un contenu publié a Enregistrer (qui met à jour la version
+ * publiée), et Dépublier dans le menu « … », avec Supprimer, toujours confirmé. ⌘S ou Ctrl+S enregistre aussi.
+ */
+export function SheetBar({
+  back,
+  name,
   status,
-  created,
+  isNew,
+  dirty,
+  busy,
   updated,
+  onSave,
   deleteTitle,
   deleteNote,
   onDelete,
-  deleting,
 }: {
+  back: { label: string; href: string };
+  name: string;
   status: "draft" | "published";
-  created: string | null;
+  isNew: boolean;
+  dirty: boolean;
+  busy: Intent | null;
   updated: string | null;
+  onSave(intent: SaveIntent): void;
   /** « Supprimer « Nuit Parabole » ? » ; absent pour une fiche pas encore créée. */
   deleteTitle?: string;
-  deleteNote?: string;
-  onDelete?(): void;
-  deleting?: boolean;
+  deleteNote: string;
+  onDelete(): void;
 }) {
+  const mod = useModKey();
+  const [confirming, setConfirming] = useState(false);
+  const published = status === "published";
+  const saving = busy !== null && busy !== "delete";
+  const state = saving
+    ? { tone: "busy", text: "Enregistrement…" }
+    : dirty
+      ? { tone: "dirty", text: "Modifications non enregistrées" }
+      : isNew
+        ? { tone: "new", text: "Nouveau brouillon" }
+        : { tone: "saved", text: published ? "Enregistré" : "Brouillon enregistré" };
+  const hint = dirty && published ? "Enregistrer met à jour la version publiée." : updated ? `Modifié le ${updated}` : undefined;
+  const menu = published || Boolean(deleteTitle);
+
   return (
-    <Section title="Publication" aside={<StatusBadge status={status} />}>
-      <DataList.Root size="2">
-        <DataList.Item>
-          <DataList.Label minWidth="90px">Sur le site</DataList.Label>
-          <DataList.Value>{status === "published" ? "Visible" : "Invisible"}</DataList.Value>
-        </DataList.Item>
-        {created && (
-          <DataList.Item>
-            <DataList.Label minWidth="90px">Créé</DataList.Label>
-            <DataList.Value>{created}</DataList.Value>
-          </DataList.Item>
+    <div className="admin-sheet-bar">
+      <div className="admin-sheet-where">
+        <Tooltip content={`Retour : ${back.label}`}>
+          <IconButton asChild variant="ghost" color="gray" size="2">
+            <a href={back.href} data-astro-prefetch="false" aria-label={`Retour : ${back.label}`}>
+              <ArrowLeftIcon width="18" height="18" />
+            </a>
+          </IconButton>
+        </Tooltip>
+        <Text size="2" color="gray" className="admin-sheet-crumb admin-hide-mobile">
+          <a href={back.href} data-astro-prefetch="false">
+            {back.label}
+          </a>
+          <span aria-hidden> / </span>
+        </Text>
+        <Text size="2" weight="medium" truncate className="admin-sheet-name">
+          {name}
+        </Text>
+        {!isNew && <StatusBadge status={status} />}
+      </div>
+
+      <div className="admin-sheet-actions">
+        <Tooltip content={hint ?? state.text}>
+          <span className="admin-save-state" data-tone={state.tone} role="status">
+            {state.tone === "busy" ? <Spinner size="1" /> : state.tone === "saved" ? <CheckIcon aria-hidden /> : <span className="admin-save-dot" aria-hidden />}
+            <span className="admin-save-text">{state.text}</span>
+          </span>
+        </Tooltip>
+        {menu && (
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger>
+              <IconButton type="button" variant="soft" color="gray" size="2" aria-label="Plus d'actions" disabled={busy !== null}>
+                <DotsHorizontalIcon />
+              </IconButton>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Content align="end" size="2">
+              {published && (
+                <DropdownMenu.Item onSelect={() => onSave("unpublish")}>
+                  <EyeNoneIcon /> Dépublier
+                </DropdownMenu.Item>
+              )}
+              {published && deleteTitle && <DropdownMenu.Separator />}
+              {deleteTitle && (
+                <DropdownMenu.Item color="red" onSelect={() => setConfirming(true)}>
+                  <TrashIcon /> Supprimer…
+                </DropdownMenu.Item>
+              )}
+            </DropdownMenu.Content>
+          </DropdownMenu.Root>
         )}
-        {updated && (
-          <DataList.Item>
-            <DataList.Label minWidth="90px">Modifié</DataList.Label>
-            <DataList.Value>{updated}</DataList.Value>
-          </DataList.Item>
+        <Tooltip
+          content={
+            <>
+              Enregistrer <Kbd size="1">{mod} S</Kbd>
+            </>
+          }
+        >
+          <Button
+            type="submit"
+            size="2"
+            variant={published ? "solid" : "soft"}
+            loading={busy === "save"}
+            disabled={busy !== null || (!dirty && !isNew)}
+            className="admin-save-button"
+            data-dirty={dirty || undefined}
+          >
+            Enregistrer
+          </Button>
+        </Tooltip>
+        {!published && (
+          <Button type="button" size="2" loading={busy === "publish"} disabled={busy !== null} onClick={() => onSave("publish")}>
+            Publier
+          </Button>
         )}
-      </DataList.Root>
-      {deleteTitle && onDelete && (
-        <AlertDialog.Root>
-          <AlertDialog.Trigger>
-            <Button type="button" variant="ghost" color="red" className="admin-delete">
-              <TrashIcon /> Supprimer…
-            </Button>
-          </AlertDialog.Trigger>
+      </div>
+
+      {deleteTitle && (
+        <AlertDialog.Root open={confirming} onOpenChange={(open) => busy !== "delete" && setConfirming(open)}>
           <AlertDialog.Content maxWidth="460px">
             <AlertDialog.Title>{deleteTitle}</AlertDialog.Title>
             <AlertDialog.Description size="2">{deleteNote} C'est définitif.</AlertDialog.Description>
             <Flex gap="3" mt="4" justify="end">
               <AlertDialog.Cancel>
-                <Button variant="soft" color="gray">
+                <Button variant="soft" color="gray" disabled={busy === "delete"}>
                   Annuler
                 </Button>
               </AlertDialog.Cancel>
               {/* Pas d'AlertDialog.Action : le dialogue reste ouvert, avec son indicateur, jusqu'au retour à la liste. */}
-              <Button color="red" loading={deleting} onClick={onDelete}>
+              <Button color="red" loading={busy === "delete"} onClick={onDelete}>
                 <TrashIcon /> Supprimer
               </Button>
             </Flex>
           </AlertDialog.Content>
         </AlertDialog.Root>
       )}
-    </Section>
-  );
-}
-
-/**
- * La barre d'enregistrement, collée en bas de l'écran : le statut, les modifications en attente, puis Enregistrer et
- * Publier (ou Dépublier). ⌘S ou Ctrl+S enregistre aussi.
- */
-export function SaveBar({ status, dirty, busy, isNew, onSave }: { status: "draft" | "published"; dirty: boolean; busy: Intent | null; isNew: boolean; onSave(intent: SaveIntent): void }) {
-  const published = status === "published";
-  return (
-    <div className="admin-savebar">
-      <Flex align="center" gap="3" minWidth="0">
-        <StatusBadge status={status} />
-        {dirty ? (
-          <Flex align="center" gap="1" className="admin-unsaved">
-            <Badge color="amber" variant="soft" radius="full">
-              Modifications non enregistrées
-            </Badge>
-          </Flex>
-        ) : (
-          <Text size="2" color="gray" className="admin-hide-mobile">
-            {published ? "Enregistrer met à jour la version publiée." : "Invisible sur le site tant que ce n'est pas publié."}
-          </Text>
-        )}
-      </Flex>
-      <Flex gap="2" className="admin-savebar-actions">
-        {published && (
-          <Button type="button" variant="soft" color="gray" loading={busy === "unpublish"} disabled={busy !== null} onClick={() => onSave("unpublish")}>
-            Dépublier
-          </Button>
-        )}
-        <Tooltip content={<>Enregistrer <Kbd size="1">⌘ S</Kbd></>}>
-          <Button
-            type="submit"
-            variant={published ? "solid" : "soft"}
-            loading={busy === "save"}
-            disabled={busy !== null || (!dirty && !isNew)}
-          >
-            {published ? "Enregistrer" : "Enregistrer le brouillon"}
-          </Button>
-        </Tooltip>
-        {!published && (
-          <Button type="button" loading={busy === "publish"} disabled={busy !== null} onClick={() => onSave("publish")}>
-            Publier
-          </Button>
-        )}
-      </Flex>
     </div>
   );
 }
 
-/** L'emplacement d'une image, en attendant l'envoi vers Cloudflare R2 (prochaine étape). */
-export function MediaSlot({ media }: { media: MediaView }) {
+/** L'emplacement d'une image (pochette, photo), en attendant l'envoi vers Cloudflare R2 (prochaine étape). */
+export function MediaSlot({ media, kind }: { media: MediaView; kind: "pochette" | "photo" }) {
   return (
-    <Flex gap="3" align="center">
-      <Flex align="center" justify="center" className="admin-media-frame">
-        <ImageIcon width="22" height="22" />
-      </Flex>
-      <Box minWidth="0">
+    <Flex gap="3" align="start">
+      <div className="admin-media-frame" data-filled={media ? true : undefined} title={media?.key}>
+        <ImageIcon width="22" height="22" aria-hidden />
+      </div>
+      <Flex direction="column" gap="1" minWidth="0">
         <Text as="p" size="2" weight="medium">
-          {media ? "Image enregistrée" : "Pas encore d'image"}
+          {media ? "Image enregistrée" : `Pas encore de ${kind}`}
         </Text>
         {media && (
           <Text as="p" size="1" color="gray" className="admin-break">
-            {media.key}
-            {media.alt ? ` — « ${media.alt} »` : " — sans texte alternatif"}
+            {media.alt ? `Texte alternatif : « ${media.alt} »` : "Sans texte alternatif"}
           </Text>
         )}
         <Text as="p" size="1" color="gray">
           L'envoi des images arrive à la prochaine étape, avec le stockage Cloudflare R2.
         </Text>
-      </Box>
+      </Flex>
     </Flex>
   );
 }

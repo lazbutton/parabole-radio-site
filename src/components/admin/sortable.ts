@@ -1,7 +1,8 @@
 /**
  * Réordonner une liste par glisser, avec sa poignée, à la souris comme au doigt (évènements pointer : le
- * glisser-déposer HTML ne marche pas sur téléphone). Radix n'en propose pas. Les lignes portent data-sort-index ; la
- * poignée reçoit onPointerDown. Les boutons ↑ ↓ font le même travail au clavier, avec move().
+ * glisser-déposer HTML ne marche pas sur téléphone). Radix n'en propose pas. Les éléments portent data-sort-index ; la
+ * poignée reçoit onPointerDown. Une liste se range de haut en bas (une tracklist), ou de gauche à droite (les
+ * pastilles des artistes d'un show). Au clavier, move() fait le même travail.
  */
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
@@ -14,7 +15,7 @@ export function moveItem<T>(list: T[], from: number, to: number): T[] {
   return next;
 }
 
-export function useSortable<T>(items: T[], onChange: (items: T[]) => void) {
+export function useSortable<T>(items: T[], onChange: (items: T[]) => void, { axis = "y" }: { axis?: "x" | "y" } = {}) {
   const container = useRef<HTMLElement | null>(null);
   const latest = useRef({ items, onChange });
   latest.current = { items, onChange };
@@ -29,19 +30,21 @@ export function useSortable<T>(items: T[], onChange: (items: T[]) => void) {
       const pointer = event.pointerId;
       let current = index;
       setDragging(index);
-      // Le geste se suit sur tout le document : la ligne déplacée change de place dans la page à chaque pas.
+      // Le geste se suit sur tout le document : l'élément déplacé change de place dans la page à chaque pas.
       const onMove = (e: PointerEvent) => {
         if (e.pointerId !== pointer) return;
         // Près du bord de l'écran, la page défile : une longue tracklist se réordonne aussi au téléphone.
-        if (e.clientY > innerHeight - 80) scrollBy(0, 16);
-        else if (e.clientY < 140) scrollBy(0, -16);
+        if (axis === "y") {
+          if (e.clientY > innerHeight - 80) scrollBy(0, 16);
+          else if (e.clientY < 140) scrollBy(0, -16);
+        }
         const over = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>("[data-sort-index]");
         if (!over || !container.current?.contains(over)) return;
         const target = Number(over.dataset.sortIndex);
         const box = over.getBoundingClientRect();
-        const upperHalf = e.clientY < box.top + box.height / 2;
-        // On ne passe la ligne survolée qu'une fois sa moitié franchie : pas de va-et-vient.
-        if ((target < current && upperHalf) || (target > current && !upperHalf)) {
+        const before = axis === "y" ? e.clientY < box.top + box.height / 2 : e.clientX < box.left + box.width / 2;
+        // On ne passe l'élément survolé qu'une fois sa moitié franchie : pas de va-et-vient.
+        if ((target < current && before) || (target > current && !before)) {
           move(current, target);
           current = target;
           setDragging(target);

@@ -1,7 +1,7 @@
 ---
 /**
- * Les artistes dans l'admin : l'index A–Z, brouillons compris, avec les filtres résident / invité, statut, et la
- * recherche (cms/README.md, 9.2). Servie en HTML ou en JSON, comme chaque écran.
+ * Les artistes dans l'admin : l'index A–Z, brouillons compris, avec les filtres résident / invité, statut, ce qui
+ * manque (photo, bio), et la recherche (cms/README.md, 9.2). Servie en HTML ou en JSON, comme chaque écran.
  */
 import type { Screen } from "../../../components/admin/types";
 import Admin from "../../../layouts/Admin.astro";
@@ -10,7 +10,7 @@ import { json, wantsJson } from "../../../lib/admin/views";
 export const prerender = false;
 
 const params = Astro.url.searchParams;
-const filters = { q: params.get("q")?.trim() ?? "", role: params.get("role") ?? "", status: params.get("status") ?? "" };
+const filters = { q: params.get("q")?.trim() ?? "", role: params.get("role") ?? "", status: params.get("status") ?? "", missing: params.get("missing") ?? "" };
 const index = await Astro.locals.admin!.listArtists(filters);
 const screen: Screen = {
   name: "artists",
@@ -18,7 +18,15 @@ const screen: Screen = {
   data: {
     groups: index.groups.map((group) => ({
       letter: group.letter,
-      artists: group.artists.map((artist) => ({ id: artist.id, name: artist.name, role: artist.role, status: artist.status, shows: artist.shows, hasPhoto: artist.hasPhoto })),
+      artists: group.artists.map((artist) => ({
+        id: artist.id,
+        name: artist.name,
+        role: artist.role,
+        status: artist.status,
+        shows: artist.shows,
+        hasPhoto: artist.hasPhoto,
+        hasBio: artist.hasBio,
+      })),
     })),
     total: index.total,
     filters,
