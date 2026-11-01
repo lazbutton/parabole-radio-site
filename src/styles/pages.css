@@ -4,6 +4,11 @@
    défile dans sa propre zone, entre l'en-tête (--barre-h) et la ligne du bas (--band-h, tenue à jour par panels.ts) :
    elle ne passe jamais sous cette ligne transparente, qui garde la vidéo derrière elle, comme sur l'accueil. */
 #page { position: relative; z-index: 10; }
+html:not([data-page="accueil"]) #page {
+  position: fixed; left: 0; right: 0; top: var(--barre-h); bottom: var(--band-h, 110px);
+  overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin; scrollbar-color: #fff039 transparent;
+}
 
 .feuille {
   position: relative;
