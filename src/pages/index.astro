@@ -3,7 +3,7 @@
  * L'accueil : le direct. Tout ce qui le fait (vidéo, globe, en-tête et son volume, PROGRAMMATION toujours ouvert sur
  * ordinateur, HISTORIQUE, CHAT) est dans la coque (src/layouts/Base.astro) ; la page y ajoute ce qui passe, affiché
  * comme la chaîne au zapping, avec la touche ÉCOUTER et les logos des plateformes où Hopper trouve le morceau (en bas
- * à gauche, src/styles/tele.css), et son texte micrographique (la légende du globe, en haut à gauche). Les deux sont
+ * à gauche, src/styles/tele.css), et son texte micrographique (en haut à droite, sous l'en-tête). Les deux sont
  * remplis par src/scripts/nowplaying.ts ; la touche passe par src/scripts/audio.ts. Ici, l'en-tête n'affiche donc ni
  * le titre ni sa propre touche ÉCOUTER (src/styles/tete.css).
  */
@@ -30,7 +30,7 @@ import Base from "../layouts/Base.astro";
       <span class="direct-mot-lire">Écouter</span><span class="direct-mot-pause">Arrêter</span>
     </button>
   </section>
-  <!-- Texte micrographique (sous le globe, en haut à gauche) -->
+  <!-- Texte micrographique (en haut à droite, sous l'en-tête) -->
   <div class="micro-spec">
     <div>PARABOLE RADIO</div>
     <div>ONDES HERTZIENNES &amp; FLUX NUMÉRIQUES</div>

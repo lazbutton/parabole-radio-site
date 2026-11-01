@@ -51,8 +51,8 @@
 .popup-chat { height: min(480px, 55vh); background: #000000; }
 .popup-chat iframe { display: block; width: 100%; height: 100%; border: 0; }
 /* ---------- PROGRAMMATION : un guide des programmes ----------
-   Un panneau en haut à droite, comme sur la maquette : sur la marge de l'écran, en haut de la place libre (--haut, sur
-   la même ligne que le globe), et jusqu'au-dessus de la ligne du bas (--bas) au plus. Dedans, la journée comme une
+   Un panneau en haut à droite, comme sur la maquette : sur la marge de l'écran, en haut de la place libre (--haut ; sur
+   l'accueil, sous le texte micrographique), et jusqu'au-dessus de la ligne du bas (--bas) au plus. Dedans, la journée comme une
    ligne : les émissions en sont les arrêts, la musique en continu remplit les creux, l'émission à l'antenne est
    ON AIR, avec son avancement en barre de segments. */
 .popup-schedule {
@@ -66,13 +66,18 @@
 /* sur l'accueil et sur ordinateur, il est toujours là : la touche PROGRAMMATION et la croix n'existent alors que sur
    écran étroit, où le panneau cacherait la page */
 @media (min-width: 821px) {
-  html[data-page="accueil"] .popup-schedule { display: flex; }
+  /* sur l'accueil, sous le texte micrographique, en haut à droite (socle.css) */
+  html[data-page="accueil"] .popup-schedule {
+    display: flex;
+    top: calc(var(--haut) + var(--micro-h) + var(--ecart));
+    --free: calc(100vh - var(--haut) - var(--micro-h) - var(--ecart) - var(--bas));
+  }
   html[data-page="accueil"] .popup-schedule .popup-close, html[data-page="accueil"] #scheduleToggle { display: none; }
 }
 /* sur l'accueil, pas assez large pour les mettre côte à côte : il s'arrête au-dessus de ce qui passe (affiché comme
    la chaîne, tele.css, environ 125 px de haut) */
 @media (min-width: 821px) and (max-width: 1100px) {
-  html[data-page="accueil"] .popup-schedule { --free: calc(100vh - var(--haut) - var(--bas) - 125px - var(--ecart)); }
+  html[data-page="accueil"] .popup-schedule { --free: calc(100vh - var(--haut) - var(--micro-h) - var(--ecart) - var(--bas) - 125px - var(--ecart)); }
 }
 /* assez large : HISTORIQUE et CHAT s'ouvrent à côté du panneau, pas dessus (la marge, 400 px, l'écart) */
 @media (min-width: 1100px) { .popup:not(.popup-schedule) { right: calc(var(--marge) + 400px + var(--ecart)); } }
