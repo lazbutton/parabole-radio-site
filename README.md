@@ -23,9 +23,10 @@ programmation, l'historique et les liens Hopper marchent comme en ligne. Une mod
 Le son ne doit jamais se couper quand on change de page. Le site est donc fait d'une **coque**, posée une fois, et
 d'un **contenu**, le seul qui change :
 
-- la coque (`src/layouts/Base.astro`) : la vidéo de fond (et la neige du zapping) et le globe, l'en-tête (la barre du
-  haut, son menu tout contre le logo et, collé dessous, le bandeau son du lecteur), la ligne du bas (réseaux,
-  contributeurs, touches des panneaux), les panneaux PROGRAMMATION, HISTORIQUE et CHAT, et le mode staff ;
+- la coque (`src/layouts/Base.astro`) : la vidéo de fond (et la neige du zapping) et le globe, l'en-tête (le bandeau
+  qui défile, puis le logo, le menu tout contre lui et le son : ce qui passe et ÉCOUTER hors de l'accueil, le volume, la
+  touche RADIO / VIDÉO), la ligne du bas (réseaux, contributeurs, touches des panneaux), les panneaux PROGRAMMATION,
+  HISTORIQUE et CHAT, et le mode staff ;
 - le contenu : `<main id="page">`, rempli par chaque page de `src/pages/`.
 
 Le `ClientRouter` d'Astro charge les pages sans recharger l'onglet. Une fonction de remplacement maison
@@ -36,6 +37,8 @@ Pour une nouvelle page :
 
 - elle utilise `Base` et met tout son contenu dans le gabarit (`<Base page="…">…</Base>`) ;
 - son contenu défile dans sa zone, entre l'en-tête et la ligne du bas (`.feuille`, voir `src/styles/pages.css`) ;
+- elle se range sur la grille de `src/styles/socle.css` : une marge au bord de l'écran (`--marge`), un écart entre deux
+  blocs (`--ecart`), une hauteur de touche (`--touche-h`), la place libre entre `--haut` et `--bas` ;
 - elle n'a pas de `<script>` à elle : un script de la coque se branche sur l'événement `astro:after-swap` (voir
   `router.ts`), car les scripts ne s'exécutent qu'une fois par onglet.
 
@@ -44,9 +47,9 @@ Pour une nouvelle page :
 | Chemin | Rôle |
 |---|---|
 | `src/scripts/settings.ts` | **Les réglages** : mot de passe staff, lien et textes du bouton contributeurs, adresses de l'API, chat, Hopper, liste de secours des clips |
-| `src/scripts/` | Les modules de la coque : `audio` (flux, volume, Web Audio), `beat`, `scope` (oscilloscope), `globe`, `background` (playlist et zapping), `neige` (la neige entre deux clips), `panels` (panneaux et fenêtres), `schedule`, `history`, `hopper` (le lien « Retrouver » d'HISTORIQUE et les logos des plateformes sur l'accueil), `nowplaying`, `contributors`, `staff`, `router` |
-| `src/components/` | Les morceaux de la coque (`TopBar` et son bandeau son `Band`, `BottomBar`, `Panels`, `Background`, `Staff`, `Icons`) et des pages (`Sheet`, `ComingSoon`) |
-| `src/styles/` | Les styles, globaux : une bonne part du balisage est écrite par les scripts ; `tele.css` pour l'univers télé (neige, chaîne affichée, allumage) |
+| `src/scripts/` | Les modules de la coque : `audio` (flux, volume, Web Audio), `beat`, `globe`, `background` (playlist et zapping), `neige` (la neige entre deux clips), `panels` (panneaux et fenêtres), `schedule`, `history`, `hopper` (le lien « Retrouver » d'HISTORIQUE et les logos des plateformes sur l'accueil), `nowplaying`, `contributors`, `staff`, `router` |
+| `src/components/` | Les morceaux de la coque (`TopBar`, l'en-tête, `BottomBar`, `Panels`, `Background`, `Staff`, `Icons`) et des pages (`Sheet`, `ComingSoon`) |
+| `src/styles/` | Les styles, globaux : une bonne part du balisage est écrite par les scripts ; `tele.css` pour l'univers télé (neige, chaîne affichée, allumage), `tete.css` pour l'en-tête, `ligne-du-bas.css` pour la ligne du bas |
 | `src/pages/` | Accueil, `about`, `show`, `residents`, `event`, 404, et l'API (`api/`) |
 | `src/lib/station/` | **L'adaptateur de la station** : Radio Cult aujourd'hui |
 | `src/lib/menu.ts` | Les rubriques du menu |
@@ -154,7 +157,8 @@ Les clips passent au hasard, jamais deux fois le même de suite. Un clic sur le 
 zappe : de la neige (`src/scripts/neige.ts`). Le numéro de la chaîne (la place du clip dans la liste) et son titre
 peuvent s'afficher quelques secondes : `CHAINE_AU_ZAPPING` dans `settings.ts`, éteint pour le moment. Au chargement de l'onglet, le téléviseur s'allume : une ligne blanche, la neige, puis
 l'image (`src/styles/tele.css`). D'après « CRT TV Effect » de Karl Saunders (https://codepen.io/Mobius1/pen/zZpoXj).
-Avec « réduire les animations », ni allumage ni neige.
+Avec « réduire les animations », ni allumage ni neige. Le filtre cathodique (lignes de balayage, vignettage) est posé
+sur tout le site, en-tête et panneaux compris (`src/styles/socle.css`).
 
 ## Le mode staff
 

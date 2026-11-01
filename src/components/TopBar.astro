@@ -1,24 +1,47 @@
 ---
 /**
- * L'en-tête, sur toutes les pages : la barre du haut, puis, collé dessous sans trait, le bandeau son (Band.astro). La
- * barre : le logo rond (retour à l'accueil ; un double-clic ouvre le mode staff), le menu des rubriques tout contre lui,
- * le texte qui défile, et la touche RADIO / VIDÉO (le son du direct ou celui des vidéos). Un seul trait jaune ferme
- * le bloc. Il n'est pas remplacé à la navigation : src/scripts/router.ts y met à jour la rubrique ouverte.
+ * L'en-tête, sur toutes les pages, écrit comme les titres télé (src/styles/tete.css) : il flotte sur l'image, sans fond
+ * ni trait. Tout en haut, le bandeau qui défile ; dessous, la rangée : le logo rond (retour à l'accueil ; un double-clic
+ * ouvre le mode staff), le menu des rubriques tout contre lui et, à droite, le son. Le son : ce qui passe et la touche
+ * ÉCOUTER (pas sur l'accueil, qui les affiche déjà en bas à gauche), le volume, et la touche RADIO / VIDÉO (le son du
+ * direct ou celui des vidéos). Il n'est pas remplacé à la navigation : src/scripts/router.ts y met à jour la rubrique
+ * ouverte, et le son continue d'une page à l'autre. Le flux vient de l'adaptateur de la station (src/lib/station),
+ * écrit ici au build : data-flux.
  */
 import logoBarre from "../assets/logo-barre.png";
 import { MENU, type Page } from "../lib/menu";
-import Band from "./Band.astro";
+import { stream } from "../lib/station";
 
 interface Props {
   page: Page;
 }
 const { page } = Astro.props;
-const marquee = "PARABOLE RADIO • UNION DE LA JEUNESSE INTERNATIONALE COMMUNITY RADIO • CA VA PETER !!! • LIVE • PARIS 18.";
+/** Les phrases du bandeau qui défile, séparées d'un carré jaune. */
+const BANDEAU = ["PARABOLE RADIO", "UNION DE LA JEUNESSE INTERNATIONALE COMMUNITY RADIO", "CA VA PETER !!!", "LIVE", "PARIS 18"];
+/** Six fois les phrases : la piste glisse d'une moitié, et chaque moitié couvre même un très grand écran. */
+const COPIES = 6;
 ---
 
 <header class="tete">
+  <!-- Le bandeau qui défile : la première copie se lit, les autres ne sont là que pour la boucle -->
+  <div class="bandeau">
+    <div class="bandeau-piste">
+      {
+        Array.from({ length: COPIES }, (_, copie) => (
+          <p class="bandeau-texte" aria-hidden={copie > 0 ? "true" : undefined}>
+            {BANDEAU.map((phrase) => (
+              <>
+                <span>{phrase}</span>
+                <i class="bandeau-carre" aria-hidden="true" />
+              </>
+            ))}
+          </p>
+        ))
+      }
+    </div>
+  </div>
   <div class="top-bar">
-    <a id="logoSquare" class="logo-square" href="/" aria-label="Parabole Radio, retour au direct">
+    <a id="logoSquare" class="tete-logo" href="/" aria-label="Parabole Radio, retour au direct">
       <img src={logoBarre.src} width={logoBarre.width} height={logoBarre.height} alt="" />
     </a>
     <nav class="menu" aria-label="Rubriques">
@@ -34,16 +57,47 @@ const marquee = "PARABOLE RADIO • UNION DE LA JEUNESSE INTERNATIONALE COMMUNIT
         }
       </ul>
     </nav>
-    <div class="marquee-container">
-      <div class="animate-marquee-retro-slow whitespace-nowrap flex items-center gap-12">
-        <p class="marquee-text text-white uppercase">{marquee}</p>
-        <p class="marquee-text text-white uppercase" aria-hidden="true">{marquee}</p>
+    <!-- Le son. data-state : off (pas de flux) · idle · loading · playing · error ; data-air : on · off (ce que dit le
+         direct). Tenus par src/scripts/audio.ts. -->
+    <div id="player" class="lecteur" data-state="off" data-air="off" data-flux={stream}>
+      <!-- ce qui passe et la touche ÉCOUTER : sur l'accueil, c'est l'affichage en bas à gauche qui les donne -->
+      <div class="ecoute">
+        <button class="ecoute-touche" type="button" data-ecouter>
+          <svg class="icon direct-icone-lire" aria-hidden="true"><use href="#icon-play"></use></svg>
+          <svg class="icon direct-icone-pause" aria-hidden="true"><use href="#icon-pause"></use></svg>
+          <span class="direct-mot-lire">Écouter</span><span class="direct-mot-pause">Arrêter</span>
+        </button>
+        <div class="ecoute-texte">
+          <span class="ecoute-etat"><span class="ecoute-point"></span><span id="playerStatus">OFF AIR</span></span>
+          <div id="playerTicker" class="ecoute-titre">
+            <div id="playerTickerTrack" class="ecoute-piste">
+              <span class="player-ticker-item"><span class="title">Parabole Radio</span><span class="artist">Paris 18</span></span>
+            </div>
+          </div>
+        </div>
       </div>
+      <div class="son">
+        <button id="playerMute" class="son-muet" type="button" aria-label="Couper le son" aria-pressed="false">
+          <svg class="icon icon-sound-on" aria-hidden="true"><use href="#icon-sound"></use></svg>
+          <svg class="icon icon-sound-off" aria-hidden="true"><use href="#icon-sound-off"></use></svg>
+        </button>
+        <label id="playerVolumeWrap" class="son-volume"
+          ><span class="son-barres" aria-hidden="true"></span><input
+            id="playerVolume"
+            class="son-curseur"
+            type="range"
+            min="0"
+            max="100"
+            value="90"
+            aria-label="Volume"
+          /></label
+        >
+      </div>
+      <button id="soundToggle" class="source" type="button" data-mode="radio"
+        ><span class="source-radio">Radio</span><span class="source-video">Vidéo</span></button
+      >
     </div>
-    <div class="top-actions">
-      <button id="soundToggle" class="sound-toggle" title="Son : radio / vidéos">RADIO</button>
-      <div id="adminControlsContainer" class="flex items-center gap-1"></div>
-    </div>
+    <div id="adminControlsContainer" class="flex items-center gap-1"></div>
   </div>
-  <Band />
+  <audio id="radioStream" preload="none"></audio>
 </header>

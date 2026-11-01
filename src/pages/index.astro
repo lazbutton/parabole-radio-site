@@ -1,24 +1,20 @@
 ---
 /**
- * L'accueil : le direct. Tout ce qui le fait (vidéo, globe, en-tête et bandeau son, PROGRAMMATION toujours ouvert sur
+ * L'accueil : le direct. Tout ce qui le fait (vidéo, globe, en-tête et son volume, PROGRAMMATION toujours ouvert sur
  * ordinateur, HISTORIQUE, CHAT) est dans la coque (src/layouts/Base.astro) ; la page y ajoute ce qui passe, affiché
  * comme la chaîne au zapping, avec la touche ÉCOUTER et les logos des plateformes où Hopper trouve le morceau (en bas
- * à gauche, src/styles/tele.css), et son texte micrographique (en haut à droite). Les deux sont remplis par
- * src/scripts/nowplaying.ts ; la touche passe par src/scripts/audio.ts.
+ * à gauche, src/styles/tele.css), et son texte micrographique (la légende du globe, en haut à gauche). Les deux sont
+ * remplis par src/scripts/nowplaying.ts ; la touche passe par src/scripts/audio.ts. Ici, l'en-tête n'affiche donc ni
+ * le titre ni sa propre touche ÉCOUTER (src/styles/tete.css).
  */
 import Base from "../layouts/Base.astro";
 ---
 
 <Base page="accueil">
   <h1 class="sr-only">Parabole Radio, union de la jeunesse internationale community radio : le direct de Paris 18</h1>
-  <!-- Ce qui passe, affiché comme la chaîne : la touche ÉCOUTER et l'état de l'antenne, le titre, le sous-titre -->
+  <!-- Ce qui passe, affiché comme la chaîne : l'état de l'antenne, le titre, le sous-titre, puis la touche ÉCOUTER -->
   <section class="direct" aria-label="À l'antenne">
     <p class="direct-ligne">
-      <button class="direct-ecouter" type="button" data-ecouter>
-        <svg class="icon direct-icone-lire" aria-hidden="true"><use href="#icon-play"></use></svg>
-        <svg class="icon direct-icone-pause" aria-hidden="true"><use href="#icon-pause"></use></svg>
-        <span class="direct-mot-lire">Écouter</span><span class="direct-mot-pause">Arrêter</span>
-      </button>
       <span id="directEtat" class="direct-etat">On air</span>
       <span class="direct-lieu">Paris 18 · 24/7</span>
     </p>
@@ -28,8 +24,13 @@ import Base from "../layouts/Base.astro";
       <span id="directPlateformes" class="direct-plateformes hppr-logos" hidden></span>
     </div>
     <p id="directSousTitre" class="direct-sous-titre">Union de la jeunesse internationale community radio</p>
+    <button class="direct-ecouter" type="button" data-ecouter>
+      <svg class="icon direct-icone-lire" aria-hidden="true"><use href="#icon-play"></use></svg>
+      <svg class="icon direct-icone-pause" aria-hidden="true"><use href="#icon-pause"></use></svg>
+      <span class="direct-mot-lire">Écouter</span><span class="direct-mot-pause">Arrêter</span>
+    </button>
   </section>
-  <!-- Texte micrographique (en haut à droite) -->
+  <!-- Texte micrographique (sous le globe, en haut à gauche) -->
   <div class="micro-spec">
     <div>PARABOLE RADIO</div>
     <div>ONDES HERTZIENNES &amp; FLUX NUMÉRIQUES</div>

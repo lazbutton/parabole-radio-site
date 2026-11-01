@@ -2,9 +2,9 @@
 /**
  * Le fond de toutes les pages : la vidéo d'archives (le clip est tiré par src/scripts/background.ts, dans la liste
  * tenue dans l'admin, Vidéos de fond), la neige du zapping entre deux clips (src/scripts/neige.ts) et l'affichage de la
- * chaîne, un voile bleu, le filtre cathodique, le globe (logo animé, rendu audioréactif par src/scripts/globe.ts) et
- * la surimpression du mode staff. Il ne quitte jamais la page : la vidéo continue d'une rubrique à l'autre. Au
- * chargement, il s'allume comme un téléviseur (src/styles/tele.css).
+ * chaîne, un voile bleu, le globe (logo animé, rendu audioréactif par src/scripts/globe.ts) et la surimpression du
+ * mode staff. Il ne quitte jamais la page : la vidéo continue d'une rubrique à l'autre. Au chargement, il s'allume comme
+ * un téléviseur (src/styles/tele.css). Le filtre cathodique, lui, est posé sur tout le site, au-dessus de tout.
  */
 ---
 
@@ -14,11 +14,6 @@
   <!-- La neige : allumée d'entrée, pour l'allumage ; background.ts l'éteint quand l'image arrive -->
   <canvas id="neige" class="neige visible" aria-hidden="true"></canvas>
   <div class="absolute inset-0 bg-[#000dff]/20 mix-blend-overlay pointer-events-none"></div>
-  <!-- CRT filter: adapted from "CRT scanline filter" by Tellers - https://tellers.ai/free-svg-vfx/crt-scanline-filter
-       - License: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Changes: rebuilt in CSS; the noise
-       (under 1/255, invisible), the glow blur, the rolling band, the flashing line, the top band (under the top
-       bar) and the screen frame are left out. -->
-  <div class="crt-filter" aria-hidden="true"></div>
   <!-- Le globe : WebP animé (1,2 Mo) pour les navigateurs récents, APNG (4,4 Mo) en secours -->
   <picture>
     <source srcset="/PARABOLE%20RADIO/OVERLAY/logo.webp" type="image/webp" />
@@ -35,3 +30,9 @@
 </div>
 <!-- L'allumage : un point, puis une ligne blanche qui s'ouvre sur l'image (src/styles/tele.css) -->
 <div class="allumage-ligne" aria-hidden="true"></div>
+<!-- Le filtre cathodique, posé sur tout le site, en-tête et panneaux compris (src/styles/socle.css).
+     CRT filter: adapted from "CRT scanline filter" by Tellers - https://tellers.ai/free-svg-vfx/crt-scanline-filter
+     - License: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Changes: rebuilt in CSS; the noise
+     (under 1/255, invisible), the glow blur, the rolling band, the flashing line, the top band (under the top
+     bar) and the screen frame are left out. -->
+<div class="crt-filter" aria-hidden="true"></div>

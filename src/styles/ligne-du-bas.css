@@ -1,0 +1,110 @@
+/* La ligne du bas (réseaux sociaux, contributeurs, touches des panneaux, BottomBar.astro), sur toutes les pages. Elle ne
+   quitte jamais la page : la navigation ne remplace que <main id="page">. Le son est en haut, dans l'en-tête (tete.css). */
+
+/* ---------- LA LIGNE DU BAS, écrite comme les titres télé (tele.css) ----------
+   Les réseaux sociaux, le lien contributeurs et les touches des panneaux : un cadre jaune qui bave en rouge et cyan,
+   comme la touche ÉCOUTER, sur une plaque sombre et floue où l'image passe encore, le texte et les pictogrammes jaunes
+   aux couleurs qui bavent. Au survol, et tant que son panneau est ouvert, une touche s'allume en jaune. */
+.bottom-social {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: 0.5rem;
+}
+.bottom-social a, .donate-btn {
+  background: rgba(0,0,0,0.38);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+  color: #fff039;
+  border: 2px solid #fff039;
+  border-radius: 0;
+  box-shadow: -2px 0 rgba(255,0,72,0.5), 2px 0 rgba(0,200,255,0.45);   /* le cadre bave */
+  text-decoration: none;
+}
+.bottom-social a .icon, .donate-btn .icon { filter: drop-shadow(-1.5px 0 rgba(255,0,72,0.6)) drop-shadow(1.5px 0 rgba(0,200,255,0.55)); }
+.bottom-social a {
+  width: var(--touche-h);   /* carrées, à la hauteur des autres touches (socle.css) */
+  height: var(--touche-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  transition: 0.2s;
+}
+.bottom-social a:hover { background: #fff039; color: #000dff; transform: scale(0.96); }
+.bottom-social a:hover .icon { filter: none; }
+
+/* ---------- LES TOUCHES (PROGRAMMATION, HISTORIQUE, CHAT) ---------- */
+.donate-btn {
+  height: var(--touche-h);
+  padding: 0 1rem;
+  margin-left: 0.5rem;
+  font-weight: 700;
+  font-size: 0.85rem;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-shadow: -1.5px 0 rgba(255,0,72,0.55), 1.5px 0 rgba(0,200,255,0.5), 0 2px 5px rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: 0.15s;
+  white-space: nowrap;
+}
+.donate-btn:hover,
+body:has(#schedulePopup.open) #scheduleToggle,
+body:has(#lastPlayedPopup.open) #lastPlayedToggle,
+body:has(#chatPopup.open) #chatToggle { background: #fff039; color: #000dff; text-shadow: none; }
+.donate-btn:hover .icon,
+body:has(#schedulePopup.open) #scheduleToggle .icon,
+body:has(#lastPlayedPopup.open) #lastPlayedToggle .icon,
+body:has(#chatPopup.open) #chatToggle .icon { filter: none; }
+.donate-btn:hover { transform: scale(0.97); }
+.donate-btn:focus-visible, .bottom-social a:focus-visible { outline: 2px solid #ffffff; outline-offset: 3px; }
+.donate-btn[hidden] { display: none; }
+
+/* Le lien contributeurs : même forme que les touches, plus large pour ses textes qui clignotent en se relayant
+   (contributors.ts), et allumé en jaune ; bleu au survol */
+.donate-btn.cycle-subtitle {
+  background: #fff039;
+  color: #000dff;
+  text-shadow: none;
+  box-shadow: -2px 0 rgba(255,0,72,0.6), 2px 0 rgba(0,200,255,0.55);
+  justify-content: center;
+  width: 325px;
+  max-width: 90vw;
+}
+.donate-btn.cycle-subtitle:hover { background: #000dff; color: #fff039; }
+
+/* ---------- LA COUCHE FLOTTANTE : la ligne au pied de la page ----------
+   Après les touches : sa règle « > * { margin-left: 0 } » l'emporte sur leur marge, comme dans index.html. Seules les
+   touches se cliquent : à côté, l'image se clique comme ailleurs, et sur un grand écran la touche ÉCOUTER de l'accueil
+   (tele.css) vient se ranger à gauche, sur la même ligne. */
+#floatLayer { position: fixed; inset: 0; z-index: 20; pointer-events: none; }
+#floatLayer .float-actions { pointer-events: auto; }
+.float-bottom { position: absolute; left: 0; right: 0; bottom: 0; }
+.float-actions {
+  margin-left: auto;
+  display: flex; align-items: center;
+  flex-wrap: wrap; justify-content: flex-end;
+  gap: 0.5rem;
+}
+.float-actions > * { margin-left: 0; }
+
+/* Sur écran étroit, la ligne du bas passe à la ligne : les touches, centrées */
+@media (max-width: 820px) {
+  .bottom-row { flex-wrap: wrap; }
+  .float-actions { margin-left: 0; width: 100%; justify-content: center; gap: 6px; }
+  .donate-btn { margin-left: 0; }
+  .donate-btn.cycle-subtitle { width: 100%; max-width: 100%; }
+  /* PROGRAMMATION, HISTORIQUE et CHAT se partagent une seule ligne, puis les réseaux sociaux ferment la marche */
+  .donate-btn:not(.cycle-subtitle) { flex: 1 1 auto; min-width: 0; padding: 0 8px; font-size: 12px; letter-spacing: 0.06em; }
+  .bottom-social { order: 10; margin-left: 0; }
+}
+@media (max-width: 400px) {
+  .donate-btn:not(.cycle-subtitle) .icon { display: none; }   /* les mots seuls tiennent sur la ligne */
+}
+
+/* la ligne du bas : les liens et les touches des panneaux, sur la marge de l'écran (socle.css), sur les côtés comme
+   en bas ; transparente : la vidéo se voit */
+.bottom-row { display: flex; align-items: center; gap: 12px; padding: 0 var(--marge) var(--marge); }

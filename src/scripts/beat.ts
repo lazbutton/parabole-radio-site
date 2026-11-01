@@ -1,4 +1,4 @@
-// ---------- BEAT : le pouls de la musique, pour l'oscilloscope, le panneau ON AIR et le globe ----------
+// ---------- BEAT : le pouls de la musique, pour le témoin ON AIR de l'en-tête et le globe ----------
 // Pendant que la radio joue avec le son analysé (voir audio.ts), à chaque image : l'énergie de la grosse caisse (sous
 // 150 Hz, les 20 dernières ms) face à sa dernière seconde. Un beat est un saut nettement au-dessus de l'habitude (la
 // moyenne plus un écart et demi, et un tiers au-dessus de la moyenne), en montée, au plus un toutes les 180 ms : il part
@@ -17,16 +17,16 @@ import { station } from "./state";
     previous = 0,
     loudest = 1e-6;
   function frame(now: number) {
-    const sound = player!.dataset.state === "playing" && control.signal();
-    if (!sound) {
+    const kick = player!.dataset.state === "playing" && control.signal();
+    if (!kick) {
       running = false;
       station.level = null;
       recent.length = 0;
       return;
     }
     let sum = 0;
-    for (const v of sound.kick) sum += v * v;
-    const energy = sum / sound.kick.length;
+    for (const v of kick) sum += v * v;
+    const energy = sum / kick.length;
     recent.push(energy);
     if (recent.length > 60) recent.shift();
     const mean = recent.reduce((t, e) => t + e, 0) / recent.length;
