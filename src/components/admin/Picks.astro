@@ -1,0 +1,111 @@
+---
+/**
+ * Une liste de choix dans une fiche : les artistes d'un show (dans l'ordre d'affichage, « A b2b B »), ou ses
+ * étiquettes d'un type. Chaque choix est un champ caché `name` : un identifiant, ou « nouveau:… » pour un nom qui
+ * naîtra à l'enregistrement. Le champ texte propose les noms connus (src/scripts/admin/picks.ts) ; sans
+ * JavaScript, le nom qu'on y tape est envoyé avec la fiche (`addName`) et le serveur s'en charge.
+ */
+interface Item {
+  value: string;
+  label: string;
+  /** « brouillon », « nouveau »… */
+  badge?: string;
+}
+interface Props {
+  id: string;
+  label: string;
+  name: string;
+  addName: string;
+  /** Le type d'étiquette : il accompagne un nom nouveau. */
+  kind?: string;
+  items: Item[];
+  options: { id: string; name: string; status?: string }[];
+  placeholder: string;
+  hint?: string;
+  error?: string;
+  /** L'ordre compte : poignée et boutons ↑ ↓. */
+  ordered?: boolean;
+  /** Le badge d'un nom nouveau : « nouveau » (un artiste), « nouvelle » (une étiquette). */
+  newLabel?: string;
+}
+const { id, label, name, addName, kind, items, options, placeholder, hint, error, ordered = false, newLabel = "nouveau" } = Astro.props;
+---
+
+<fieldset class="field picks" data-picks data-kind={kind} data-new-label={newLabel} aria-describedby={hint ? `${id}-hint` : undefined}>
+  <legend class="field-label">{label}</legend>
+  <ol class="pick-list">
+    {
+      items.map((item) => (
+        <li class="pick">
+          {ordered && (
+            <span class="drag-handle" data-js aria-hidden="true" title="Glisser pour déplacer">
+              ⋮⋮
+            </span>
+          )}
+          <span class="pick-name">{item.label}</span>
+          {item.badge && <span class="badge soft">{item.badge}</span>}
+          <input type="hidden" name={name} value={item.value} />
+          {ordered && (
+            <button type="button" class="icon-button" data-js data-move="up" aria-label={`Monter ${item.label}`}>
+              ↑
+            </button>
+          )}
+          {ordered && (
+            <button type="button" class="icon-button" data-js data-move="down" aria-label={`Descendre ${item.label}`}>
+              ↓
+            </button>
+          )}
+          <button type="button" class="icon-button remove" data-js data-remove aria-label={`Retirer ${item.label}`}>
+            ✕
+          </button>
+        </li>
+      ))
+    }
+  </ol>
+  <template>
+    <li class="pick">
+      {
+        ordered && (
+          <span class="drag-handle" aria-hidden="true" title="Glisser pour déplacer">
+            ⋮⋮
+          </span>
+        )
+      }
+      <span class="pick-name"></span>
+      <span class="badge soft"></span>
+      <input type="hidden" name={name} value="" />
+      {
+        ordered && (
+          <button type="button" class="icon-button" data-move="up" aria-label="Monter …">
+            ↑
+          </button>
+        )
+      }
+      {
+        ordered && (
+          <button type="button" class="icon-button" data-move="down" aria-label="Descendre …">
+            ↓
+          </button>
+        )
+      }
+      <button type="button" class="icon-button remove" data-remove aria-label="Retirer …">✕</button>
+    </li>
+  </template>
+  <div class="pick-add">
+    <label class="sr-only" for={`${id}-add`}>{placeholder}</label>
+    <input type="text" id={`${id}-add`} name={addName} list={`${id}-options`} data-pick-input placeholder={placeholder} autocomplete="off" />
+    <button type="button" class="button secondary small" data-js data-pick-add>Ajouter</button>
+  </div>
+  <datalist id={`${id}-options`}>
+    {options.map((option) => <option value={option.name} data-id={option.id} data-status={option.status} />)}
+  </datalist>
+  {
+    hint && (
+      <p class="hint" id={`${id}-hint`}>
+        {hint}
+      </p>
+    )
+  }
+  {error && <p class="error-text">{error}</p>}
+  <p class="sr-only" aria-live="polite" data-pick-status></p>
+</fieldset>

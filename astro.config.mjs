@@ -9,10 +9,21 @@ export default defineConfig({
   adapter: vercel({ maxDuration: 30 }),
   // Navigation sans rechargement (ClientRouter, src/layouts/Base.astro) : une page survolée est chargée d'avance.
   prefetch: { prefetchAll: true, defaultStrategy: "hover" },
+  // Le tsconfig du projet, nommé : sans lui, Vite le cherche en remontant les dossiers, et une copie du projet rangée
+  // dans un autre (les worktrees de .claude/worktrees/) tombe sur celui du dossier parent.
+  vite: { tsconfig: "./tsconfig.json" },
   env: {
     schema: {
       // Clé partenaire de Hopper (facultative) : 60 recherches par minute au lieu de 10. Réglage Vercel, jamais dans le dépôt.
       HOPPER_KEY: envField.string({ context: "server", access: "secret", optional: true }),
+      // Le CMS (cms/README.md, section 5). Facultatifs pour que le site public se construise sans eux : l'admin
+      // (/admin) dit lui-même ce qui lui manque. En local, dans .env ; en ligne, dans les réglages de Vercel.
+      // La base Postgres de Supabase. Vide en local : la base PGlite de cms/.pglite.
+      DATABASE_URL: envField.string({ context: "server", access: "secret", optional: true }),
+      // Supabase Auth, pour la connexion de l'équipe. L'adresse et la clé publiable ne sont pas secrètes, mais seul
+      // le serveur s'en sert : l'admin n'envoie aucun client Supabase au navigateur.
+      PUBLIC_SUPABASE_URL: envField.string({ context: "server", access: "public", optional: true }),
+      PUBLIC_SUPABASE_PUBLISHABLE_KEY: envField.string({ context: "server", access: "public", optional: true }),
     },
   },
 });

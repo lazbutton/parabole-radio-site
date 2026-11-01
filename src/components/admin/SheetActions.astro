@@ -1,0 +1,50 @@
+---
+/**
+ * Le bas d'une fiche : Enregistrer, Publier ou Dépublier (toujours à portée de pouce, collés au bas de l'écran), puis
+ * Supprimer, derrière une confirmation. Tous envoient la fiche avec leur `intent` ; Enregistrer vient en premier,
+ * c'est donc lui que déclenche la touche Entrée dans un champ.
+ */
+import type { ContentStatus } from "@parabole/cms";
+
+interface Props {
+  status: ContentStatus;
+  isNew: boolean;
+  /** « ce show », « cet artiste » */
+  noun: string;
+  /** Ce que la suppression emporte avec elle. */
+  deleteNote: string;
+}
+const { status, isNew, noun, deleteNote } = Astro.props;
+---
+
+<div class="sheet-actions">
+  <button class="button" type="submit" name="intent" value="save">{isNew ? "Créer le brouillon" : "Enregistrer"}</button>
+  {
+    status === "published" ? (
+      <button class="button secondary" type="submit" name="intent" value="unpublish">
+        Dépublier
+      </button>
+    ) : (
+      <button class="button secondary" type="submit" name="intent" value="publish">
+        {isNew ? "Créer et publier" : "Publier"}
+      </button>
+    )
+  }
+  <span class="spacer"></span>
+  <span class="status-note">
+    {status === "published" ? "Publié : Enregistrer met à jour la version publiée." : "Brouillon : invisible sur le site."}
+  </span>
+</div>
+{
+  !isNew && (
+    <details class="danger-zone">
+      <summary>Supprimer {noun}…</summary>
+      <div class="body">
+        <p>{deleteNote} C'est définitif.</p>
+        <button class="button danger" type="submit" name="intent" value="delete" formnovalidate>
+          Supprimer définitivement
+        </button>
+      </div>
+    </details>
+  )
+}

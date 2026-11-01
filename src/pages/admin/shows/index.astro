@@ -1,0 +1,174 @@
+---
+/**
+ * Les shows dans l'admin : tous, brouillons compris, du plus récent au plus ancien (ceux sans date en tête), avec les
+ * filtres de cms/README.md (9.2) : statut, type, étiquette, artiste, et la recherche. Les filtres sont dans l'adresse :
+ * une liste filtrée se garde en favori ou se partage avec l'équipe.
+ */
+import { LABELS } from "@parabole/cms";
+import Admin from "../../../layouts/Admin.astro";
+import { DONE } from "../../../lib/admin/forms";
+import { duration, parisDateTime } from "../../../lib/admin/format";
+
+export const prerender = false;
+
+const PER_PAGE = 50;
+const admin = Astro.locals.admin!;
+const params = Astro.url.searchParams;
+const filters = {
+  q: params.get("q")?.trim() ?? "",
+  status: params.get("status") ?? "",
+  type: params.get("type") ?? "",
+  tag: params.get("tag") ?? "",
+  artist: params.get("artist") ?? "",
+  order: params.get("order") === "oldest" ? "oldest" : "recent",
+};
+const page = Math.max(1, Math.trunc(Number(params.get("page"))) || 1);
+const [result, choices] = await Promise.all([admin.listShows({ ...filters, limit: PER_PAGE, offset: (page - 1) * PER_PAGE }), admin.showChoices()]);
+const filtered = Boolean(filters.q || filters.status || filters.type || filters.tag || filters.artist);
+const pageLink = (number: number) => {
+  const query = new URLSearchParams(params);
+  query.set("page", String(number));
+  return `?${query}`;
+};
+const done = params.get("ok");
+const deletedTitle = params.get("titre");
+const tagKinds = (["genre", "mood", "theme"] as const).map((kind) => ({ kind, tags: choices.tags.filter((tag) => tag.kind === kind) }));
+---
+
+<Admin title="Shows" section="shows">
+  <div class="page-head">
+    <div>
+      <h1>Shows</h1>
+      <p class="meta">{result.total} {result.total > 1 ? "shows" : "show"}{filtered ? " pour ces filtres" : ""}</p>
+    </div>
+    <a class="button" href="/admin/shows/nouveau" data-astro-prefetch="false">Nouveau show</a>
+  </div>
+
+  {
+    done === "supprime" && (
+      <p class="flash" role="status">
+        {deletedTitle ? `« ${deletedTitle} » supprimé.` : DONE.supprime}
+      </p>
+    )
+  }
+
+  <form class="filters" method="get" role="search" aria-label="Filtrer les shows">
+    <div class="field search">
+      <label class="field-label" for="q">Rechercher</label>
+      <input type="search" id="q" name="q" value={filters.q} placeholder="Titre, artiste, morceau…" />
+    </div>
+    <div class="field">
+      <label class="field-label" for="status">Statut</label>
+      <select id="status" name="status">
+        <option value="">Tous</option>
+        <option value="draft" selected={filters.status === "draft"}>Brouillons</option>
+        <option value="published" selected={filters.status === "published"}>Publiés</option>
+      </select>
+    </div>
+    <div class="field">
+      <label class="field-label" for="type">Type</label>
+      <select id="type" name="type">
+        <option value="">Tous</option>
+        {
+          Object.entries(LABELS.showType).map(([value, label]) => (
+            <option value={value} selected={filters.type === value}>
+              {label}
+            </option>
+          ))
+        }
+      </select>
+    </div>
+    <div class="field">
+      <label class="field-label" for="tag">Étiquette</label>
+      <select id="tag" name="tag">
+        <option value="">Toutes</option>
+        {
+          tagKinds.map(({ kind, tags }) =>
+            tags.length ? (
+              <optgroup label={LABELS.tagKind[kind]}>
+                {tags.map((tag) => (
+                  <option value={tag.id} selected={filters.tag === tag.id}>
+                    {tag.name}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null,
+          )
+        }
+      </select>
+    </div>
+    <div class="field">
+      <label class="field-label" for="artist">Artiste</label>
+      <select id="artist" name="artist">
+        <option value="">Tous</option>
+        {
+          choices.artists.map((artist) => (
+            <option value={artist.id} selected={filters.artist === artist.id}>
+              {artist.name}
+            </option>
+          ))
+        }
+      </select>
+    </div>
+    <div class="field">
+      <label class="field-label" for="order">Ordre</label>
+      <select id="order" name="order">
+        <option value="recent">Récents</option>
+        <option value="oldest" selected={filters.order === "oldest"}>Anciens</option>
+      </select>
+    </div>
+    <button class="button secondary" type="submit">Filtrer</button>
+  </form>
+
+  {
+    result.items.length ? (
+      <ul class="rows">
+        {result.items.map((item) => (
+          <li>
+            <a class="row" href={`/admin/shows/${item.id}`} data-astro-prefetch="false">
+              <span class="row-title">{item.title}</span>
+              <span class="row-side">
+                <span class={`badge ${item.status === "published" ? "published" : "draft"}`}>{LABELS.status[item.status]}</span>
+                {item.fromRadioCult && <span class="badge soft">Radio Cult</span>}
+              </span>
+              <span class="row-sub">
+                {[
+                  item.artists.join(", ") || "Sans artiste",
+                  LABELS.showType[item.type],
+                  item.broadcastAt ? parisDateTime(item.broadcastAt) : "Sans date",
+                  item.durationSeconds ? duration(item.durationSeconds) : null,
+                  item.tracks ? `${item.tracks} ${item.tracks > 1 ? "morceaux" : "morceau"}` : null,
+                  item.hasSound ? "son SoundCloud" : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <p class="empty">
+        {filtered ? (
+          <>
+            Aucun show pour ces filtres. <a href="/admin/shows">Tout afficher</a>
+          </>
+        ) : (
+          "Pas encore de show : crée le premier."
+        )}
+      </p>
+    )
+  }
+
+  {
+    result.total > PER_PAGE && (
+      <nav class="pager" aria-label="Pages">
+        {page > 1 ? <a href={pageLink(page - 1)}>← Plus récents</a> : <span />}
+        <span>
+          Page {page} sur {Math.ceil(result.total / PER_PAGE)}
+        </span>
+        {page * PER_PAGE < result.total ? <a href={pageLink(page + 1)}>Plus anciens →</a> : <span />}
+      </nav>
+    )
+  }
+</Admin>

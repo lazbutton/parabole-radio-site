@@ -1,7 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { cpSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import { eq, is, sql } from "drizzle-orm";
@@ -12,6 +13,8 @@ import * as schema from "../src/schema.ts";
 import { freshDb, NOW, ON_SERVER, rowsOf } from "./helpers.ts";
 
 const CMS_DIR = fileURLToPath(new URL("..", import.meta.url));
+// drizzle-kit est installé à la racine de l'espace de travail npm : Node le trouve en remontant les dossiers.
+const DRIZZLE_KIT = join(dirname(createRequire(import.meta.url).resolve("drizzle-kit")), "bin.cjs");
 const TABLES = (Object.values(schema) as unknown[]).filter((value): value is PgTable => is(value, PgTable));
 
 const rows = rowsOf;
@@ -74,7 +77,7 @@ describe("migrations", () => {
       cpSync(MIGRATIONS_FOLDER, out, { recursive: true });
       const before = readdirSync(out).length;
       // drizzle-kit veut un dossier de sortie relatif.
-      const run = spawnSync(process.execPath, [join(CMS_DIR, "node_modules/drizzle-kit/bin.cjs"), "generate", "--dialect=postgresql", "--schema=./src/schema.ts", `--out=${relative(CMS_DIR, out)}`], {
+      const run = spawnSync(process.execPath, [DRIZZLE_KIT, "generate", "--dialect=postgresql", "--schema=./src/schema.ts", `--out=${relative(CMS_DIR, out)}`], {
         cwd: CMS_DIR,
         encoding: "utf8",
       });

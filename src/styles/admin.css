@@ -1,0 +1,350 @@
+/* L'admin (/admin) : les écrans de l'équipe, au design du site — noir, jaune #fff039, bleu #000dff, Monument
+   Grotesk, lignes de balayage comme les panneaux. Il n'a ni la coque ni le bandeau : c'est un outil de travail,
+   pensé pour le téléphone autant que pour l'ordinateur (cibles de 44 px, champs en 16 px pour qu'iOS ne zoome pas). */
+
+/* Les mêmes polices que le site (src/styles/socle.css) */
+@font-face {
+  font-family: 'Monument Grotesk';
+  src: url("/PARABOLE%20RADIO/FONTS/MonumentGrotesk-Regular.woff2") format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Monument Grotesk';
+  src: url("/PARABOLE%20RADIO/FONTS/MonumentGrotesk-Bold.woff2") format('woff2');
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+
+:root {
+  --jaune: #fff039;
+  --bleu: #000dff;
+  --rouge: #ff6b6b;    /* les erreurs : lisible sur le noir */
+  --gris: #b8b8b8;     /* le texte secondaire */
+  --trait: #2c2c2c;    /* les séparations */
+  --champ: #0c0c0c;
+  --bord: #555555;
+  color-scheme: dark;  /* calendriers et listes natives en sombre */
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body.admin {
+  min-height: 100vh;
+  background:
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.022) 0 1px, transparent 1px 3px),   /* lignes de balayage */
+    #000000;
+  color: #ffffff;
+  font-family: 'Monument Grotesk', 'Inter', system-ui, sans-serif;
+  font-size: 15px; line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+.admin a { color: var(--jaune); text-underline-offset: 3px; }
+.admin a:hover { color: #ffffff; }
+.admin :focus-visible { outline: 2px solid var(--jaune); outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+/* Sans JavaScript, les commandes qui en ont besoin restent cachées : la fiche s'envoie quand même */
+html:not(.js) [data-js] { display: none !important; }
+[hidden] { display: none !important; }
+
+/* ---------- La barre du haut : logo, rubriques, compte ---------- */
+.admin-top {
+  position: sticky; top: 0; z-index: 30;
+  display: flex; align-items: stretch; flex-wrap: wrap;
+  background: #000000; border-bottom: 2px solid var(--jaune);
+}
+.admin-logo {
+  display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 14px 0 6px;
+  border-right: 2px solid var(--jaune);
+  color: #ffffff !important; text-decoration: none;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+}
+.admin-logo img { width: 40px; height: 40px; }
+.admin-nav { display: flex; }
+.admin-nav a {
+  display: flex; align-items: center; height: 52px; padding: 0 16px;
+  color: #ffffff; text-decoration: none;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+  box-shadow: inset -1px 0 0 var(--trait);
+}
+.admin-nav a:hover { color: var(--jaune); }
+.admin-nav a[aria-current="page"] { background: var(--jaune); color: var(--bleu); box-shadow: none; }
+.admin-account { margin-left: auto; position: relative; display: flex; }
+.admin-account summary {
+  display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 14px;
+  list-style: none; cursor: pointer;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  border-left: 2px solid var(--jaune);
+}
+.admin-account summary::-webkit-details-marker { display: none; }
+.admin-account summary::after { content: '▾'; color: var(--jaune); }
+.admin-account[open] summary { background: var(--jaune); color: var(--bleu); }
+.admin-account[open] summary::after { color: var(--bleu); }
+.admin-account-menu {
+  position: absolute; top: 100%; right: 0; z-index: 40;
+  min-width: 240px; padding: 12px;
+  background: #000000; border: 2px solid var(--jaune);
+  display: grid; gap: 8px;
+}
+.admin-account-menu .who { font-size: 12px; color: var(--gris); overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .admin-logo span { display: none; }
+  .admin-nav { order: 3; width: 100%; border-top: 1px solid var(--trait); }
+  .admin-nav a { flex: 1; justify-content: center; height: 42px; padding: 0 6px; font-size: 11px; }
+  .admin-account summary { max-width: 52vw; }
+  .admin-account summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+/* ---------- La page ---------- */
+.admin-main { width: min(1080px, calc(100% - 32px)); margin: 24px auto 120px; }
+.admin-main.narrow { width: min(880px, calc(100% - 32px)); }
+.page-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 16px; margin-bottom: 20px; }
+.page-head h1 { font-size: 30px; font-weight: 700; letter-spacing: 0.04em; line-height: 1.05; text-transform: uppercase; overflow-wrap: anywhere; }
+.page-head .kicker { display: block; margin-bottom: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--jaune); }
+.page-head .kicker a { text-decoration: none; }
+.page-head .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--gris); }
+@media (max-width: 640px) {
+  .admin-main { margin-top: 16px; }
+  .page-head h1 { font-size: 24px; }
+}
+.lede { max-width: 640px; color: var(--gris); }
+
+/* ---------- Les panneaux : une bande jaune, comme PROGRAMMATION ---------- */
+.panel { border: 2px solid var(--jaune); background: #000000; }
+.panel + .panel { margin-top: 18px; }
+.panel-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  min-height: 34px; padding: 6px 12px;
+  background: var(--jaune); color: var(--bleu);
+  font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.panel-head .count { font-size: 10px; letter-spacing: 0.12em; opacity: 0.8; }
+.panel-body { padding: 16px; display: grid; gap: 16px; }
+@media (max-width: 640px) { .panel-body { padding: 14px 12px; } }
+
+/* ---------- Les champs ---------- */
+.field { display: grid; gap: 6px; min-width: 0; }
+.field-label, .field > label, fieldset.field > legend {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--jaune);
+}
+.field-label .optional { color: var(--gris); font-weight: 400; letter-spacing: 0.04em; text-transform: none; }
+fieldset { border: 0; min-width: 0; }
+fieldset.field > legend { margin-bottom: 6px; }
+.input,
+.admin input[type="text"], .admin input[type="email"], .admin input[type="password"], .admin input[type="url"],
+.admin input[type="search"], .admin input[type="datetime-local"], .admin select, .admin textarea {
+  width: 100%; min-height: 44px; padding: 9px 12px;
+  background: var(--champ); color: #ffffff;
+  border: 1px solid var(--bord); border-radius: 0;
+  font: inherit; font-size: 16px; line-height: 1.4;
+}
+.admin textarea { min-height: 140px; resize: vertical; }
+/* Un champ qu'on atteint (erreur, touche Tab) ne se cache ni sous la barre du haut ni sous les boutons du bas */
+.admin input, .admin select, .admin textarea, .admin fieldset { scroll-margin: 130px 0 110px; }
+.admin select { appearance: none; padding-right: 34px; background-image: linear-gradient(45deg, transparent 50%, var(--jaune) 50%), linear-gradient(135deg, var(--jaune) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 12px) 50%; background-size: 6px 6px; background-repeat: no-repeat; }
+.admin input:focus-visible, .admin select:focus-visible, .admin textarea:focus-visible { outline: 2px solid var(--jaune); outline-offset: 0; border-color: var(--jaune); }
+.admin input[readonly] { color: var(--gris); border-style: dashed; }
+.admin input[aria-invalid="true"], .admin select[aria-invalid="true"], .admin textarea[aria-invalid="true"] { border-color: var(--rouge); box-shadow: inset 3px 0 0 var(--rouge); }
+.hint { font-size: 12px; line-height: 1.45; color: var(--gris); }
+.error-text { font-size: 13px; color: var(--rouge); }
+.error-text::before { content: '⚠ '; }
+.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 760px) { .grid-2, .grid-3 { grid-template-columns: minmax(0, 1fr); } }
+
+/* Les choix en boutons : type de show, rôle d'un artiste */
+.choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.choice { position: relative; }
+.choice input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; cursor: pointer; margin: 0; }
+.choice span {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px;
+  border: 1px solid var(--bord); color: #ffffff;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+}
+.choice input:checked + span { background: var(--jaune); border-color: var(--jaune); color: var(--bleu); }
+.choice input:focus-visible + span { outline: 2px solid var(--jaune); outline-offset: 2px; }
+
+/* ---------- Les boutons ---------- */
+.button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 0 18px;
+  border: 2px solid var(--jaune); border-radius: 0; background: var(--jaune); color: var(--bleu) !important;
+  font: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; line-height: 1.1; text-transform: uppercase; text-decoration: none;
+  cursor: pointer; white-space: nowrap;
+}
+.button:hover { background: #ffffff; border-color: #ffffff; }
+.button.secondary { background: transparent; color: var(--jaune) !important; }
+.button.secondary:hover { background: var(--jaune); color: var(--bleu) !important; }
+.button.quiet { background: transparent; border-color: var(--bord); color: #ffffff !important; }
+.button.quiet:hover { border-color: #ffffff; }
+.button.danger { background: transparent; border-color: var(--rouge); color: var(--rouge) !important; }
+.button.danger:hover { background: var(--rouge); color: #000000 !important; }
+.button.small { min-height: 36px; padding: 0 12px; font-size: 11px; }
+.button.full { width: 100%; }
+.icon-button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; flex-shrink: 0;
+  border: 1px solid var(--bord); border-radius: 0; background: transparent; color: #ffffff;
+  font: inherit; font-size: 15px; line-height: 1; cursor: pointer;
+}
+.icon-button:hover { border-color: var(--jaune); color: var(--jaune); }
+.icon-button.remove:hover { border-color: var(--rouge); color: var(--rouge); }
+@media (pointer: coarse) { .icon-button { width: 44px; height: 44px; } }
+
+/* ---------- Les étiquettes de statut ---------- */
+.badge {
+  display: inline-flex; align-items: center; padding: 3px 7px;
+  border: 1px solid #ffffff; color: #ffffff;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.12em; line-height: 1.2; text-transform: uppercase; white-space: nowrap;
+}
+.badge.published { background: var(--jaune); border-color: var(--jaune); color: var(--bleu); }
+.badge.draft { border-style: dashed; }
+.badge.new { border-color: var(--jaune); color: var(--jaune); }
+.badge.soft { border-color: var(--bord); color: var(--gris); }
+
+/* ---------- Les messages ---------- */
+.flash { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; margin-bottom: 18px; border: 2px solid var(--jaune); background: #000000; }
+.flash::before { content: '✓'; color: var(--jaune); font-weight: 700; }
+.flash.error { border-color: var(--rouge); }
+.flash.error::before { content: '⚠'; color: var(--rouge); }
+.flash.info::before { content: 'ℹ'; }
+.flash p + p { margin-top: 4px; }
+
+/* ---------- Les listes ---------- */
+.toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-bottom: 16px; }
+.filters { display: grid; grid-template-columns: minmax(180px, 2fr) repeat(5, minmax(110px, 1fr)) auto; gap: 10px; align-items: end; margin-bottom: 16px; }
+.filters .field-label { font-size: 10px; }
+.filters.compact { grid-template-columns: minmax(180px, 2fr) repeat(2, minmax(120px, 1fr)) auto; }
+@media (max-width: 980px) { .filters, .filters.compact { grid-template-columns: repeat(2, minmax(0, 1fr)); } .filters .search { grid-column: 1 / -1; } }
+.rows { list-style: none; border-top: 1px solid var(--trait); }
+.row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; align-items: center;
+  padding: 12px 8px; border-bottom: 1px solid var(--trait);
+  color: #ffffff !important; text-decoration: none;
+}
+.row:hover { background: rgba(255,240,57,0.07); }
+.row-title { font-weight: 700; overflow-wrap: anywhere; }
+.row-sub { grid-column: 1; font-size: 13px; color: var(--gris); overflow-wrap: anywhere; }
+.row-side { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.empty { padding: 28px 8px; color: var(--gris); text-align: center; border-bottom: 1px solid var(--trait); }
+.pager { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 16px; font-size: 13px; color: var(--gris); }
+
+/* L'index A–Z */
+.letters { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 16px; }
+.letters a { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; height: 32px; border: 1px solid var(--bord); color: #ffffff; text-decoration: none; font-weight: 700; font-size: 13px; }
+.letters a:hover { border-color: var(--jaune); color: var(--jaune); }
+.letter-group { scroll-margin-top: 110px; }
+.letter-group h2 { margin: 18px 0 4px; font-size: 22px; color: var(--jaune); }
+
+/* ---------- Le tableau de bord ---------- */
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 18px; }
+@media (max-width: 640px) { .tiles { grid-template-columns: minmax(0, 1fr); } }
+.tile { display: grid; gap: 10px; padding: 18px; border: 2px solid var(--jaune); color: #ffffff !important; text-decoration: none; }
+.tile:hover { background: rgba(255,240,57,0.07); }
+.tile-title { font-size: 22px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.tile-figures { font-size: 13px; color: var(--gris); }
+
+/* ---------- Les fiches ---------- */
+.sheet { display: grid; gap: 18px; }
+.sheet-actions {
+  position: sticky; bottom: 0; z-index: 20;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin-top: 6px; padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+  background: linear-gradient(rgba(0,0,0,0), #000000 28%);
+}
+.sheet-actions .spacer { flex: 1; }
+.sheet-actions .status-note { font-size: 12px; color: var(--gris); }
+@media (max-width: 640px) {
+  .sheet-actions .button { flex: 1 1 40%; padding: 0 10px; }
+  .sheet-actions .spacer, .sheet-actions .status-note { display: none; }
+}
+.danger-zone { border: 1px dashed var(--rouge); padding: 0; }
+.danger-zone summary { padding: 12px 14px; cursor: pointer; color: var(--rouge); font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.danger-zone[open] summary { border-bottom: 1px dashed var(--rouge); }
+.danger-zone .body { padding: 14px; display: grid; gap: 12px; justify-items: start; }
+.readonly-value { padding: 10px 12px; border: 1px dashed var(--bord); color: var(--gris); font-size: 14px; overflow-wrap: anywhere; }
+.media-slot { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 14px; align-items: center; }
+.media-slot .frame { width: 96px; height: 96px; border: 1px dashed var(--bord); display: flex; align-items: center; justify-content: center; color: var(--gris); font-size: 11px; text-align: center; padding: 6px; overflow-wrap: anywhere; }
+
+/* Les listes ordonnées : artistes d'un show, liens d'un artiste */
+.picks { display: grid; gap: 8px; }
+.pick-list { list-style: none; display: grid; gap: 6px; }
+.pick-list:empty { display: none; }
+.pick {
+  display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 5px 6px 5px 10px;
+  border: 1px solid var(--bord); background: var(--champ);
+}
+.pick-name { flex: 1; min-width: 0; font-weight: 700; overflow-wrap: anywhere; }
+.pick .badge { flex-shrink: 0; }
+.pick-add { display: flex; gap: 8px; }
+.pick-add input { flex: 1; min-width: 0; }
+.drag-handle {
+  display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 36px; flex-shrink: 0;
+  color: var(--gris); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; font-size: 16px; letter-spacing: -2px;
+}
+.drag-handle:hover { color: var(--jaune); }
+.is-dragging { opacity: 0.55; outline: 2px dashed var(--jaune); outline-offset: -2px; }
+.tag-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 900px) { .tag-groups { grid-template-columns: minmax(0, 1fr); } }
+
+/* Les liens d'un artiste */
+.link-list { list-style: none; }
+.link-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) minmax(0, 2fr) auto; gap: 8px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--trait); }
+.link-row .row-actions { display: flex; gap: 4px; }
+@media (max-width: 640px) {
+  .link-row { grid-template-columns: 28px minmax(0, 1fr) auto; }
+  .link-row .link-url { grid-column: 2 / -1; }
+}
+
+/* ---------- La tracklist ---------- */
+.tracklist-head, .track {
+  display: grid; grid-template-columns: 28px 30px 92px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) 120px;
+  gap: 8px; align-items: start;
+}
+.tracklist-head { padding: 0 0 6px; border-bottom: 1px solid var(--trait); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gris); }
+.tracklist-head span:first-child { grid-column: 3; }
+.tracks { list-style: none; counter-reset: track; }
+.track { padding: 8px 0; border-bottom: 1px solid var(--trait); }
+.track-number { padding-top: 11px; text-align: right; font-size: 13px; font-weight: 700; color: var(--jaune); font-variant-numeric: tabular-nums; }
+.track .drag-handle { height: 44px; }
+.track input { min-height: 44px; }
+.track .row-actions { display: flex; gap: 4px; justify-content: flex-end; padding-top: 4px; }
+.track .error-text { grid-column: 3 / -1; }
+.tracks:empty + .tracks-empty { display: block; }
+.tracks-empty { display: none; padding: 16px 0; color: var(--gris); font-size: 13px; }
+@media (max-width: 860px) {
+  .tracklist-head { display: none; }
+  .track {
+    grid-template-columns: 28px 30px minmax(0, 1fr) auto;
+    grid-template-areas: "handle number start actions" "handle . artist artist" "handle . title title" "handle . hopper hopper";
+  }
+  .track .drag-handle { grid-area: handle; }
+  .track-number { grid-area: number; }
+  .track .start { grid-area: start; max-width: 120px; }
+  .track .artist { grid-area: artist; }
+  .track .title { grid-area: title; }
+  .track .hopper { grid-area: hopper; }
+  .track .row-actions { grid-area: actions; padding-top: 0; }
+  .track .error-text { grid-column: 3 / -1; }
+}
+.paste { border: 1px dashed var(--bord); }
+.paste summary { padding: 12px 14px; cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--jaune); }
+.paste .body { padding: 0 14px 14px; display: grid; gap: 10px; justify-items: start; }
+.paste textarea { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 14px; }
+
+/* ---------- Le Markdown et son aperçu ---------- */
+.md-tabs { display: flex; gap: 0; }
+.md-tabs button {
+  min-height: 34px; padding: 0 12px; border: 1px solid var(--bord); border-bottom: none; background: transparent; color: var(--gris);
+  font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer;
+}
+.md-tabs button[aria-pressed="true"] { background: var(--jaune); border-color: var(--jaune); color: var(--bleu); }
+.md-preview { min-height: 140px; padding: 12px; border: 1px solid var(--bord); background: var(--champ); }
+.md-preview > * + * { margin-top: 10px; }
+.md-preview ul, .md-preview ol { padding-left: 22px; }
+.md-preview blockquote { padding-left: 12px; border-left: 2px solid var(--jaune); color: var(--gris); }
+.md-preview:empty::before { content: 'Rien à afficher.'; color: var(--gris); }
+
+/* ---------- Connexion, refus, panne : un panneau au milieu ---------- */
+.gate { display: flex; align-items: flex-start; justify-content: center; padding: 6vh 0 0; }
+.admin-main:has(> .gate) { margin-bottom: 32px; }
+.gate .panel { width: min(440px, 100%); }
+.gate h1 { font-size: 24px; letter-spacing: 0.04em; text-transform: uppercase; line-height: 1.1; }
+.gate .panel-body > p { color: var(--gris); }

@@ -7,14 +7,22 @@
   "engines": {
     "node": ">=22.12.0"
   },
+  "workspaces": [
+    "cms"
+  ],
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "check": "astro check"
+    "check": "astro check",
+    "test": "npm test --workspace cms"
   },
   "dependencies": {
     "@astrojs/vercel": "11.0.14",
-    "astro": "7.3.8"
+    "@parabole/cms": "*",
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.118.0",
+    "astro": "7.3.8",
+    "markdown-it": "15.0.3"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.10",
