@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { Connection } from "../src/db.ts";
+import { normalizeDatabaseUrl, type Connection } from "../src/db.ts";
 import { indexLetter } from "../src/read/artists.ts";
 import { paging, startOfParisDay, toImage } from "../src/read/common.ts";
 import { createReader, type Reader } from "../src/read/index.ts";
@@ -244,6 +244,17 @@ describe("pages", () => {
 });
 
 describe("outils", () => {
+  it("encode un mot de passe à caractères spéciaux collé tel quel dans DATABASE_URL", () => {
+    const fixed = normalizeDatabaseUrl("postgresql://postgres.ref:a&b+c#d_e@aws-0-eu-west-2.pooler.supabase.com:5432/postgres");
+    const parsed = new URL(fixed);
+    expect(decodeURIComponent(parsed.password)).toBe("a&b+c#d_e");
+    expect([parsed.username, parsed.hostname, parsed.port, parsed.pathname]).toEqual(["postgres.ref", "aws-0-eu-west-2.pooler.supabase.com", "5432", "/postgres"]);
+    expect(normalizeDatabaseUrl("postgres://u:p@localhost:5432/db")).toBe("postgres://u:p@localhost:5432/db");
+    // L'erreur ne recopie jamais l'adresse, qui contient le mot de passe.
+    expect(() => normalizeDatabaseUrl("postgresql://moi:secret@@")).toThrow(/^DATABASE_URL illisible/);
+    expect(() => normalizeDatabaseUrl("postgresql://moi:secret@@")).not.toThrow(/secret/);
+  });
+
   it("fabrique des slugs", () => {
     expect(slugify("Nuit Parabole #3 : Éloïse & Zélie")).toBe("nuit-parabole-3-eloise-zelie");
     expect(slugify("  Cœur d'œuvre  ")).toBe("coeur-d-oeuvre");

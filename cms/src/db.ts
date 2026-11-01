@@ -48,8 +48,30 @@ function privateHost(url: string): boolean {
   return host === "localhost" || host === "::1" || !host.includes(".") || /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
 }
 
+/**
+ * L'adresse avec son mot de passe encodé. Celui que génère Supabase contient souvent « # », « & » ou « + », qui coupent
+ * une adresse collée telle quelle ; on l'encode ici. Le message d'erreur ne recopie jamais l'adresse.
+ */
+export function normalizeDatabaseUrl(url: string): string {
+  try {
+    new URL(url);
+    return url;
+  } catch {}
+  const parts = url.match(/^(postgres(?:ql)?:\/\/)([^:/@]+):(.*)@([^@]+)$/s);
+  if (parts) {
+    const [, scheme, user, password, rest] = parts;
+    const fixed = `${scheme}${user}:${encodeURIComponent(password!)}@${rest}`;
+    try {
+      new URL(fixed);
+      return fixed;
+    } catch {}
+  }
+  throw new Error("DATABASE_URL illisible : attendu postgresql://utilisateur:mot-de-passe@hôte:port/base (cms/README.md).");
+}
+
 export async function connect({ url = process.env.DATABASE_URL, dataDir = process.env.PGLITE_DIR || LOCAL_DIR }: ConnectOptions = {}): Promise<Connection> {
   if (url) {
+    url = normalizeDatabaseUrl(url);
     // sslmode dans l'adresse l'emporte toujours.
     const ssl = privateHost(url) || /sslmode=/.test(url) ? undefined : "require";
     const client = postgres(url, { prepare: false, max: 5, idle_timeout: 20, ssl, onnotice: () => {}, connection: { application_name: "parabole-cms" } });
