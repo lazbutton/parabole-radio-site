@@ -42,7 +42,7 @@ Pour une nouvelle page :
 
 | Chemin | Rôle |
 |---|---|
-| `src/scripts/settings.ts` | **Les réglages** : mot de passe staff, lien et textes du bouton contributeurs, adresses de l'API, chat, Hopper, liste des clips |
+| `src/scripts/settings.ts` | **Les réglages** : mot de passe staff, lien et textes du bouton contributeurs, adresses de l'API, chat, Hopper, liste de secours des clips |
 | `src/scripts/` | Les modules de la coque : `audio` (flux, volume, Web Audio), `beat`, `scope` (oscilloscope), `globe`, `background` (playlist), `panels` (panneaux et fenêtres), `schedule`, `history` (et Hopper), `nowplaying`, `contributors`, `staff`, `router` |
 | `src/components/` | Les morceaux de la coque (`Band`, `TopBar`, `Panels`, `Background`, `Staff`, `Icons`) et des pages (`Sheet`, `ComingSoon`) |
 | `src/styles/` | Les styles, globaux : une bonne part du balisage est écrite par les scripts |
@@ -51,11 +51,11 @@ Pour une nouvelle page :
 | `src/lib/menu.ts` | Les rubriques du menu |
 | `cms/` | **Le CMS** : modèle de données, base Supabase, lectures du site, écritures de l'admin (son `README.md`) |
 | `src/pages/admin/`, `src/middleware.ts` | **L'admin** (`/admin`) et sa garde : voir plus bas |
-| `public/PARABOLE RADIO/` | Vidéos de fond, logo animé, polices, feuille Tailwind figée |
+| `public/PARABOLE RADIO/` | Vidéos de fond d'origine, logo animé, polices, feuille Tailwind figée |
 
 ## L'admin (`/admin`)
 
-L'espace de l'équipe : les shows et leur tracklist, les artistes. C'est une application React (Radix Themes), hors de
+L'espace de l'équipe : les shows et leur tracklist, les artistes, les vidéos de fond. C'est une application React (Radix Themes), hors de
 la coque (ni bandeau, ni vidéo), qui marche au téléphone comme à l'ordinateur, en clair comme en sombre ; seule
 l'entrée (connexion, refus, panne) garde le style du site. Le cahier des charges et l'avancement sont dans
 `cms/README.md`, section 9.
@@ -96,6 +96,7 @@ La page ne parle qu'à notre propre API, au format « Radiocompas » (`src/lib/s
 | `GET /api/programme` | la programmation, de la veille à J+7 | 60 s |
 | `GET /api/historique[?limit=N]` | les 20 derniers morceaux | 15 s |
 | `GET /api/hopper?artist=…&title=…` | le lien hppr.fr d'un morceau | 30 jours (rien si Hopper est occupé) |
+| `GET /api/fond` | les vidéos de fond de la rotation, dans l'ordre de l'admin (lues dans le CMS, pas à la station) | 30 s sur Vercel ; le navigateur redemande à chaque visite |
 
 Les routes lisent la station par son adaptateur, avec un petit cache en mémoire, et le cache de Vercel
 (`s-maxage`) fait le reste : un seul appel à la station pour tous les auditeurs. Le flux, lui, est lu directement par
@@ -130,14 +131,17 @@ remet en place.
    organisation).
 4. **Rien de privé dans `public/`** : tout ce qui y est est publié tel quel.
 
-## Ajouter un clip de fond
+## Les vidéos de fond
 
-1. Déposer le `.mp4` dans `public/PARABOLE RADIO/VIDEO/BACKGROUND/` (par exemple `background16.mp4`).
-2. Ajouter son chemin à `bgPlaylist` dans `src/scripts/settings.ts`.
-3. Faire son image d'attente, du même nom en `.jpg` :
-   ```bash
-   ffmpeg -i background16.mp4 -frames:v 1 -q:v 4 background16.jpg
-   ```
+Elles se gèrent dans l'admin, écran **Vidéos de fond** (`/admin/videos`) : ajouter une vidéo (MP4 ou WebM, 40 Mo au
+plus), la remplacer, la renommer, la mettre de côté, la supprimer, changer l'ordre. Une vidéo ajoutée part
+directement du navigateur vers Vercel Blob (le magasin `parabole-fond`), avec sa première image comme image
+d'attente. Le site prend chaque changement en une minute environ (`/api/fond`). Le détail, et les quotas :
+`cms/README.md`, « Les vidéos de fond ».
+
+Les 15 clips d'origine restent livrés avec le site, dans `public/PARABOLE RADIO/VIDEO/BACKGROUND/` : servis par
+Vercel comme le reste du site, ils ne comptent pas dans le quota de Vercel Blob. La liste `bgPlaylist` de
+`src/scripts/settings.ts` n'est plus qu'un secours, quand la liste de l'admin ne répond pas.
 
 Les clips passent au hasard, jamais deux fois le même de suite. Un clic sur le fond en lance un autre.
 
