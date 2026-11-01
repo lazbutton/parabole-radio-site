@@ -2,7 +2,7 @@
  * Le jeu d'exemples, pour développer et tester : des shows, des artistes, des événements et des pages inventés.
  *
  * Tout y est marqué comme exemple : les noms et les titres finissent par « (exemple) », les slugs commencent par
- * « exemple- », les clés des fichiers par « exemples/ » (ces fichiers n'existent pas sur R2). removeExamples() les
+ * « exemple- », les clés des fichiers par « exemples/ » (ces fichiers n'existent pas dans le Storage). removeExamples() les
  * retire tous, sans toucher au reste. Les dates partent de `now` : un événement « à venir » le reste.
  *
  * Écrit par le propriétaire des tables, que les règles d'accès laissent passer.

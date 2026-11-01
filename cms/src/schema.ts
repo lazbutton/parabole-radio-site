@@ -3,7 +3,7 @@
  *
  * Les contenus des croquis : les shows (épisodes archivés ou à venir) et leur tracklist, les artistes (résidents et
  * invités), les événements et leur galerie, les étiquettes typées des shows, les pages simples, les fichiers envoyés
- * sur Cloudflare R2. Et l'équipe qui les remplit : les membres, admin ou éditeur, reliés aux comptes de Supabase Auth.
+ * sur Supabase Storage. Et l'équipe qui les remplit : les membres, admin ou éditeur, reliés aux comptes de Supabase Auth.
  *
  * Ce fichier décrit les tables ; drizzle-kit en tire les migrations (drizzle/). Ce qu'il ne sait pas écrire est dans
  * des migrations écrites à la main : l'extension unaccent et la configuration de recherche française avant les
@@ -67,11 +67,11 @@ const slugFormat = (table: string, column: AnyPgColumn) => check(`${table}_slug_
 // Fichiers envoyés
 // ---------------------------------------------------------------------------------------------------------------
 
-/** Une version réduite d'une image, rangée à côté de l'original sur R2. */
+/** Une version réduite d'une image, en WebP, dans le seau public « media » de Supabase Storage. */
 export type MediaVariant = { width: number; key: string };
 
 /**
- * Un fichier envoyé sur Cloudflare R2 : son adresse publique est l'adresse du seau suivie de la clé. Une image porte
+ * Un fichier envoyé sur Supabase Storage : son adresse publique est l'adresse du seau suivie de la clé. Une image porte
  * ses dimensions, son texte alternatif et ses versions réduites (WebP, faites à l'envoi) pour un srcset.
  * Le public ne lit que les fichiers d'un contenu publié (0002_acces.sql).
  */
@@ -79,7 +79,7 @@ export const media = pgTable(
   "media",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    /** Clé de l'objet dans le seau R2 : « images/2026/10/3f2a….webp ». */
+    /** Clé de l'objet dans le seau « media » : « images/2026/10/3f2a….webp ». */
     key: text("key").notNull().unique(),
     /** Type MIME : « image/webp », « image/jpeg », « application/pdf »… */
     mimeType: text("mime_type").notNull(),

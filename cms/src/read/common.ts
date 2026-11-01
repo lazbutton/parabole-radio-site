@@ -12,10 +12,10 @@ import { media, type ArtistRole, type MediaVariant, type TagKind } from "../sche
 /** Un fichier tel qu'une requête de lecture le rend (json_build_object). */
 export type MediaRow = { key: string; width: number | null; height: number | null; alt: string; credit: string | null; variants: MediaVariant[] };
 
-/** Une image prête pour <img> : adresse publique sur R2, dimensions, texte alternatif, crédit, versions pour srcset. */
+/** Une image prête pour <img> : adresse publique dans le Storage, dimensions, texte alternatif, crédit, versions pour srcset. */
 export type Image = { url: string; width: number | null; height: number | null; alt: string; credit: string | null; srcset: string | null };
 
-/** L'adresse publique d'un fichier : l'adresse du seau R2 (PUBLIC_MEDIA_URL) suivie de sa clé. */
+/** L'adresse publique d'un fichier : l'adresse du seau « media » (PUBLIC_MEDIA_URL) suivie de sa clé. */
 export const mediaUrl = (base: string, key: string): string => `${base.replace(/\/+$/, "")}/${key.split("/").map(encodeURIComponent).join("/")}`;
 
 export function toImage(base: string, row: MediaRow | null | undefined): Image | null {

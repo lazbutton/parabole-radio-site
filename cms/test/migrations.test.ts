@@ -45,7 +45,7 @@ describe("migrations", () => {
       await migrate();
       await migrate();
       const applied = rows<{ n: number }>(await db.execute(sql`select count(*)::int as n from drizzle.__drizzle_migrations`));
-      expect(applied[0]!.n).toBe(3);
+      expect(applied[0]!.n).toBe(readdirSync(MIGRATIONS_FOLDER).filter((file) => file.endsWith(".sql")).length);
     } finally {
       await close();
     }

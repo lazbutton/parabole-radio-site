@@ -164,7 +164,7 @@ erDiagram
     }
     media {
         uuid id PK
-        text key UK "clé dans R2"
+        text key UK "clé dans le seau media"
         text mime_type
         bigint size_bytes
         int width
@@ -199,7 +199,7 @@ erDiagram
 | `event_artist` | Les artistes d'un événement | Dans l'ordre d'affichage |
 | `event_photo` | La galerie d'un événement | Dans l'ordre de défilement, avec une légende |
 | `page` | Une page de texte | À propos (`a-propos`), mentions légales… |
-| `media` | Un fichier envoyé sur Cloudflare R2 | Sa clé dans le seau, son type, ses dimensions, son texte alternatif, son crédit, ses versions réduites (`[{ "width": 800, "key": "…" }]`) |
+| `media` | Un fichier envoyé sur Supabase Storage | Sa clé dans le seau, son type, ses dimensions, son texte alternatif, son crédit, ses versions réduites (`[{ "width": 800, "key": "…" }]`) |
 | `member` | Un membre de l'équipe | Relié à un compte Supabase Auth, avec son rôle. Jamais d'auditeurs |
 
 ### Conventions
@@ -346,7 +346,7 @@ npm run db:seed -- --distant --supprimer
 
 ## 5. Variables d'environnement
 
-Le modèle est dans `cms/.env.example`. Les variables `PUBLIC_*` peuvent aller dans le navigateur ; **les autres restent sur le serveur**. En local, le site lit le `.env` de la racine ; les scripts du CMS (`db:migrate`, `db:seed`), celui de `cms/`. L'admin ne se sert pas encore de la clé secrète : elle servira à l'écran Équipe.
+Le modèle est dans `cms/.env.example`. Les variables `PUBLIC_*` peuvent aller dans le navigateur ; **les autres restent sur le serveur**. En local, le site lit le `.env` de la racine ; les scripts du CMS (`db:migrate`, `db:seed`), celui de `cms/`. L'admin ne se sert pas encore de la clé secrète : elle servira à l'écran Équipe et aux envois d'images.
 
 | Variable | Où | Valeur |
 |---|---|---|
@@ -354,9 +354,8 @@ Le modèle est dans `cms/.env.example`. Les variables `PUBLIC_*` peuvent aller d
 | `DATABASE_URL` | `cms/.env`, en local | Chaîne **Session pooler** (port 5432), pour `db:migrate`. Vide : base locale PGlite |
 | `PUBLIC_SUPABASE_URL` | Vercel, `.env` | `https://<ref>.supabase.co` (Project Settings → Data API) |
 | `PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Vercel, `.env` | Clé publiable `sb_publishable_…` (Project Settings → API Keys ; l'ancienne clé `anon` fait le même travail) |
-| `SUPABASE_SECRET_KEY` | Vercel seulement | Clé secrète `sb_secret_…` (l'ancienne `service_role`) : sert à créer les comptes de l'équipe, rien d'autre |
-| `PUBLIC_MEDIA_URL` | Vercel, `.env` | Adresse publique du seau R2, par un domaine à soi : `https://media.<domaine>` |
-| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | Vercel | Jeton R2 limité à ce seau, en lecture et écriture : pour les envois de fichiers |
+| `SUPABASE_SECRET_KEY` | Vercel seulement | Clé secrète `sb_secret_…` (l'ancienne `service_role`) : sert à créer les comptes de l'équipe et à écrire dans le Storage, rien d'autre |
+| `PUBLIC_MEDIA_URL` | Vercel, `.env` | Adresse publique du seau `media` : `https://<ref>.supabase.co/storage/v1/object/public/media`. Les envois passent par `SUPABASE_SECRET_KEY` |
 | `CRON_SECRET` | Vercel | Une longue chaîne aléatoire : protège l'import quotidien Radio Cult |
 | `PGLITE_DIR` | `.env`, facultatif | Autre dossier pour la base locale (par défaut `cms/.pglite`) |
 
@@ -383,7 +382,7 @@ npm run db:seed
 
 - les titres et les noms finissent par « (exemple) » ;
 - les slugs commencent par `exemple-` ;
-- les clés de fichiers commencent par `exemples/`. Ces fichiers n'existent pas sur R2 : le site doit supporter une image absente.
+- les clés de fichiers commencent par `exemples/`. Ces fichiers n'existent pas dans le Storage : le site doit supporter une image absente.
 
 Les dates partent du jour du seed. Un événement à venir le reste donc.
 
@@ -465,7 +464,7 @@ npm test
 npm run typecheck
 ```
 
-106 tests, sur une base PGlite en mémoire : aucun compte, aucun réseau, une dizaine de secondes. `npm test` marche aussi depuis la racine du projet. Ils couvrent :
+109 tests, sur une base PGlite en mémoire : aucun compte, aucun réseau, une dizaine de secondes. `npm test` marche aussi depuis la racine du projet. Ils couvrent :
 
 - **les migrations** : elles passent sur une base vide, et leur relance ne change rien. Chaque table publique a sa RLS et ses règles. Le schéma Drizzle et la base sont d'accord. drizzle-kit n'a plus rien à générer : une migration oubliée fait échouer le test ;
 - **le seed** : il passe, se rejoue sans doublon, se retire sans toucher au reste, et marque bien tout comme exemple ;
@@ -537,7 +536,7 @@ Pas encore : le reste du tableau de bord (imports Radio Cult à relire, prochain
 | **Événements** | À venir / passés, catégorie, statut | Titre*, slug, catégorie*, statut, début*, fin, lieu, adresse, description, visuel, billetterie, artistes ordonnés ; galerie : envoi de plusieurs photos, ordre par glisser, légende et texte alternatif pour chacune |
 | **Étiquettes** | Par type, avec leur nombre de shows | Type*, nom*, slug ; fusionner deux étiquettes (les shows de l'une passent à l'autre) |
 | **Pages** | Titre, statut, date de modification | Titre*, slug*, corps (Markdown avec aperçu), statut |
-| **Médiathèque** | Grille des fichiers, ceux sans texte alternatif en tête | Texte alternatif, crédit, où le fichier sert ; supprimer seulement s'il ne sert plus (et sur R2 aussi) |
+| **Médiathèque** | Grille des fichiers, ceux sans texte alternatif en tête | Texte alternatif, crédit, où le fichier sert ; supprimer seulement s'il ne sert plus (et dans le Storage aussi) |
 | **Équipe** (admin seulement) | Nom, adresse, rôle, dernière connexion | Ajouter : adresse, nom, rôle. Le serveur crée le compte avec la clé secrète (`supabase.auth.admin.createUser({ email, password, email_confirm: true })`, mot de passe tiré au hasard et montré une seule fois à l'admin), puis écrit la fiche `member` sous le rôle de l'admin. Plus tard, avec les e-mails : `inviteUserByEmail` à la place. Poser un nouveau mot de passe, changer un rôle, retirer un membre (la base garde toujours un admin) |
 | **Imports Radio Cult** | Journal des imports : créés, mis à jour, laissés | — |
 
@@ -545,22 +544,29 @@ Pour chaque contenu : **Enregistrer** (brouillon), **Publier**, **Dépublier**, 
 
 À chaque enregistrement, il faudra **invalider le cache** des pages du site touchées : la page du contenu, les listes, la page des artistes liés.
 
-### 9.3 Envoi des images vers R2
+### 9.3 Envoi des images vers Supabase Storage
 
-Une fonction Vercel n'accepte pas plus de 4,5 Mo par requête. Le fichier part donc directement du navigateur vers R2 :
+Les images vont dans le Storage du projet Supabase : pas d'autre compte, pas d'autre clé. Deux seaux :
 
-1. **Demande d'envoi** : `POST /admin/api/media/upload` avec le nom, le type et la taille. Le serveur vérifie le membre, le type (`image/jpeg`, `png`, `webp`, `avif`) et la taille (25 Mo au plus). Il rend une adresse signée `PUT` valable 5 minutes, vers `originaux/2026/10/<uuid>.<ext>`.
-2. **Envoi** : le navigateur pose le fichier sur R2 à cette adresse. Le seau autorise `PUT` depuis les adresses de l'admin (règle CORS).
-3. **Traitement** : `POST /admin/api/media/finalize`. Le serveur relit l'original et le recadre en carré si c'est une pochette ou un portrait. Il le convertit en WebP aux largeurs 400, 800 et 1600 (`sharp`), ce qui retire au passage les métadonnées, dont la position GPS. Il dépose ces versions sous `images/2026/10/<uuid>-<largeur>.webp`. Enfin il écrit la ligne `media` : clé de la plus grande version, dimensions, `variants`, type `image/webp`.
+- `originaux`, **privé** : les fichiers tels qu'envoyés, avec leurs métadonnées (dont la position GPS) ;
+- `media`, **public** : les versions WebP que le site affiche, sous `images/2026/10/<uuid>-<largeur>.webp`.
+
+Seul le serveur y écrit, avec la clé secrète. Il n'y a donc aucune règle RLS à poser sur `storage.objects` : sans règle, ni le navigateur ni la clé publiable ne peuvent y écrire. Le public lit le seau `media` par son adresse publique, la valeur de `PUBLIC_MEDIA_URL`.
+
+Une fonction Vercel n'accepte pas plus de 4,5 Mo par requête. Le fichier part donc directement du navigateur vers le Storage :
+
+1. **Demande d'envoi** : `POST /admin/api/media/upload` avec le nom, le type et la taille. Le serveur vérifie le membre, le type (`image/jpeg`, `png`, `webp`, `avif`) et la taille (25 Mo au plus). Il rend une adresse d'envoi signée vers `originaux/2026/10/<uuid>.<ext>` (`createSignedUploadUrl`, valable 2 heures, pour ce seul fichier).
+2. **Envoi** : le navigateur y pose le fichier avec `uploadToSignedUrl` du client Supabase. Pas de règle CORS à régler.
+3. **Traitement** : `POST /admin/api/media/finalize`. Le serveur relit l'original et le recadre en carré si c'est une pochette ou un portrait. Il le convertit en WebP aux largeurs 400, 800 et 1600 (`sharp`), ce qui retire au passage les métadonnées. Il dépose ces versions dans le seau `media`, avec `cacheControl: "31536000"` : un nom de fichier ne sert qu'une fois, le CDN peut le garder un an. Enfin il écrit la ligne `media` : clé de la plus grande version, dimensions, `variants`, type `image/webp`.
 4. **Texte alternatif** : demandé à l'envoi, obligatoire avant de publier un contenu qui utilise l'image (sauf image décorative, cochée comme telle).
-5. **Suppression** : retirer aussi de R2 l'original et toutes les versions.
+5. **Suppression** : retirer aussi du Storage l'original et toutes les versions.
 
-Côté Cloudflare :
+Côté Supabase (Storage → New bucket) :
 
-- un seau `parabole-media` ;
-- le public n'y lit que `images/`, par un domaine à soi (`media.<domaine>`, la valeur de `PUBLIC_MEDIA_URL`). L'adresse `r2.dev` est limitée et ne convient qu'aux essais ;
-- les originaux restent privés ;
-- un jeton d'API limité à ce seau, en lecture et écriture.
+- `originaux` : privé, taille maximale 25 Mo, types permis `image/jpeg`, `image/png`, `image/webp`, `image/avif` ;
+- `media` : public, taille maximale 5 Mo, type permis `image/webp`.
+
+**Les limites de la formule gratuite** (pricing de Supabase, novembre 2026) : 1 Go de fichiers, 5 Go de trafic sortant par mois (plus 5 Go servis depuis le cache du CDN), 50 Mo par fichier. Le redimensionnement à la volée de Supabase est réservé aux formules payantes : on ne s'en sert pas, `sharp` prépare les tailles à l'envoi. Une version de 800 px pèse une centaine de Ko : le trafic suffit pour les images. Pas pour les vidéos de fond, qui pèsent plusieurs Mo chacune : elles restent dans `public/`, sur Vercel. L'usage se suit dans Project Settings → Usage.
 
 ### 9.4 Import quotidien de la programmation Radio Cult
 
@@ -596,6 +602,6 @@ Les écrans masquent ce qu'un rôle ne peut pas faire, mais c'est la base qui d�
 ### 9.6 Sécurité, pour mémoire
 
 - Afficher le Markdown sans HTML brut.
-- Ne jamais envoyer au navigateur `DATABASE_URL`, `SUPABASE_SECRET_KEY` ni les clés R2.
+- Ne jamais envoyer au navigateur `DATABASE_URL` ni `SUPABASE_SECRET_KEY`.
 - Garder la vérification d'origine des formulaires d'Astro (`security.checkOrigin`).
 - Une session se vérifie côté serveur à chaque requête. L'identifiant passé à `asMember()` vient toujours de `supabase.auth.getUser()`, jamais d'un champ de formulaire.

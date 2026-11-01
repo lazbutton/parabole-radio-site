@@ -20,7 +20,7 @@ import { search } from "./search.ts";
 import { getShow, listShows, listTags, type ShowFilters } from "./shows.ts";
 
 export type ReaderOptions = {
-  /** L'adresse publique du seau R2 des fichiers (PUBLIC_MEDIA_URL) : « https://media.parabole.radio ». */
+  /** L'adresse publique du seau des fichiers (PUBLIC_MEDIA_URL) : « https://<ref>.supabase.co/storage/v1/object/public/media ». */
   mediaBaseUrl: string;
 };
 
