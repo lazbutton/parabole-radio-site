@@ -9,7 +9,8 @@
   },
   "exports": {
     ".": "./src/index.ts",
-    "./schema": "./src/schema.ts"
+    "./schema": "./src/schema.ts",
+    "./tracklist": "./src/tracklist.ts"
   },
   "scripts": {
     "db:generate": "drizzle-kit generate",

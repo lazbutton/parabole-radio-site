@@ -45,7 +45,7 @@ export function prefixQuery(input: string, weight: "" | "A" = ""): string | null
 }
 
 /** Pour LIKE : les caractères spéciaux tapés comptent pour eux-mêmes. */
-const escapeLike = (text: string) => text.replace(/[\\%_]/g, (character) => `\\${character}`);
+export const escapeLike = (text: string) => text.replace(/[\\%_]/g, (character) => `\\${character}`);
 
 export async function search(tx: Tx, base: string, input: string, { limit = 10 }: { limit?: number } = {}): Promise<SearchResults> {
   const query = typeof input === "string" ? input.normalize("NFC").trim().replace(/\s+/g, " ").slice(0, MAX_LENGTH) : "";
