@@ -3,7 +3,7 @@
  * L'admin ne peut pas répondre : un réglage manque (Vercel, .env), ou Supabase ne répond pas. La garde
  * (src/middleware.ts) affiche cette page à la place de celle demandée, avec la raison.
  */
-import Admin from "../../layouts/Admin.astro";
+import AdminGate from "../../layouts/AdminGate.astro";
 import { seeOther } from "../../lib/admin/paths";
 
 export const prerender = false;
@@ -14,15 +14,13 @@ Astro.response.status = 503;
 Astro.response.headers.set("Retry-After", "60");
 ---
 
-<Admin title="Admin indisponible">
-  <div class="gate">
-    <div class="panel">
-      <h1 class="panel-head">Admin indisponible</h1>
-      <div class="panel-body">
-        <p class="flash error" role="alert">{problem}</p>
-        <p>Le site public, lui, n'est pas touché. Réessaie dans un moment ; si ça dure, préviens la personne qui s'occupe du site.</p>
-        <a class="button secondary" href={Astro.originPathname}>Réessayer</a>
-      </div>
+<AdminGate title="Admin indisponible">
+  <div class="panel">
+    <h1 class="panel-head">Admin indisponible</h1>
+    <div class="panel-body">
+      <p class="flash error" role="alert">{problem}</p>
+      <p>Le site public, lui, n'est pas touché. Réessaie dans un moment ; si ça dure, préviens la personne qui s'occupe du site.</p>
+      <a class="button secondary" href={Astro.originPathname}>Réessayer</a>
     </div>
   </div>
-</Admin>
+</AdminGate>

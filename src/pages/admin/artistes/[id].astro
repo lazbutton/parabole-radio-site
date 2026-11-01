@@ -1,283 +1,43 @@
 ---
 /**
- * La fiche d'un artiste : la créer (/admin/artistes/nouveau) ou la modifier (cms/README.md, 9.2) — nom, adresse,
- * rôle, bio, liens dans l'ordre, et ses shows. Même fonctionnement que la fiche d'un show : la fiche revient à cette
- * page, le serveur vérifie la saisie (readArtistForm) puis écrit sous le rôle de la personne connectée.
+ * La fiche d'un artiste : la créer (/admin/artistes/nouveau) ou la modifier (cms/README.md, 9.2). Même contrat que la
+ * fiche d'un show : l'écran en GET (HTML ou JSON), la fiche envoyée par l'écran (ArtistEditor) en POST, et une
+ * réponse en JSON.
  */
-import { emptyArtistForm, LABELS, readArtistForm, type AdminArtist, type ArtistForm, type FieldErrors } from "@parabole/cms";
-import MarkdownField from "../../../components/admin/MarkdownField.astro";
-import MediaSlot from "../../../components/admin/MediaSlot.astro";
-import SheetActions from "../../../components/admin/SheetActions.astro";
+import { readArtistForm, type AdminArtist } from "@parabole/cms";
+import type { Screen } from "../../../components/admin/types";
 import Admin from "../../../layouts/Admin.astro";
-import { artistFormFrom, artistFormOf, DONE, doneAfter, intentOf } from "../../../lib/admin/forms";
-import { parisDateTime, parisDay } from "../../../lib/admin/format";
+import { artistFormFrom, intentOf } from "../../../lib/admin/forms";
 import { seeOther } from "../../../lib/admin/paths";
+import { artistSheet, json, wantsJson } from "../../../lib/admin/views";
 
 export const prerender = false;
 
 const admin = Astro.locals.admin!;
 const isNew = Astro.params.id === "nouveau";
 const artist: AdminArtist | null = isNew ? null : await admin.getArtist(Astro.params.id ?? "");
-const missing = !isNew && !artist;
+const posted = Astro.request.method === "POST";
+if (!isNew && !artist) return posted ? json({ ok: false, errors: { form: "Cet artiste n'existe plus : il a peut-être été supprimé." } }, 404) : seeOther("/admin/artistes");
 
-let form: ArtistForm = artist ? artistFormOf(artist) : emptyArtistForm();
-let errors: FieldErrors = {};
-let version = artist?.version ?? "";
-if (Astro.request.method === "POST" && !missing) {
+if (posted) {
   const data = await Astro.request.formData();
   const intent = intentOf(data);
-  if (intent === "delete" && artist) {
+  if (intent === "delete") {
+    if (!artist) return json({ ok: false, errors: { form: "Cet artiste n'est pas encore créé." } }, 400);
     const removed = await admin.deleteArtist(artist.id);
-    return seeOther(`/admin/artistes?ok=supprime&nom=${encodeURIComponent(removed?.name ?? artist.name)}`);
+    return json({ ok: true, redirect: "/admin/artistes", message: `« ${removed?.name ?? artist.name} » supprimé` });
   }
   const read = readArtistForm(artistFormFrom(data));
-  form = read.form;
-  errors = read.errors;
-  version = String(data.get("version") ?? "");
-  if (!Object.keys(errors).length) {
-    const status = intent === "publish" ? "published" : intent === "unpublish" ? "draft" : undefined;
-    const result = await admin.saveArtist({ id: artist?.id, version: artist ? version : undefined, values: read.values, status });
-    if (result.ok) return seeOther(`/admin/artistes/${result.id}?ok=${doneAfter(intent, isNew)}`);
-    errors = result.errors;
-    if (result.version) version = result.version;
-  }
-  Astro.response.status = 422;
+  if (Object.keys(read.errors).length) return json({ ok: false, errors: read.errors }, 422);
+  const status = intent === "publish" ? "published" : intent === "unpublish" ? "draft" : undefined;
+  const version = String(data.get("version") ?? "");
+  const result = await admin.saveArtist({ id: artist?.id, version: artist ? version : undefined, values: read.values, status });
+  if (!result.ok) return json({ ok: false, errors: result.errors, version: result.version }, 422);
+  return json({ ok: true, created: isNew, sheet: artistSheet(await admin.getArtist(result.id)) });
 }
-if (missing) Astro.response.status = 404;
 
-const status = artist?.status ?? "draft";
-const done = Astro.url.searchParams.get("ok");
-const formError = errors.form;
-const fieldErrors = Object.keys(errors).filter((key) => key !== "form").length;
-const invalid = (field: string) => (errors[field] ? "true" : undefined);
-const title = isNew ? "Nouvel artiste" : (artist?.name ?? "Artiste introuvable");
-// Une ligne vide de plus, pour ajouter un lien sans JavaScript.
-const links = [...form.links, { label: "", url: "" }];
-const count = (n: number, one: string, many: string) => (n ? `${n} ${n > 1 ? many : one}` : "");
-const linked = artist ? [count(artist.shows.length, "show", "shows"), count(artist.events, "événement", "événements")].filter(Boolean).join(" et ") : "";
-const removal = artist ? `« ${artist.name} » sera supprimé${linked ? `, et retiré de ${linked}` : ""}.` : "";
+const screen: Screen = { name: "artist", title: artist?.name ?? "Nouvel artiste", data: { sheet: artistSheet(artist) } };
+if (wantsJson(Astro.request)) return json(screen);
 ---
 
-<Admin title={title} section="artistes" narrow>
-  {
-    missing ? (
-      <div class="page-head">
-        <div>
-          <span class="kicker">
-            <a href="/admin/artistes">← Artistes</a>
-          </span>
-          <h1>Artiste introuvable</h1>
-          <p class="meta">Cette fiche n'existe pas, ou plus : elle a peut-être été supprimée.</p>
-        </div>
-      </div>
-    ) : (
-      <>
-        <div class="page-head">
-          <div>
-            <span class="kicker">
-              <a href="/admin/artistes" data-astro-prefetch="false">
-                ← Artistes
-              </a>
-            </span>
-            <h1>{title}</h1>
-            {artist && (
-              <p class="meta">
-                <span class={`badge ${status === "published" ? "published" : "draft"}`}>{LABELS.status[status]}</span>
-                <span>Modifié le {parisDateTime(artist.updatedAt)}</span>
-              </p>
-            )}
-          </div>
-        </div>
-
-        {done && DONE[done] && Astro.request.method === "GET" && (
-          <p class="flash" role="status">
-            {DONE[done]}
-          </p>
-        )}
-        {(formError || fieldErrors > 0) && (
-          <div class="flash error" role="alert">
-            <p>{formError ?? "La fiche n'est pas enregistrée : corrige les champs signalés."}</p>
-          </div>
-        )}
-
-        <form class="sheet" method="post" novalidate data-sheet data-status={status}>
-          <input type="hidden" name="version" value={version} />
-
-          <section class="panel" aria-labelledby="essentiel">
-            <h2 class="panel-head" id="essentiel">
-              L'essentiel
-            </h2>
-            <div class="panel-body">
-              <div class="field">
-                <label for="name">Nom</label>
-                <input type="text" id="name" name="name" value={form.name} required aria-invalid={invalid("name")} autocomplete="off" />
-                {errors.name && <p class="error-text">{errors.name}</p>}
-              </div>
-              <fieldset class="field">
-                <legend>Rôle</legend>
-                <div class="choices">
-                  {Object.entries(LABELS.artistRole).map(([value, label]) => (
-                    <label class="choice">
-                      <input type="radio" name="role" value={value} checked={form.role === value} required />
-                      <span>{label}</span>
-                    </label>
-                  ))}
-                </div>
-                {errors.role && <p class="error-text">{errors.role}</p>}
-              </fieldset>
-              <div class="field">
-                <label for="slug">Adresse</label>
-                <input
-                  type="text"
-                  id="slug"
-                  name="slug"
-                  value={form.slug}
-                  autocomplete="off"
-                  autocapitalize="off"
-                  spellcheck="false"
-                  aria-describedby="slug-hint"
-                  aria-invalid={invalid("slug")}
-                />
-                <p class="hint" id="slug-hint">
-                  Le bout d'adresse de sa page : minuscules, chiffres et tirets. Vide, il est tiré du nom.
-                </p>
-                {errors.slug && <p class="error-text">{errors.slug}</p>}
-              </div>
-              <MediaSlot label="Photo" media={artist?.photo ?? null} />
-            </div>
-          </section>
-
-          <section class="panel" aria-labelledby="bio">
-            <h2 class="panel-head" id="bio">
-              Bio
-            </h2>
-            <div class="panel-body">
-              <MarkdownField id="bio-text" name="bio" label="Bio" value={form.bio} rows={10} error={errors.bio} />
-            </div>
-          </section>
-
-          <section class="panel" aria-labelledby="liens" data-rows>
-            <h2 class="panel-head" id="liens">
-              Liens
-            </h2>
-            <div class="panel-body">
-              <p class="hint">Dans l'ordre d'affichage. Sans libellé, le nom du site est repris (Instagram, SoundCloud…).</p>
-              {errors.links && <p class="error-text">{errors.links}</p>}
-              <ol class="link-list" data-rows-list>
-                {links.map((link, index) => (
-                  <li class="link-row">
-                    <span class="drag-handle" data-js aria-hidden="true" title="Glisser pour déplacer">
-                      ⋮⋮
-                    </span>
-                    <label class="link-label">
-                      <span class="sr-only">Libellé du lien {index + 1}</span>
-                      <input type="text" name="linkLabel" value={link.label} placeholder="Libellé" autocomplete="off" aria-invalid={invalid(`links.${index}.label`)} />
-                    </label>
-                    <label class="link-url">
-                      <span class="sr-only">Adresse du lien {index + 1}</span>
-                      <input
-                        type="text"
-                        inputmode="url"
-                        name="linkUrl"
-                        value={link.url}
-                        placeholder="https://…"
-                        autocomplete="off"
-                        autocapitalize="off"
-                        aria-invalid={invalid(`links.${index}.url`)}
-                      />
-                    </label>
-                    <span class="row-actions" data-js>
-                      <button type="button" class="icon-button" data-move="up" aria-label="Monter ce lien">
-                        ↑
-                      </button>
-                      <button type="button" class="icon-button" data-move="down" aria-label="Descendre ce lien">
-                        ↓
-                      </button>
-                      <button type="button" class="icon-button remove" data-remove aria-label="Retirer ce lien">
-                        ✕
-                      </button>
-                    </span>
-                    {[errors[`links.${index}.label`], errors[`links.${index}.url`]].filter(Boolean).map((message) => (
-                      <p class="error-text" style="grid-column: 2 / -1">
-                        {message}
-                      </p>
-                    ))}
-                  </li>
-                ))}
-              </ol>
-              <template>
-                <li class="link-row">
-                  <span class="drag-handle" aria-hidden="true" title="Glisser pour déplacer">
-                    ⋮⋮
-                  </span>
-                  <label class="link-label">
-                    <span class="sr-only">Libellé du lien</span>
-                    <input type="text" name="linkLabel" placeholder="Libellé" autocomplete="off" />
-                  </label>
-                  <label class="link-url">
-                    <span class="sr-only">Adresse du lien</span>
-                    <input type="text" inputmode="url" name="linkUrl" placeholder="https://…" autocomplete="off" autocapitalize="off" />
-                  </label>
-                  <span class="row-actions">
-                    <button type="button" class="icon-button" data-move="up" aria-label="Monter ce lien">
-                      ↑
-                    </button>
-                    <button type="button" class="icon-button" data-move="down" aria-label="Descendre ce lien">
-                      ↓
-                    </button>
-                    <button type="button" class="icon-button remove" data-remove aria-label="Retirer ce lien">
-                      ✕
-                    </button>
-                  </span>
-                </li>
-              </template>
-              <div>
-                <button type="button" class="button secondary small" data-js data-rows-add>
-                  Ajouter un lien
-                </button>
-              </div>
-            </div>
-          </section>
-
-          {artist && (
-            <section class="panel" aria-labelledby="ses-shows">
-              <h2 class="panel-head" id="ses-shows">
-                Ses shows <span class="count">{artist.shows.length || ""}</span>
-              </h2>
-              <div class="panel-body">
-                {artist.shows.length ? (
-                  <ul class="rows">
-                    {artist.shows.map((show) => (
-                      <li>
-                        <a class="row" href={`/admin/shows/${show.id}`} data-astro-prefetch="false">
-                          <span class="row-title">{show.title}</span>
-                          <span class="row-side">
-                            <span class={`badge ${show.status === "published" ? "published" : "draft"}`}>{LABELS.status[show.status]}</span>
-                          </span>
-                          <span class="row-sub">
-                            {LABELS.showType[show.type]} · {show.broadcastAt ? parisDay(show.broadcastAt) : "sans date"}
-                          </span>
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p class="hint">Aucun show pour l'instant. On relie un artiste à un show depuis la fiche du show.</p>
-                )}
-                {artist.radiocultArtistId && (
-                  <div class="field">
-                    <span class="field-label">Identifiant Radio Cult</span>
-                    <p class="readonly-value">{artist.radiocultArtistId}</p>
-                    <p class="hint">Rempli par l'import de la programmation : il relie les créneaux Radio Cult à cette fiche.</p>
-                  </div>
-                )}
-              </div>
-            </section>
-          )}
-
-          <SheetActions status={status} isNew={isNew} noun="cet artiste" deleteNote={removal} />
-        </form>
-      </>
-    )
-  }
-</Admin>
+<Admin screen={screen} />

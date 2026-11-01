@@ -1,109 +1,30 @@
 ---
 /**
  * Les artistes dans l'admin : l'index A–Z, brouillons compris, avec les filtres résident / invité, statut, et la
- * recherche (cms/README.md, 9.2). Les lettres en haut mènent à leur groupe.
+ * recherche (cms/README.md, 9.2). Servie en HTML ou en JSON, comme chaque écran.
  */
-import { LABELS } from "@parabole/cms";
+import type { Screen } from "../../../components/admin/types";
 import Admin from "../../../layouts/Admin.astro";
-import { DONE } from "../../../lib/admin/forms";
+import { json, wantsJson } from "../../../lib/admin/views";
 
 export const prerender = false;
 
 const params = Astro.url.searchParams;
 const filters = { q: params.get("q")?.trim() ?? "", role: params.get("role") ?? "", status: params.get("status") ?? "" };
 const index = await Astro.locals.admin!.listArtists(filters);
-const filtered = Boolean(filters.q || filters.role || filters.status);
-const anchor = (letter: string) => (letter === "#" ? "lettre-chiffres" : `lettre-${letter.toLowerCase()}`);
-const done = params.get("ok");
-const deletedName = params.get("nom");
+const screen: Screen = {
+  name: "artists",
+  title: "Artistes",
+  data: {
+    groups: index.groups.map((group) => ({
+      letter: group.letter,
+      artists: group.artists.map((artist) => ({ id: artist.id, name: artist.name, role: artist.role, status: artist.status, shows: artist.shows, hasPhoto: artist.hasPhoto })),
+    })),
+    total: index.total,
+    filters,
+  },
+};
+if (wantsJson(Astro.request)) return json(screen);
 ---
 
-<Admin title="Artistes" section="artistes">
-  <div class="page-head">
-    <div>
-      <h1>Artistes</h1>
-      <p class="meta">{index.total} {index.total > 1 ? "artistes" : "artiste"}{filtered ? " pour ces filtres" : ""}</p>
-    </div>
-    <a class="button" href="/admin/artistes/nouveau" data-astro-prefetch="false">Nouvel artiste</a>
-  </div>
-
-  {
-    done === "supprime" && (
-      <p class="flash" role="status">
-        {deletedName ? `« ${deletedName} » supprimé.` : DONE.supprime}
-      </p>
-    )
-  }
-
-  <form class="filters compact" method="get" role="search" aria-label="Filtrer les artistes">
-    <div class="field search">
-      <label class="field-label" for="q">Rechercher</label>
-      <input type="search" id="q" name="q" value={filters.q} placeholder="Nom, bio…" />
-    </div>
-    <div class="field">
-      <label class="field-label" for="role">Rôle</label>
-      <select id="role" name="role">
-        <option value="">Tous</option>
-        <option value="resident" selected={filters.role === "resident"}>Résidents</option>
-        <option value="guest" selected={filters.role === "guest"}>Invités</option>
-      </select>
-    </div>
-    <div class="field">
-      <label class="field-label" for="status">Statut</label>
-      <select id="status" name="status">
-        <option value="">Tous</option>
-        <option value="draft" selected={filters.status === "draft"}>Brouillons</option>
-        <option value="published" selected={filters.status === "published"}>Publiés</option>
-      </select>
-    </div>
-    <button class="button secondary" type="submit">Filtrer</button>
-  </form>
-
-  {
-    index.groups.length > 1 && (
-      <nav class="letters" aria-label="Lettres">
-        {index.groups.map((group) => (
-          <a href={`#${anchor(group.letter)}`} data-astro-prefetch="false">
-            {group.letter}
-          </a>
-        ))}
-      </nav>
-    )
-  }
-
-  {
-    index.groups.length ? (
-      index.groups.map((group) => (
-        <section class="letter-group" id={anchor(group.letter)} aria-label={group.letter === "#" ? "Chiffres et signes" : `Lettre ${group.letter}`}>
-          <h2>{group.letter}</h2>
-          <ul class="rows">
-            {group.artists.map((artist) => (
-              <li>
-                <a class="row" href={`/admin/artistes/${artist.id}`} data-astro-prefetch="false">
-                  <span class="row-title">{artist.name}</span>
-                  <span class="row-side">
-                    <span class={`badge ${artist.status === "published" ? "published" : "draft"}`}>{LABELS.status[artist.status]}</span>
-                  </span>
-                  <span class="row-sub">
-                    {LABELS.artistRole[artist.role]} · {artist.shows ? `${artist.shows} ${artist.shows > 1 ? "shows" : "show"}` : "aucun show"}
-                    {artist.hasPhoto ? "" : " · sans photo"}
-                  </span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))
-    ) : (
-      <p class="empty">
-        {filtered ? (
-          <>
-            Aucun artiste pour ces filtres. <a href="/admin/artistes">Tout afficher</a>
-          </>
-        ) : (
-          "Pas encore d'artiste : crée le premier."
-        )}
-      </p>
-    )
-  }
-</Admin>
+<Admin screen={screen} />

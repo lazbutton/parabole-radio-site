@@ -1,0 +1,90 @@
+/* L'entrée de l'admin : la connexion, et ce qui s'affiche avant d'y être (refus, panne, déconnexion). Elle garde le
+   design du site — noir, jaune #fff039, bleu #000dff, Monument Grotesk, lignes de balayage — alors que les écrans de
+   travail sont une interface d'administration classique (src/styles/admin.css). */
+
+/* Les mêmes polices que le site (src/styles/socle.css) */
+@font-face {
+  font-family: 'Monument Grotesk';
+  src: url("/PARABOLE%20RADIO/FONTS/MonumentGrotesk-Regular.woff2") format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Monument Grotesk';
+  src: url("/PARABOLE%20RADIO/FONTS/MonumentGrotesk-Bold.woff2") format('woff2');
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+
+:root {
+  --jaune: #fff039;
+  --bleu: #000dff;
+  --rouge: #ff6b6b;    /* les erreurs : lisible sur le noir */
+  --gris: #b8b8b8;     /* le texte secondaire */
+  --champ: #0c0c0c;
+  --bord: #555555;
+  color-scheme: dark;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body.gate-page {
+  min-height: 100vh;
+  background:
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.022) 0 1px, transparent 1px 3px),   /* lignes de balayage */
+    #000000;
+  color: #ffffff;
+  font-family: 'Monument Grotesk', 'Inter', system-ui, sans-serif;
+  font-size: 15px; line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+.gate-page a { color: var(--jaune); text-underline-offset: 3px; }
+.gate-page a:hover { color: #ffffff; }
+.gate-page :focus-visible { outline: 2px solid var(--jaune); outline-offset: 2px; }
+
+/* La barre du haut : le logo, qui ramène à l'admin */
+.gate-top { display: flex; background: #000000; border-bottom: 2px solid var(--jaune); }
+.gate-logo {
+  display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 14px 0 6px;
+  border-right: 2px solid var(--jaune);
+  color: #ffffff !important; text-decoration: none;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+}
+.gate-logo img { width: 40px; height: 40px; }
+
+/* Un panneau au milieu, à la bande jaune, comme PROGRAMMATION */
+.gate { display: flex; align-items: flex-start; justify-content: center; padding: 6vh 16px 32px; }
+.panel { width: min(440px, 100%); border: 2px solid var(--jaune); background: #000000; }
+.panel-head {
+  display: flex; align-items: center; min-height: 34px; padding: 6px 12px;
+  background: var(--jaune); color: var(--bleu);
+  font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.panel-body { padding: 16px; display: grid; gap: 16px; }
+.panel-body > p { color: var(--gris); }
+@media (max-width: 640px) { .panel-body { padding: 14px 12px; } }
+
+.field { display: grid; gap: 6px; min-width: 0; }
+.field > label { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--jaune); }
+.gate-page input[type="email"], .gate-page input[type="password"], .gate-page input[type="text"] {
+  width: 100%; min-height: 44px; padding: 9px 12px;
+  background: var(--champ); color: #ffffff;
+  border: 1px solid var(--bord); border-radius: 0;
+  font: inherit; font-size: 16px; line-height: 1.4;
+}
+.gate-page input:focus-visible { outline: 2px solid var(--jaune); outline-offset: 0; border-color: var(--jaune); }
+.hint { font-size: 12px; line-height: 1.45; color: var(--gris); }
+
+.button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 0 18px;
+  border: 2px solid var(--jaune); border-radius: 0; background: var(--jaune); color: var(--bleu) !important;
+  font: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; line-height: 1.1; text-transform: uppercase; text-decoration: none;
+  cursor: pointer; white-space: nowrap;
+}
+.button:hover { background: #ffffff; border-color: #ffffff; }
+.button.secondary { background: transparent; color: var(--jaune) !important; }
+.button.secondary:hover { background: var(--jaune); color: var(--bleu) !important; }
+.button.full { width: 100%; }
+
+.flash { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border: 2px solid var(--jaune); background: #000000; color: #ffffff !important; }
+.flash::before { content: '✓'; color: var(--jaune); font-weight: 700; }
+.flash.error { border-color: var(--rouge); }
+.flash.error::before { content: '⚠'; color: var(--rouge); }

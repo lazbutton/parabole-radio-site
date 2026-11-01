@@ -1,74 +1,38 @@
 ---
 /**
- * Le tableau de bord de l'admin : les rubriques avec leurs chiffres, et les derniers brouillons à reprendre. Les autres
- * blocs prévus (imports Radio Cult à relire, prochains événements, images sans texte alternatif : cms/README.md, 9.2)
- * viendront avec leurs écrans.
+ * Le tableau de bord de l'admin : les chiffres des rubriques et les derniers brouillons. Les autres blocs prévus
+ * (imports Radio Cult à relire, prochains événements, images sans texte alternatif : cms/README.md, 9.2) viendront
+ * avec leurs écrans. Comme chaque écran de l'admin, il est servi en HTML au premier affichage et en JSON quand
+ * l'application navigue (src/components/admin/router.tsx).
  */
+import type { Screen } from "../../components/admin/types";
 import Admin from "../../layouts/Admin.astro";
 import { since } from "../../lib/admin/format";
+import { json, wantsJson } from "../../lib/admin/views";
 
 export const prerender = false;
 
-const member = Astro.locals.member!;
 const overview = await Astro.locals.admin!.overview();
-const firstName = member.name.split(" ")[0];
-const plural = (count: number, one: string, many: string) => `${count} ${count > 1 ? many : one}`;
+const now = new Date();
+const screen: Screen = {
+  name: "dashboard",
+  title: "Tableau de bord",
+  data: {
+    stats: [
+      { label: "Shows publiés", value: overview.shows.published, href: "/admin/shows?status=published" },
+      { label: "Shows en brouillon", value: overview.shows.draft, href: "/admin/shows?status=draft" },
+      { label: "Artistes publiés", value: overview.artists.published, href: "/admin/artistes?status=published" },
+      { label: "Artistes en brouillon", value: overview.artists.draft, href: "/admin/artistes?status=draft" },
+    ],
+    drafts: overview.drafts.map((draft) => ({
+      href: `/admin/${draft.kind === "show" ? "shows" : "artistes"}/${draft.id}`,
+      title: draft.title,
+      kind: draft.kind === "show" ? "Show" : "Artiste",
+      since: since(draft.updatedAt, now),
+    })),
+  },
+};
+if (wantsJson(Astro.request)) return json(screen);
 ---
 
-<Admin title="Tableau de bord" section="accueil">
-  <div class="page-head">
-    <div>
-      <span class="kicker">Admin de Parabole Radio</span>
-      <h1>Bonjour {firstName}</h1>
-    </div>
-    <div class="toolbar">
-      <a class="button" href="/admin/shows/nouveau" data-astro-prefetch="false">Nouveau show</a>
-      <a class="button secondary" href="/admin/artistes/nouveau" data-astro-prefetch="false">Nouvel artiste</a>
-    </div>
-  </div>
-
-  <div class="tiles">
-    <a class="tile" href="/admin/shows" data-astro-prefetch="false">
-      <span class="tile-title">Shows</span>
-      <span class="tile-figures">
-        {plural(overview.shows.published, "publié", "publiés")} · {plural(overview.shows.draft, "brouillon", "brouillons")}
-      </span>
-    </a>
-    <a class="tile" href="/admin/artistes" data-astro-prefetch="false">
-      <span class="tile-title">Artistes</span>
-      <span class="tile-figures">
-        {plural(overview.artists.published, "publié", "publiés")} · {plural(overview.artists.draft, "brouillon", "brouillons")}
-      </span>
-    </a>
-  </div>
-
-  <section class="panel" aria-labelledby="brouillons">
-    <h2 class="panel-head" id="brouillons">Derniers brouillons</h2>
-    <div class="panel-body">
-      {
-        overview.drafts.length ? (
-          <ul class="rows">
-            {overview.drafts.map((draft) => (
-              <li>
-                <a class="row" href={`/admin/${draft.kind === "show" ? "shows" : "artistes"}/${draft.id}`} data-astro-prefetch="false">
-                  <span class="row-title">{draft.title}</span>
-                  <span class="row-side">
-                    <span class="badge soft">{draft.kind === "show" ? "show" : "artiste"}</span>
-                  </span>
-                  <span class="row-sub">modifié {since(draft.updatedAt)}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p class="hint">Aucun brouillon en cours.</p>
-        )
-      }
-    </div>
-  </section>
-
-  <p class="hint" style="margin-top: 18px">
-    Les pages du site (Show, Residents) ne lisent pas encore le CMS : ce qui est publié ici y apparaîtra quand elles seront
-    branchées. Les images, les événements, les pages et l'équipe arrivent aux prochaines étapes de l'admin.
-  </p>
-</Admin>
+<Admin screen={screen} />

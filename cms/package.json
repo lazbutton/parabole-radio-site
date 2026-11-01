@@ -10,6 +10,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema.ts",
+    "./labels": "./src/labels.ts",
     "./tracklist": "./src/tracklist.ts"
   },
   "scripts": {

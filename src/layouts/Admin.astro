@@ -1,26 +1,23 @@
 ---
 /**
- * Le gabarit des écrans d'admin (/admin). Pas de coque ici : ni bandeau, ni vidéo, ni navigation sans rechargement.
- * C'est un outil de travail, rendu par le serveur à chaque requête après la garde (src/middleware.ts). En haut : le
- * logo, les rubriques, et le compte de la personne connectée, d'où l'on se déconnecte depuis n'importe quelle page.
+ * Le document de l'application d'admin (/admin) : une page sans la coque du site, qui rend l'écran demandé dans
+ * l'application React (src/components/admin/AdminApp.tsx, Radix Themes). Rendu par le serveur à chaque requête après
+ * la garde (src/middleware.ts), puis l'application prend la main : les écrans suivants arrivent en JSON, sans
+ * recharger la page. L'entrée (connexion, refus, panne) a son propre gabarit : AdminGate.
  */
-import logo from "../assets/logo-barre.png";
+import "@radix-ui/themes/styles.css";
+import AdminApp from "../components/admin/AdminApp";
+import type { Screen } from "../components/admin/types";
+import { viewerOf } from "../lib/admin/views";
 import "../styles/admin.css";
 
 interface Props {
-  /** Le titre de l'onglet : « Shows », « Nouveau show »… */
-  title: string;
-  /** La rubrique ouverte dans le menu. */
-  section?: "accueil" | "shows" | "artistes" | "compte";
-  /** Une page étroite (fiches, compte), plutôt que large (listes). */
-  narrow?: boolean;
+  /** L'écran à afficher, préparé par la page. */
+  screen: Screen;
 }
-const { title, section, narrow = false } = Astro.props;
-const member = Astro.locals.member;
-const SECTIONS = [
-  { id: "shows", href: "/admin/shows", label: "Shows" },
-  { id: "artistes", href: "/admin/artistes", label: "Artistes" },
-] as const;
+const { screen } = Astro.props;
+const viewer = viewerOf(Astro.locals.member!);
+const href = Astro.url.pathname + Astro.url.search;
 ---
 
 <!doctype html>
@@ -29,63 +26,14 @@ const SECTIONS = [
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>{title} — Admin Parabole</title>
-    <!-- Les commandes qui demandent JavaScript (réordonner, aperçu…) ne s'affichent qu'avec lui ([data-js]) -->
-    <script is:inline>
-      document.documentElement.classList.add("js");
-    </script>
+    <meta name="color-scheme" content="light" />
+    <title>{screen.title} — Admin Parabole</title>
     <link
       rel="icon"
       href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>"
     />
-    <link rel="preload" href="/PARABOLE%20RADIO/FONTS/MonumentGrotesk-Regular.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/PARABOLE%20RADIO/FONTS/MonumentGrotesk-Bold.woff2" as="font" type="font/woff2" crossorigin />
   </head>
-  <body class="admin">
-    <header class="admin-top">
-      <a class="admin-logo" href="/admin" data-astro-prefetch="false" aria-label="Admin de Parabole Radio, tableau de bord">
-        <img src={logo.src} width={logo.width} height={logo.height} alt="" />
-        <span>Admin</span>
-      </a>
-      {
-        member && (
-          <nav class="admin-nav" aria-label="Rubriques de l'admin">
-            {SECTIONS.map((item) => (
-              <a href={item.href} data-astro-prefetch="false" aria-current={section === item.id ? "page" : undefined}>
-                {item.label}
-              </a>
-            ))}
-          </nav>
-        )
-      }
-      {
-        member && (
-          <details class="admin-account">
-            <summary>
-              <span>{member.name}</span>
-            </summary>
-            <div class="admin-account-menu">
-              <p class="who">
-                {member.email} · {member.role === "admin" ? "admin" : "éditeur"}
-              </p>
-              <a class="button quiet small" href="/admin/mot-de-passe" data-astro-prefetch="false">
-                Changer de mot de passe
-              </a>
-              <form method="post" action="/admin/deconnexion">
-                <button class="button secondary small full" type="submit">
-                  Se déconnecter
-                </button>
-              </form>
-            </div>
-          </details>
-        )
-      }
-    </header>
-    <main class={narrow ? "admin-main narrow" : "admin-main"} id="contenu">
-      <slot />
-    </main>
-    <script>
-      import "../scripts/admin/index";
-    </script>
+  <body>
+    <AdminApp client:load viewer={viewer} href={href} screen={screen} />
   </body>
 </html>

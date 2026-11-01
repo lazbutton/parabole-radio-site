@@ -2,7 +2,7 @@
  * Les fiches de l'admin entre la base, l'écran et le formulaire envoyé : une fiche lue devient des champs à remplir,
  * un formulaire reçu redevient une fiche à vérifier (@parabole/cms, readShowForm et readArtistForm).
  */
-import { formatTimecode, NEW_PICK, toParisInput, type AdminArtist, type AdminShow, type ArtistForm, type ShowForm } from "@parabole/cms";
+import { formatTimecode, toParisInput, type AdminArtist, type AdminShow, type ArtistForm, type ShowForm } from "@parabole/cms";
 
 const text = (data: FormData, name: string) => String(data.get(name) ?? "");
 const texts = (data: FormData, name: string) => data.getAll(name).map(String);
@@ -31,9 +31,8 @@ export function showFormOf(show: AdminShow): ShowForm {
 }
 
 /**
- * Le formulaire d'un show tel qu'envoyé. Un nom tapé dans « Ajouter un artiste » ou « Ajouter une étiquette » sans
- * passer par le bouton (navigateur sans JavaScript, ou enregistrement direct) compte comme un choix nouveau : la base
- * retrouve l'artiste ou l'étiquette du même nom s'il existe.
+ * Le formulaire d'un show tel que l'écran l'envoie (ShowEditor). Un artiste ou une étiquette à créer arrive en
+ * « nouveau:… » : la base retrouve celui du même nom s'il existe.
  */
 export function showFormFrom(data: FormData): ShowForm {
   const starts = texts(data, "trackStart");
@@ -41,11 +40,6 @@ export function showFormFrom(data: FormData): ShowForm {
   const titles = texts(data, "trackTitle");
   const links = texts(data, "trackHopper");
   const rows = Math.max(starts.length, artists.length, titles.length, links.length);
-  const typedArtist = text(data, "artistAdd").trim();
-  const typedTags = (["genre", "mood", "theme"] as const).flatMap((kind) => {
-    const name = text(data, `tagAdd.${kind}`).trim();
-    return name ? [`${NEW_PICK}${kind}:${name}`] : [];
-  });
   return {
     title: text(data, "title"),
     slug: text(data, "slug"),
@@ -55,8 +49,8 @@ export function showFormFrom(data: FormData): ShowForm {
     description: text(data, "description"),
     soundcloudUrl: text(data, "soundcloudUrl"),
     soundcloudTrackId: text(data, "soundcloudTrackId"),
-    artists: [...texts(data, "artist"), ...(typedArtist ? [`${NEW_PICK}${typedArtist}`] : [])],
-    tags: [...texts(data, "tag"), ...typedTags],
+    artists: texts(data, "artist"),
+    tags: texts(data, "tag"),
     tracks: Array.from({ length: rows }, (_, index) => ({
       start: starts[index] ?? "",
       artist: artists[index] ?? "",
@@ -89,13 +83,3 @@ export const intentOf = (data: FormData): Intent => {
   const intent = text(data, "intent");
   return intent === "publish" || intent === "unpublish" || intent === "delete" ? intent : "save";
 };
-
-/** Les messages après une redirection (?ok=…). */
-export const DONE: Record<string, string> = {
-  cree: "Créé, en brouillon.",
-  enregistre: "Enregistré.",
-  publie: "Publié.",
-  depublie: "Dépublié : repassé en brouillon.",
-  supprime: "Supprimé.",
-};
-export const doneAfter = (intent: Intent, created: boolean) => (intent === "publish" ? "publie" : intent === "unpublish" ? "depublie" : created ? "cree" : "enregistre");

@@ -55,19 +55,23 @@ Pour une nouvelle page :
 
 ## L'admin (`/admin`)
 
-L'espace de l'équipe : les shows et leur tracklist, les artistes. Il est rendu par le serveur à chaque requête, hors de
-la coque (ni bandeau, ni vidéo), et marche au téléphone comme à l'ordinateur. Le cahier des charges et l'avancement
-sont dans `cms/README.md`, section 9.
+L'espace de l'équipe : les shows et leur tracklist, les artistes. C'est une application React (Radix Themes), hors de
+la coque (ni bandeau, ni vidéo), qui marche au téléphone comme à l'ordinateur ; seule l'entrée (connexion, refus,
+panne) garde le style du site. Le cahier des charges et l'avancement sont dans `cms/README.md`, section 9.
 
 - **La garde** (`src/middleware.ts`) : toute adresse sous `/admin` vérifie la session auprès de Supabase Auth, puis
   lit la fiche d'équipe sous le rôle de la personne. Sans session : la connexion ; sans fiche : « Ce compte ne fait
   pas partie de l'équipe ». Les cookies de session ne valent que pour `/admin` et ne se lisent pas en JavaScript.
-- **Les écritures** : chaque page envoie son formulaire à elle-même ; le serveur vérifie la saisie, puis écrit avec
-  `Astro.locals.admin` (`createAdmin()` du CMS), sous le rôle de la personne connectée. Les règles d'accès de la
-  base décident : un bouton oublié ne donne aucun droit.
-- **Les fichiers** : `src/pages/admin/` (les écrans), `src/layouts/Admin.astro`, `src/components/admin/`,
-  `src/lib/admin/` (session, formulaires, dates), `src/scripts/admin/` (réordonner, coller une tracklist, aperçu du
-  Markdown), `src/styles/admin.css`.
+- **Les écrans** : chaque page de `src/pages/admin/` prépare son écran sur le serveur, après la garde : en HTML au
+  premier affichage, en JSON quand l'application navigue (`Accept: application/json`). On passe ainsi d'un écran à
+  l'autre sans recharger la page (`src/components/admin/router.tsx`).
+- **Les écritures** : une fiche part en `POST` à sa propre adresse et la réponse revient en JSON ; le serveur vérifie
+  la saisie, puis écrit avec `Astro.locals.admin` (`createAdmin()` du CMS), sous le rôle de la personne connectée.
+  Les règles d'accès de la base décident : un bouton oublié ne donne aucun droit.
+- **Les fichiers** : `src/pages/admin/` (les écrans, côté serveur), `src/layouts/Admin.astro` (l'application) et
+  `AdminGate.astro` (l'entrée), `src/components/admin/` (l'application React : `AdminApp`, le routeur, les écrans),
+  `src/lib/admin/` (session, formulaires, données des écrans, dates), `src/styles/admin.css` et `admin-gate.css`.
+  React n'est chargé que par l'admin : le site public n'en charge rien.
 - **Les réglages** : `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_PUBLISHABLE_KEY` et `DATABASE_URL`, dans `.env` en
   local et dans Vercel en ligne (`cms/README.md`, section 5). S'il en manque un, l'admin le dit ; le site public
   n'en a pas besoin.

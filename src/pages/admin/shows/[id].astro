@@ -1,323 +1,47 @@
 ---
 /**
- * La fiche d'un show : la créer (/admin/shows/nouveau) ou la modifier, avec ses artistes, ses étiquettes et sa
- * tracklist (cms/README.md, 9.2). Enregistrer, Publier, Dépublier et Supprimer renvoient la fiche à cette même page :
- * le serveur vérifie la saisie (readShowForm), puis écrit sous le rôle de la personne connectée
- * (Astro.locals.admin). Après un enregistrement réussi, on revient sur la fiche (POST puis GET) ; après une erreur,
- * la fiche se réaffiche telle qu'elle a été envoyée, avec un message à côté de chaque champ fautif.
+ * La fiche d'un show : la créer (/admin/shows/nouveau) ou la modifier (cms/README.md, 9.2). En GET, l'écran (HTML au
+ * premier affichage, JSON quand l'application navigue). En POST, la fiche envoyée par l'écran (ShowEditor) : le
+ * serveur vérifie la saisie (readShowForm), écrit sous le rôle de la personne connectée (Astro.locals.admin), puis
+ * répond en JSON : la fiche à jour, les erreurs par champ, ou la liste où revenir après une suppression.
  */
-import { emptyShowForm, LABELS, NEW_PICK, readShowForm, type AdminShow, type FieldErrors, type ShowForm, type TagKind } from "@parabole/cms";
-import MarkdownField from "../../../components/admin/MarkdownField.astro";
-import MediaSlot from "../../../components/admin/MediaSlot.astro";
-import Picks from "../../../components/admin/Picks.astro";
-import SheetActions from "../../../components/admin/SheetActions.astro";
-import Tracklist from "../../../components/admin/Tracklist.astro";
+import { readShowForm, type AdminShow } from "@parabole/cms";
+import type { Screen } from "../../../components/admin/types";
 import Admin from "../../../layouts/Admin.astro";
-import { DONE, doneAfter, intentOf, showFormFrom, showFormOf } from "../../../lib/admin/forms";
-import { parisDateTime } from "../../../lib/admin/format";
+import { intentOf, showFormFrom } from "../../../lib/admin/forms";
 import { seeOther } from "../../../lib/admin/paths";
+import { json, showSheet, wantsJson } from "../../../lib/admin/views";
 
 export const prerender = false;
 
 const admin = Astro.locals.admin!;
 const isNew = Astro.params.id === "nouveau";
 const show: AdminShow | null = isNew ? null : await admin.getShow(Astro.params.id ?? "");
-const missing = !isNew && !show;
+const posted = Astro.request.method === "POST";
+if (!isNew && !show) return posted ? json({ ok: false, errors: { form: "Ce show n'existe plus : il a peut-être été supprimé." } }, 404) : seeOther("/admin/shows");
 
-let form: ShowForm = show ? showFormOf(show) : emptyShowForm();
-let errors: FieldErrors = {};
-let version = show?.version ?? "";
-if (Astro.request.method === "POST" && !missing) {
+if (posted) {
   const data = await Astro.request.formData();
   const intent = intentOf(data);
-  if (intent === "delete" && show) {
+  if (intent === "delete") {
+    if (!show) return json({ ok: false, errors: { form: "Ce show n'est pas encore créé." } }, 400);
     const removed = await admin.deleteShow(show.id);
-    return seeOther(`/admin/shows?ok=supprime&titre=${encodeURIComponent(removed?.title ?? show.title)}`);
+    return json({ ok: true, redirect: "/admin/shows", message: `« ${removed?.title ?? show.title} » supprimé` });
   }
   // Publier, ou enregistrer un show déjà publié : il lui faut une date de diffusion.
   const publishing = intent === "publish" || (intent === "save" && show?.status === "published");
   const read = readShowForm(showFormFrom(data), { publish: publishing });
-  form = read.form;
-  errors = read.errors;
-  version = String(data.get("version") ?? "");
-  if (!Object.keys(errors).length) {
-    const status = intent === "publish" ? "published" : intent === "unpublish" ? "draft" : undefined;
-    const result = await admin.saveShow({ id: show?.id, version: show ? version : undefined, values: read.values, status });
-    if (result.ok) {
-      const created = result.newArtists.length ? `&artistes=${result.newArtists.length}` : "";
-      return seeOther(`/admin/shows/${result.id}?ok=${doneAfter(intent, isNew)}${created}`);
-    }
-    errors = result.errors;
-    if (result.version) version = result.version;
-  }
-  Astro.response.status = 422;
+  if (Object.keys(read.errors).length) return json({ ok: false, errors: read.errors }, 422);
+  const status = intent === "publish" ? "published" : intent === "unpublish" ? "draft" : undefined;
+  const version = String(data.get("version") ?? "");
+  const result = await admin.saveShow({ id: show?.id, version: show ? version : undefined, values: read.values, status });
+  if (!result.ok) return json({ ok: false, errors: result.errors, version: result.version }, 422);
+  const fresh = await admin.getShow(result.id);
+  return json({ ok: true, created: isNew, newArtists: result.newArtists.length, sheet: await showSheet(admin, fresh) });
 }
-if (missing) Astro.response.status = 404;
 
-const choices = missing ? { artists: [], tags: [] } : await admin.showChoices();
-const artistsById = new Map(choices.artists.map((artist) => [artist.id, artist]));
-const tagsById = new Map(choices.tags.map((tag) => [tag.id, tag]));
-const artistItems = form.artists.flatMap((value) => {
-  if (value.startsWith(NEW_PICK)) return [{ value, label: value.slice(NEW_PICK.length), badge: "nouveau" }];
-  const artist = artistsById.get(value);
-  return artist ? [{ value, label: artist.name, badge: artist.status === "draft" ? "brouillon" : undefined }] : [];
-});
-const tagItems = (kind: TagKind) =>
-  form.tags.flatMap((value) => {
-    if (value.startsWith(`${NEW_PICK}${kind}:`)) return [{ value, label: value.slice(NEW_PICK.length + kind.length + 1), badge: "nouvelle" }];
-    const tag = tagsById.get(value);
-    return tag?.kind === kind ? [{ value, label: tag.name }] : [];
-  });
-const status = show?.status ?? "draft";
-const done = Astro.url.searchParams.get("ok");
-const newArtists = Number(Astro.url.searchParams.get("artistes")) || 0;
-const formError = errors.form;
-const fieldErrors = Object.keys(errors).filter((key) => key !== "form").length;
-const invalid = (field: string) => (errors[field] ? "true" : undefined);
-const title = isNew ? "Nouveau show" : (show?.title ?? "Show introuvable");
+const screen: Screen = { name: "show", title: show?.title ?? "Nouveau show", data: { sheet: await showSheet(admin, show) } };
+if (wantsJson(Astro.request)) return json(screen);
 ---
 
-<Admin title={title} section="shows" narrow>
-  {
-    missing ? (
-      <div class="page-head">
-        <div>
-          <span class="kicker">
-            <a href="/admin/shows">← Shows</a>
-          </span>
-          <h1>Show introuvable</h1>
-          <p class="meta">Ce show n'existe pas, ou plus : il a peut-être été supprimé.</p>
-        </div>
-      </div>
-    ) : (
-      <>
-        <div class="page-head">
-          <div>
-            <span class="kicker">
-              <a href="/admin/shows" data-astro-prefetch="false">
-                ← Shows
-              </a>
-            </span>
-            <h1>{title}</h1>
-            {show && (
-              <p class="meta">
-                <span class={`badge ${status === "published" ? "published" : "draft"}`}>{LABELS.status[status]}</span>
-                <span>Modifié le {parisDateTime(show.updatedAt)}</span>
-              </p>
-            )}
-          </div>
-        </div>
-
-        {done && DONE[done] && Astro.request.method === "GET" && (
-          <div class="flash" role="status">
-            <p>{DONE[done]}</p>
-            {newArtists > 0 && (
-              <p>
-                {newArtists > 1 ? `${newArtists} artistes créés` : "Un artiste créé"} en brouillon : complète{" "}
-                {newArtists > 1 ? "leurs fiches" : "sa fiche"} dans <a href="/admin/artistes?status=draft">Artistes</a>.
-              </p>
-            )}
-          </div>
-        )}
-        {(formError || fieldErrors > 0) && (
-          <div class="flash error" role="alert">
-            <p>{formError ?? "La fiche n'est pas enregistrée : corrige les champs signalés."}</p>
-          </div>
-        )}
-
-        <form class="sheet" method="post" novalidate data-sheet data-status={status}>
-          <input type="hidden" name="version" value={version} />
-
-          <section class="panel" aria-labelledby="essentiel">
-            <h2 class="panel-head" id="essentiel">
-              L'essentiel
-            </h2>
-            <div class="panel-body">
-              <div class="field">
-                <label for="title">Titre</label>
-                <input type="text" id="title" name="title" value={form.title} required aria-invalid={invalid("title")} autocomplete="off" />
-                {errors.title && <p class="error-text">{errors.title}</p>}
-              </div>
-              <fieldset class="field">
-                <legend>Type</legend>
-                <div class="choices">
-                  {Object.entries(LABELS.showType).map(([value, label]) => (
-                    <label class="choice">
-                      <input type="radio" name="type" value={value} checked={form.type === value} required />
-                      <span>{label}</span>
-                    </label>
-                  ))}
-                </div>
-                {errors.type && <p class="error-text">{errors.type}</p>}
-              </fieldset>
-              <div class="grid-2">
-                <div class="field">
-                  <label for="broadcastAt">Diffusion</label>
-                  <input
-                    type="datetime-local"
-                    id="broadcastAt"
-                    name="broadcastAt"
-                    value={form.broadcastAt}
-                    data-needed-to-publish
-                    aria-describedby="broadcastAt-hint"
-                    aria-invalid={invalid("broadcastAt")}
-                  />
-                  <p class="hint" id="broadcastAt-hint">
-                    Date et heure de Paris. Obligatoire pour publier.
-                  </p>
-                  {errors.broadcastAt && <p class="error-text">{errors.broadcastAt}</p>}
-                </div>
-                <div class="field">
-                  <label for="duration">
-                    Durée <span class="optional">— facultatif</span>
-                  </label>
-                  <input
-                    type="text"
-                    id="duration"
-                    name="duration"
-                    value={form.duration}
-                    placeholder="2:00:00"
-                    autocomplete="off"
-                    aria-describedby="duration-hint"
-                    aria-invalid={invalid("duration")}
-                  />
-                  <p class="hint" id="duration-hint">
-                    h:mm:ss, par exemple 1:30:00.
-                  </p>
-                  {errors.duration && <p class="error-text">{errors.duration}</p>}
-                </div>
-              </div>
-              <div class="field">
-                <label for="slug">Adresse</label>
-                <input
-                  type="text"
-                  id="slug"
-                  name="slug"
-                  value={form.slug}
-                  autocomplete="off"
-                  autocapitalize="off"
-                  spellcheck="false"
-                  aria-describedby="slug-hint"
-                  aria-invalid={invalid("slug")}
-                />
-                <p class="hint" id="slug-hint">
-                  Le bout d'adresse du show sur le site : minuscules, chiffres et tirets. Vide, il est tiré du titre.
-                </p>
-                {errors.slug && <p class="error-text">{errors.slug}</p>}
-              </div>
-            </div>
-          </section>
-
-          <section class="panel" aria-labelledby="qui">
-            <h2 class="panel-head" id="qui">
-              Artistes et étiquettes
-            </h2>
-            <div class="panel-body">
-              <Picks
-                id="artists"
-                label="Artistes"
-                name="artist"
-                addName="artistAdd"
-                items={artistItems}
-                options={choices.artists}
-                placeholder="Ajouter un artiste…"
-                hint="Dans l'ordre d'affichage (« A b2b B »). Un nom inconnu crée un artiste, en brouillon."
-                error={errors.artists}
-                ordered
-              />
-              <div class="tag-groups">
-                {(["genre", "mood", "theme"] as const).map((kind) => (
-                  <Picks
-                    id={`tags-${kind}`}
-                    label={LABELS.tagKind[kind]}
-                    name="tag"
-                    addName={`tagAdd.${kind}`}
-                    kind={kind}
-                    items={tagItems(kind)}
-                    options={choices.tags.filter((tag) => tag.kind === kind)}
-                    placeholder={`Ajouter un ${LABELS.tagKind[kind].toLowerCase()}…`}
-                    newLabel="nouvelle"
-                  />
-                ))}
-              </div>
-              {errors.tags && <p class="error-text">{errors.tags}</p>}
-            </div>
-          </section>
-
-          <section class="panel" aria-labelledby="texte">
-            <h2 class="panel-head" id="texte">
-              Description
-            </h2>
-            <div class="panel-body">
-              <MarkdownField id="description" name="description" label="Description" value={form.description} error={errors.description} />
-            </div>
-          </section>
-
-          <section class="panel" aria-labelledby="son">
-            <h2 class="panel-head" id="son">
-              Son et pochette
-            </h2>
-            <div class="panel-body">
-              <div class="grid-2">
-                <div class="field">
-                  <label for="soundcloudUrl">
-                    Piste SoundCloud <span class="optional">— facultatif</span>
-                  </label>
-                  <input
-                    type="text"
-                    inputmode="url"
-                    id="soundcloudUrl"
-                    name="soundcloudUrl"
-                    value={form.soundcloudUrl}
-                    placeholder="https://soundcloud.com/…"
-                    autocomplete="off"
-                    autocapitalize="off"
-                    aria-invalid={invalid("soundcloudUrl")}
-                  />
-                  {errors.soundcloudUrl && <p class="error-text">{errors.soundcloudUrl}</p>}
-                </div>
-                <div class="field">
-                  <label for="soundcloudTrackId">
-                    Identifiant de la piste <span class="optional">— facultatif</span>
-                  </label>
-                  <input
-                    type="text"
-                    inputmode="numeric"
-                    id="soundcloudTrackId"
-                    name="soundcloudTrackId"
-                    value={form.soundcloudTrackId}
-                    placeholder="1234567890"
-                    autocomplete="off"
-                    aria-describedby="soundcloudTrackId-hint"
-                    aria-invalid={invalid("soundcloudTrackId")}
-                  />
-                  <p class="hint" id="soundcloudTrackId-hint">
-                    Dans SoundCloud : Partager › Intégrer, le nombre après « tracks/ ». Le lecteur du site joue cette piste.
-                  </p>
-                  {errors.soundcloudTrackId && <p class="error-text">{errors.soundcloudTrackId}</p>}
-                </div>
-              </div>
-              <MediaSlot label="Pochette" media={show?.cover ?? null} />
-              {show?.radiocultEventId && (
-                <div class="field">
-                  <span class="field-label">Créneau Radio Cult</span>
-                  <p class="readonly-value">{show.radiocultEventId}</p>
-                  <p class="hint">Ce show vient de la programmation Radio Cult (import quotidien).</p>
-                </div>
-              )}
-            </div>
-          </section>
-
-          <Tracklist tracks={form.tracks} errors={errors} />
-
-          <SheetActions
-            status={status}
-            isNew={isNew}
-            noun="ce show"
-            deleteNote={`« ${show?.title ?? ""} », sa tracklist et ses liens aux artistes et aux étiquettes seront supprimés.`}
-          />
-        </form>
-      </>
-    )
-  }
-</Admin>
+<Admin screen={screen} />

@@ -1,23 +1,26 @@
 ---
 /**
  * Changer son mot de passe (cms/README.md, 9.1) : 12 caractères au moins, comme le demande Supabase Auth. Le mot de
- * passe actuel est vérifié d'abord, pour qu'une session restée ouverte sur un ordinateur partagé ne suffise pas.
+ * passe actuel est vérifié d'abord, pour qu'une session restée ouverte sur un ordinateur partagé ne suffise pas. En GET,
+ * l'écran (HTML ou JSON) ; en POST, le formulaire envoyé par l'écran (PasswordScreen), avec une réponse en JSON.
  */
 import { isAuthWeakPasswordError } from "@supabase/supabase-js";
+import type { Screen } from "../../components/admin/types";
 import Admin from "../../layouts/Admin.astro";
+import { json, wantsJson } from "../../lib/admin/views";
 
 export const prerender = false;
 
 const MINIMUM = 12;
 const supabase = Astro.locals.supabase!;
 const email = Astro.locals.user!.email;
-let errors: Record<string, string> = {};
-let done = false;
+
 if (Astro.request.method === "POST") {
   const data = await Astro.request.formData();
   const current = String(data.get("current") ?? "");
   const next = String(data.get("next") ?? "");
   const again = String(data.get("again") ?? "");
+  const errors: Record<string, string> = {};
   if (!current) errors.current = "Entre ton mot de passe actuel.";
   if (next.length < MINIMUM) errors.next = `${MINIMUM} caractères au moins.`;
   else if (next === current) errors.next = "Choisis un mot de passe différent de l'actuel.";
@@ -27,49 +30,17 @@ if (Astro.request.method === "POST") {
     if (check.error) errors.current = check.error.status === 429 ? "Trop d'essais : attends quelques minutes." : "Ce n'est pas ton mot de passe actuel.";
     else {
       const { error } = await supabase.auth.updateUser({ password: next });
-      if (!error) done = true;
-      else if (isAuthWeakPasswordError(error)) errors.next = "Supabase juge ce mot de passe trop faible : allonge-le, mélange lettres, chiffres et signes.";
+      if (!error) return json({ ok: true });
+      if (isAuthWeakPasswordError(error)) errors.next = "Supabase juge ce mot de passe trop faible : allonge-le, mélange lettres, chiffres et signes.";
       else if (error.code === "same_password") errors.next = "Choisis un mot de passe différent de l'actuel.";
       else errors.form = "Le changement n'a pas pu se faire. Réessaie dans un instant.";
     }
   }
-  if (!done) Astro.response.status = 400;
+  return json({ ok: false, errors }, 400);
 }
+
+const screen: Screen = { name: "password", title: "Mot de passe", data: { email } };
+if (wantsJson(Astro.request)) return json(screen);
 ---
 
-<Admin title="Mot de passe" section="compte" narrow>
-  <div class="page-head">
-    <div>
-      <span class="kicker">Ton compte</span>
-      <h1>Mot de passe</h1>
-      <p class="meta">{email}</p>
-    </div>
-  </div>
-  {done && <p class="flash" role="status">Mot de passe changé. Il servira à ta prochaine connexion.</p>}
-  {errors.form && <p class="flash error" role="alert">{errors.form}</p>}
-  <form class="panel" method="post" novalidate>
-    <h2 class="panel-head">Changer de mot de passe</h2>
-    <div class="panel-body">
-      <input type="text" name="username" value={email} autocomplete="username" hidden />
-      <div class="field">
-        <label for="current">Mot de passe actuel</label>
-        <input type="password" id="current" name="current" autocomplete="current-password" aria-invalid={errors.current ? "true" : undefined} />
-        {errors.current && <p class="error-text">{errors.current}</p>}
-      </div>
-      <div class="field">
-        <label for="next">Nouveau mot de passe</label>
-        <input type="password" id="next" name="next" autocomplete="new-password" minlength={MINIMUM} aria-describedby="next-hint" aria-invalid={errors.next ? "true" : undefined} />
-        <p class="hint" id="next-hint">{MINIMUM} caractères au moins. Une phrase de quelques mots fait un bon mot de passe.</p>
-        {errors.next && <p class="error-text">{errors.next}</p>}
-      </div>
-      <div class="field">
-        <label for="again">Encore une fois</label>
-        <input type="password" id="again" name="again" autocomplete="new-password" aria-invalid={errors.again ? "true" : undefined} />
-        {errors.again && <p class="error-text">{errors.again}</p>}
-      </div>
-      <div>
-        <button class="button" type="submit">Changer le mot de passe</button>
-      </div>
-    </div>
-  </form>
-</Admin>
+<Admin screen={screen} />
