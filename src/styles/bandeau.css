@@ -1,4 +1,4 @@
-/* Le bandeau son, collé sous la barre du haut (le lecteur ON AIR, Band.astro), et la ligne du bas (PREVIOUS, réseaux
+/* Le bandeau son, collé sous la barre du haut (le lecteur ON AIR, Band.astro), et la ligne du bas (réseaux
    sociaux, contributeurs, touches des panneaux, BottomBar.astro), sur toutes les pages. Ils ne quittent jamais la page :
    la navigation ne remplace que <main id="page">. */
 
@@ -74,10 +74,9 @@
 }
 .float-actions > * { margin-left: 0; }
 
-/* Sur écran étroit, la ligne du bas passe à la ligne : le morceau d'avant, puis les touches, centrées */
+/* Sur écran étroit, la ligne du bas passe à la ligne : les touches, centrées */
 @media (max-width: 820px) {
   .bottom-row { flex-wrap: wrap; padding: 8px 12px 12px; }
-  .player-previous { flex-basis: 100%; }
   .float-actions { margin-left: 0; width: 100%; justify-content: center; gap: 8px; }
   .donate-btn { margin-left: 0; }
   .donate-btn.cycle-subtitle { width: 100%; max-width: 100%; }
@@ -191,16 +190,5 @@
   .player-onair { width: 88px; font-size: 10px; letter-spacing: 0.1em; }
 }
 
-/* la ligne du bas : le morceau d'avant (il ouvre HISTORIQUE), puis les liens et les touches des panneaux */
+/* la ligne du bas : les liens et les touches des panneaux */
 .bottom-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px 12px; }   /* transparente : la vidéo se voit */
-.player-previous {
-  flex: 1; min-width: 0;
-  display: flex; align-items: center; gap: 8px;
-  padding: 0; background: none; border: none; color: #ffffff; cursor: pointer;
-  font-size: 11px; text-align: left; white-space: nowrap;
-}
-.player-previous[hidden] { display: none; }
-.player-previous-label { flex-shrink: 0; padding: 3px 6px; border: 1px solid #fff039; color: #fff039; font-size: 9px; font-weight: 700; letter-spacing: 0.12em; }
-.player-previous-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; opacity: 0.9; text-shadow: 0 1px 3px #000000; }   /* lisible sur la vidéo */
-.player-previous:hover .player-previous-text { color: #fff039; opacity: 1; }
-.player-previous:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }

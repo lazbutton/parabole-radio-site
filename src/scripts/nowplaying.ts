@@ -1,13 +1,13 @@
 // ---------- LE DIRECT (ce qui passe, NOWPLAYING_URL dans settings.ts) ----------
 // Lit {title, artist, show, source, elapsed, duration, remaining, received_at, previous, next_autodj} toutes les 10 s ;
 // entre deux lectures, le temps écoulé avance sur place.
-import type { History, NowPlaying, Track } from "../lib/station/types";
+import type { NowPlaying, Track } from "../lib/station/types";
 import { radioControl } from "./audio";
-import { historyOpen, loadHistory, samePlay } from "./history";
+import { historyOpen, loadHistory } from "./history";
 import { askHopper, fillLogos } from "./hopper";
-import { HISTORY_URL, NOWPLAYING_URL } from "./settings";
+import { NOWPLAYING_URL } from "./settings";
 import { station, type Play } from "./state";
-import { escapeHtml, fetchJson, withQuery } from "./util";
+import { escapeHtml, fetchJson } from "./util";
 
 // Ce qui passe, sur l'accueil : l'affichage façon chaîne (ON AIR ou OFF AIR, le titre et, à sa droite, les logos des
 // plateformes où Hopper trouve le morceau, le sous-titre) et le texte « NOW PLAYING » (micro-spec). Ils sont dans le
@@ -51,8 +51,6 @@ export function refreshNowPlaying() {
   const progress = document.getElementById("playerProgress")!;
   const elapsedEl = document.getElementById("playerElapsed")!;
   const durationEl = document.getElementById("playerDuration")!;
-  const prevBtn = document.getElementById("playerPrevious");
-  const prevText = document.getElementById("playerPreviousText")!;
   if (!ticker) return;
   let clock: { elapsed: number; duration: number; at: number } | null = null; // où en était le morceau à la dernière lecture
   let shown = ["Parabole Radio", "Paris 18"];
@@ -70,17 +68,9 @@ export function refreshNowPlaying() {
     if (scroll) track.insertAdjacentHTML("beforeend", item(true)); // une seconde copie rend la boucle sans couture
   }
   window.addEventListener("resize", () => setTicker(shown[0], shown[1], true));
-  // PREVIOUS, dans la ligne du bas : le morceau d'avant. Radiocompas le donne (previous) ; avec Radio Cult, l'historique le
-  // donne à l'arrivée, puis les changements vus ici prennent le relais.
+  // le morceau à l'antenne, et ce qui était à l'antenne au dernier coup d'œil (HISTORIQUE)
   let current: Play | null = null,
-    askedHistory = false,
-    seenChange = false,
     shownOnAir = "";
-  function setPrevious(t: { title: string; artist?: string } | null | undefined) {
-    if (!prevBtn || !t || !t.title) return;
-    prevText.textContent = [t.title, t.artist].filter(Boolean).join(" — ");
-    prevBtn.hidden = false;
-  }
   function tick() {
     const known = !!(clock && clock.duration);
     progress.classList.toggle("unknown", !known);
@@ -118,27 +108,7 @@ export function refreshNowPlaying() {
           : [d.artist, d.album].filter(Boolean).join(" · ");
       refreshNowPlaying();
       const key = waiting ? null : (d.artist || "") + "|" + d.title;
-      const changed = !!(current && key && key !== current.key);
-      if (changed) {
-        seenChange = true;
-        station.played = [current!, ...station.played].slice(0, 20); // HISTORIQUE : le morceau qui vient de finir
-      }
-      if (d.previous && d.previous.title) setPrevious(d.previous);
-      else if (changed) setPrevious(current);
-      else if (!askedHistory && HISTORY_URL) {
-        askedHistory = true;
-        // La station inscrit un morceau quelques minutes après sa fin : redemandé 3 minutes plus tard, sauf si un
-        // changement vu ici l'a donné entre-temps
-        const ask = () =>
-          fetchJson<History>(withQuery(HISTORY_URL, "limit=3"), { cache: "no-store" })
-            .then((h) => {
-              const before = (h.items || []).find((it) => !samePlay(it, current));
-              if (before && !seenChange) setPrevious(before);
-            })
-            .catch(() => {});
-        ask();
-        setTimeout(ask, 180000);
-      }
+      if (current && key && key !== current.key) station.played = [current, ...station.played].slice(0, 20); // HISTORIQUE : le morceau qui vient de finir
       if (key && (!current || key !== current.key)) {
         // son heure de début : Radio Cult donne le début, Radiocompas l'avancement
         const start = Date.parse(d.received_at!) - (Number(d.elapsed) || 0) * 1000;

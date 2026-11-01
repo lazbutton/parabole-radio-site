@@ -22,7 +22,7 @@ const schedulePinned = () => wide() && document.documentElement.dataset.page ===
 /**
  * La hauteur de la ligne du bas (--band-h ; le bandeau son est en haut, dans --barre-h) : PROGRAMMATION se centre dans
  * la place au-dessus, les autres panneaux s'ouvrent dessus, et le contenu des rubriques s'arrête là. Elle change quand
- * PREVIOUS apparaît sur un écran étroit : suivie.
+ * la ligne passe à la ligne sur un écran étroit : suivie.
  */
 function setBandHeight() {
   const band = document.getElementById("floatBottom"),
@@ -54,10 +54,6 @@ document.getElementById("scheduleToggle")?.addEventListener("click", (e) => {
   togglePopup("schedule");
 });
 document.getElementById("lastPlayedToggle")?.addEventListener("click", (e) => {
-  e.stopPropagation();
-  togglePopup("lastplayed");
-});
-document.getElementById("playerPrevious")?.addEventListener("click", (e) => {
   e.stopPropagation();
   togglePopup("lastplayed");
 });

@@ -24,7 +24,7 @@ Le son ne doit jamais se couper quand on change de page. Le site est donc fait d
 d'un **contenu**, le seul qui change :
 
 - la coque (`src/layouts/Base.astro`) : la vidéo de fond (et la neige du zapping) et le globe, l'en-tête (la barre du
-  haut, son menu tout contre le logo et, collé dessous, le bandeau son du lecteur), la ligne du bas (PREVIOUS, réseaux,
+  haut, son menu tout contre le logo et, collé dessous, le bandeau son du lecteur), la ligne du bas (réseaux,
   contributeurs, touches des panneaux), les panneaux PROGRAMMATION, HISTORIQUE et CHAT, et le mode staff ;
 - le contenu : `<main id="page">`, rempli par chaque page de `src/pages/`.
 
@@ -147,8 +147,8 @@ remet en place.
    ```
 
 Les clips passent au hasard, jamais deux fois le même de suite. Un clic sur le fond en lance un autre. Entre deux, on
-zappe : de la neige (`src/scripts/neige.ts`), puis le numéro de la chaîne (la place du clip dans la liste) et son titre
-s'affichent quelques secondes. Au chargement de l'onglet, le téléviseur s'allume : une ligne blanche, la neige, puis
+zappe : de la neige (`src/scripts/neige.ts`). Le numéro de la chaîne (la place du clip dans la liste) et son titre
+peuvent s'afficher quelques secondes : `CHAINE_AU_ZAPPING` dans `settings.ts`, éteint pour le moment. Au chargement de l'onglet, le téléviseur s'allume : une ligne blanche, la neige, puis
 l'image (`src/styles/tele.css`). D'après « CRT TV Effect » de Karl Saunders (https://codepen.io/Mobius1/pen/zZpoXj).
 Avec « réduire les animations », ni allumage ni neige.
 

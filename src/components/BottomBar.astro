@@ -1,19 +1,15 @@
 ---
 /**
- * La ligne du bas, sur toutes les pages, transparente sur la vidéo : le morceau d'avant (PREVIOUS, il ouvre
- * HISTORIQUE), les réseaux sociaux, le bouton contributeurs et les touches des panneaux. Le lecteur, lui, est en haut
- * (Band.astro, sous la barre du haut). Elle n'est jamais remplacée : sa hauteur (--band-h, panels.ts) borne le contenu
- * des rubriques et place les panneaux juste au-dessus.
+ * La ligne du bas, sur toutes les pages, transparente sur la vidéo : les réseaux sociaux, le bouton contributeurs et les
+ * touches des panneaux. Le lecteur, lui, est en haut (Band.astro, sous la barre du haut). Elle n'est jamais remplacée :
+ * sa hauteur (--band-h, panels.ts) borne le contenu des rubriques et place les panneaux juste au-dessus.
  */
 ---
 
 <div id="floatLayer">
   <div id="floatBottom" class="float-item float-bottom">
-    <!-- Le morceau d'avant (il ouvre HISTORIQUE), puis réseaux sociaux, contributeurs, programmation, historique, chat -->
+    <!-- Réseaux sociaux, contributeurs, programmation, historique, chat -->
     <div class="bottom-row">
-      <button id="playerPrevious" class="player-previous" type="button" hidden
-        ><span class="player-previous-label">PREVIOUS</span><span id="playerPreviousText" class="player-previous-text"></span></button
-      >
       <div class="float-actions">
         <div class="bottom-social">
           <a href="https://www.instagram.com/paraboleradio/" target="_blank" rel="noopener noreferrer" aria-label="Instagram"

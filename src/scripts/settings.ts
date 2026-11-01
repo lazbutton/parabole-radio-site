@@ -48,10 +48,12 @@ export const HOPPER_URL = "/api/hopper";
 // Pour en faire tourner plusieurs : déposer les vidéos dans le MÊME dossier
 //   public/PARABOLE RADIO/VIDEO/BACKGROUND/
 // et ajouter chaque chemin ci-dessous. Ils passent au hasard (jamais deux fois le même de suite), avec de la neige
-// entre deux, comme quand on zappe. Chaque clip est une chaîne : son numéro (sa place dans la liste) et son titre
-// s'affichent quelques secondes à son arrivée ; sans titre, le numéro seul.
+// entre deux, comme quand on zappe. Chaque clip est une chaîne : avec CHAINE_AU_ZAPPING, son numéro (sa place dans la
+// liste) et son titre s'affichent quelques secondes à son arrivée ; sans titre, le numéro seul.
 // À côté de chaque clip, une image .jpg du même nom (sa première image) s'affiche pendant qu'il charge :
 //   ffmpeg -i background16.mp4 -frames:v 1 -q:v 4 background16.jpg
+// Afficher la chaîne (numéro et titre du clip) à chaque zapping : éteint pour le moment, la neige zappe seule.
+export const CHAINE_AU_ZAPPING = false;
 export const bgPlaylist: { src: string; titre?: string }[] = [
   { src: "/PARABOLE RADIO/VIDEO/BACKGROUND/background.mp4", titre: "Baile Furacão 2000" },
   { src: "/PARABOLE RADIO/VIDEO/BACKGROUND/background2.mp4", titre: "babyfather – killuminatti" },

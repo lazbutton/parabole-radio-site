@@ -2,12 +2,12 @@
 // Un clip au hasard, puis un autre à la fin de chacun (jamais deux fois le même de suite). Un clic sur le fond lui-même
 // (pas sur l'en-tête, la ligne du bas, un panneau, la feuille d'une rubrique ou un bouton) en lance un autre ; un clip
 // mis par le staff (un fichier à lui) reste. Entre deux clips, on zappe : la neige tombe (neige.ts), le numéro de la
-// chaîne et le titre du clip s'affichent, et l'image revient en roulant dès que le clip joue. Au chargement de l'onglet,
-// le premier clip arrive ainsi, après l'allumage du téléviseur (html.allumage, tele.css). Avec « réduire les
-// animations », ni neige ni roulis : le clip change, sa chaîne s'affiche. La vidéo est dans la coque : elle continue
-// pendant la navigation.
+// chaîne et le titre du clip s'affichent (si CHAINE_AU_ZAPPING, settings.ts), et l'image revient en roulant dès que le
+// clip joue. Au chargement de l'onglet, le premier clip arrive ainsi, après l'allumage du téléviseur (html.allumage,
+// tele.css). Avec « réduire les animations », ni neige ni roulis : le clip change. La vidéo est dans la coque : elle
+// continue pendant la navigation.
 import { neige } from "./neige";
-import { bgPlaylist } from "./settings";
+import { bgPlaylist, CHAINE_AU_ZAPPING } from "./settings";
 
 (function initBgPlaylist() {
   const v = document.getElementById("backgroundVideo") as HTMLVideoElement | null;
@@ -33,7 +33,7 @@ import { bgPlaylist } from "./settings";
   }
   // la chaîne, comme sur un téléviseur : son numéro (sa place dans la liste) et son titre, quelques secondes
   function showChannel(n: number) {
-    if (!osd || !osdNumber || !osdTitle) return;
+    if (!CHAINE_AU_ZAPPING || !osd || !osdNumber || !osdTitle) return;
     clearTimeout(osdTimer);
     osdNumber.textContent = String(n + 1).padStart(2, "0");
     osdTitle.textContent = bgPlaylist[n].titre || "";
