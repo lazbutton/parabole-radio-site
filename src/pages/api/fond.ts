@@ -1,0 +1,30 @@
+/**
+ * GET /api/fond : les vidéos de fond de la rotation, dans l'ordre de la liste de l'admin (Vidéos de fond), au format
+ * de la playlist du fond : { clips: [{ src, titre?, poster? }] }. Le cache de Vercel la garde 30 secondes, puis la
+ * ressert le temps de la redemander ; les navigateurs, eux, la redemandent à chaque visite (sans quoi ils resserviraient
+ * leur copie, comme le permet stale-while-revalidate). Un changement fait dans l'admin arrive ainsi sur le site en une
+ * minute environ. Base injoignable (ou pas encore migrée) : 502, et le fond prend la liste de secours de
+ * src/scripts/settings.ts.
+ */
+import { createReader } from "@parabole/cms";
+import type { APIRoute } from "astro";
+import { json } from "../../lib/cache";
+import { database } from "../../lib/cms";
+
+export const prerender = false;
+
+export const GET: APIRoute = async () => {
+  try {
+    // Les clips ne sont pas dans le seau des images : son adresse ne sert pas ici.
+    const clips = await createReader(await database(), { mediaBaseUrl: "" }).listBackgroundClips();
+    const response = json(
+      { clips: clips.map(({ src, title, poster }) => ({ src, ...(title ? { titre: title } : {}), ...(poster ? { poster } : {}) })) },
+      "public, max-age=0, must-revalidate",
+    );
+    response.headers.set("Vercel-CDN-Cache-Control", "max-age=30, stale-while-revalidate=300");
+    return response;
+  } catch (failure) {
+    console.error("api/fond : la liste des vidéos de fond est illisible", failure);
+    return json({ error: "unavailable" }, "no-store", 502);
+  }
+};

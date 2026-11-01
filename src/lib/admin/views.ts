@@ -3,10 +3,11 @@
  * personne connectée, une fiche de show ou d'artiste avec ce qu'il faut pour la remplir, et les réponses en JSON. Les
  * dates partent déjà écrites à l'heure de Paris.
  */
-import { emptyArtistForm, emptyShowForm, type Admin, type AdminArtist, type AdminShow, type TeamMember } from "@parabole/cms";
-import type { ArtistSheet, ShowSheet, Viewer } from "../../components/admin/types";
+import { emptyArtistForm, emptyShowForm, formatTimecode, type Admin, type AdminArtist, type AdminClip, type AdminShow, type TeamMember } from "@parabole/cms";
+import type { ArtistSheet, ClipsData, ShowSheet, Viewer } from "../../components/admin/types";
+import { blobReady, MAX_VIDEO_BYTES } from "./blob";
 import { artistFormOf, showFormOf } from "./forms";
-import { parisDateTime, parisDay } from "./format";
+import { megabytes, parisDateTime, parisDay } from "./format";
 
 export const viewerOf = (member: TeamMember): Viewer => ({ name: member.name, email: member.email, role: member.role });
 
@@ -40,6 +41,32 @@ export function artistSheet(artist: AdminArtist | null): ArtistSheet {
     radiocultArtistId: artist?.radiocultArtistId ?? null,
     shows: (artist?.shows ?? []).map((show) => ({ id: show.id, title: show.title, type: show.type, status: show.status, date: show.broadcastAt ? parisDay(show.broadcastAt) : "sans date" })),
     events: artist?.events ?? 0,
+  };
+}
+
+/** Les vidéos de fond, dans l'ordre : le numéro de chaîne compte celles de la rotation. */
+export function clipsData(clips: AdminClip[]): ClipsData {
+  let channel = 0;
+  return {
+    uploads: blobReady(),
+    maxBytes: MAX_VIDEO_BYTES,
+    clips: clips.map((clip) => ({
+      id: clip.id,
+      title: clip.title,
+      videoUrl: clip.videoUrl,
+      posterUrl: clip.posterUrl,
+      channel: clip.status === "published" ? ++channel : null,
+      status: clip.status,
+      origin: clip.videoUrl.startsWith("/") ? "site" : "upload",
+      facts: [
+        clip.durationSeconds && formatTimecode(clip.durationSeconds),
+        clip.width && clip.height && `${clip.width} × ${clip.height}`,
+        clip.sizeBytes && megabytes(clip.sizeBytes),
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      added: parisDay(clip.createdAt),
+    })),
   };
 }
 

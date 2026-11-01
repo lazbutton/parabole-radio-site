@@ -17,9 +17,10 @@ import {
   MoonIcon,
   PersonIcon,
   SunIcon,
+  VideoIcon,
 } from "@radix-ui/react-icons";
 import { Avatar, Box, DropdownMenu, Flex, Heading, IconButton, Kbd, Text } from "@radix-ui/themes";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import logo from "../../assets/logo-barre.png";
 import { useAppearance, type Appearance } from "./appearance";
 import { useCommand } from "./CommandPalette";
@@ -28,12 +29,23 @@ import { useRouter } from "./router";
 import { initial } from "./text";
 import type { Screen, Viewer } from "./types";
 
-/** Les rubriques. Les suivantes (événements, pages, étiquettes, médiathèque, équipe) viendront dans « Contenus ». */
-const SECTIONS: { href: string; label: string; icon: typeof HomeIcon; screens: Screen["name"][] }[] = [
-  { href: "/admin", label: "Accueil", icon: HomeIcon, screens: ["dashboard"] },
-  { href: "/admin/shows", label: "Shows", icon: DiscIcon, screens: ["shows", "show"] },
-  { href: "/admin/artistes", label: "Artistes", icon: PersonIcon, screens: ["artists", "artist"] },
+/**
+ * Les rubriques, par groupe. Les suivantes (événements, pages, étiquettes, médiathèque) viendront dans « Contenus » ;
+ * l'équipe, dans « Site ».
+ */
+type Section = { href: string; label: string; icon: typeof HomeIcon; screens: Screen["name"][] };
+const HOME: Section = { href: "/admin", label: "Accueil", icon: HomeIcon, screens: ["dashboard"] };
+const GROUPS: { label: string; sections: Section[] }[] = [
+  {
+    label: "Contenus",
+    sections: [
+      { href: "/admin/shows", label: "Shows", icon: DiscIcon, screens: ["shows", "show"] },
+      { href: "/admin/artistes", label: "Artistes", icon: PersonIcon, screens: ["artists", "artist"] },
+    ],
+  },
+  { label: "Site", sections: [{ href: "/admin/videos", label: "Vidéos de fond", icon: VideoIcon, screens: ["clips"] }] },
 ];
+const SECTIONS = [HOME, ...GROUPS.flatMap((group) => group.sections)];
 
 /** Le site public, dans un autre onglet. */
 const SITE = "/";
@@ -102,12 +114,16 @@ function Sidebar({ viewer, current }: { viewer: Viewer; current: Screen["name"] 
         </Kbd>
       </button>
       <nav className="admin-nav" aria-label="Rubriques">
-        <NavLink section={SECTIONS[0]!} current={current} />
-        <Text as="div" size="1" weight="medium" color="gray" className="admin-nav-heading">
-          Contenus
-        </Text>
-        {SECTIONS.slice(1).map((section) => (
-          <NavLink key={section.href} section={section} current={current} />
+        <NavLink section={HOME} current={current} />
+        {GROUPS.map((group) => (
+          <Fragment key={group.label}>
+            <Text as="div" size="1" weight="medium" color="gray" className="admin-nav-heading">
+              {group.label}
+            </Text>
+            {group.sections.map((section) => (
+              <NavLink key={section.href} section={section} current={current} />
+            ))}
+          </Fragment>
         ))}
       </nav>
       <div className="admin-sidebar-end">
@@ -133,7 +149,7 @@ function Sidebar({ viewer, current }: { viewer: Viewer; current: Screen["name"] 
   );
 }
 
-function NavLink({ section, current }: { section: (typeof SECTIONS)[number]; current: Screen["name"] }) {
+function NavLink({ section, current }: { section: Section; current: Screen["name"] }) {
   const active = section.screens.includes(current);
   const Icon = section.icon;
   return (

@@ -173,6 +173,14 @@ erDiagram
         text credit
         jsonb variants "versions réduites"
     }
+    background_clip {
+        uuid id PK
+        text title
+        text video_url UK "public/ ou Vercel Blob"
+        text poster_url "image d'attente"
+        int position "1, 2, 3…"
+        enum status "draft, published"
+    }
     member {
         uuid user_id PK "compte Supabase Auth"
         text email UK
@@ -199,6 +207,7 @@ erDiagram
 | `event_artist` | Les artistes d'un événement | Dans l'ordre d'affichage |
 | `event_photo` | La galerie d'un événement | Dans l'ordre de défilement, avec une légende |
 | `page` | Une page de texte | À propos (`a-propos`), mentions légales… |
+| `background_clip` | Une vidéo du fond du site | Publiée : dans la rotation ; brouillon : mise de côté. `position` donne l'ordre de la liste, et le numéro de chaîne. Le fichier est dans le site (`public/`, les 15 clips d'origine, inscrits par la migration) ou sur Vercel Blob (envoyé depuis l'admin, section 9.7) |
 | `media` | Un fichier envoyé sur Supabase Storage | Sa clé dans le seau, son type, ses dimensions, son texte alternatif, son crédit, ses versions réduites (`[{ "width": 800, "key": "…" }]`) |
 | `member` | Un membre de l'équipe | Relié à un compte Supabase Auth, avec son rôle. Jamais d'auditeurs |
 
@@ -219,6 +228,9 @@ erDiagram
 | `0000_prelude.sql` | à la main | L'extension `unaccent`, la configuration de recherche française, le schéma `private` |
 | `0001_modele.sql` | drizzle-kit | Les types, les tables, les contraintes, les index. La RLS est activée partout |
 | `0002_acces.sql` | à la main | Les règles d'accès, les droits des rôles, les déclencheurs |
+| `0003_stockage.sql` | à la main | La description de la table `media` : Supabase Storage plutôt que Cloudflare R2 |
+| `0004_fond.sql` | drizzle-kit | La table `background_clip` des vidéos de fond |
+| `0005_fond_acces.sql` | à la main | Ses règles d'accès, ses droits, son déclencheur, et les 15 clips d'origine |
 
 ---
 
@@ -233,7 +245,7 @@ Postgres voit chaque visiteur sous un rôle de Supabase. La sécurité par ligne
 | Un éditeur (`editor`) | ✓ | ✓ | ✓ | |
 | Un admin (`admin`) | ✓ | ✓ | ✓ | ✓ |
 
-« Écrire les contenus » couvre : créer, modifier, publier et supprimer les shows, les tracklists, les artistes, les événements, les étiquettes, les pages et les fichiers.
+« Écrire les contenus » couvre : créer, modifier, publier et supprimer les shows, les tracklists, les artistes, les événements, les étiquettes, les pages, les fichiers et les vidéos de fond.
 
 Le détail des règles :
 
@@ -241,6 +253,7 @@ Le détail des règles :
 - **Les liens** (tracklist, artistes et étiquettes d'un show, artistes et galerie d'un événement) suivent leur contenu. Ils sont visibles quand celui-ci l'est. L'artiste en brouillon d'un show publié reste caché.
 - **Les fichiers** (`media`) : le public ne voit que ceux d'un contenu publié (pochette, photo, visuel, galerie). Les autres restent à l'équipe : ceux d'un brouillon, et ceux qui ne servent pas encore.
 - **Les étiquettes** sont publiques.
+- **Les vidéos de fond** (`background_clip`) : le public ne voit que celles de la rotation (publiées) ; l'équipe voit et modifie tout.
 - **L'équipe** (`member`) : le public n'y a aucun accès. Les membres se voient entre eux ; seul l'admin ajoute, modifie ou retire un membre. La base refuse de laisser l'équipe sans admin : un admin doit en nommer un autre avant de céder sa place. Cela vaut aussi pour la suppression de son compte dans Supabase Auth. Pour une vraie remise à zéro, l'éditeur SQL peut suspendre le déclencheur le temps de l'opération (`alter table member disable trigger keep_an_admin`, puis `enable`).
 - **Droits des rôles** : Supabase donne d'office tous les droits aux rôles de son API. La migration les réduit : `anon` ne fait que lire, et personne ne vide une table par l'API (`TRUNCATE` échappe à la RLS).
 - **Fonctions des règles** (`private.team_role()`, `private.is_admin()`…) : elles vivent dans le schéma `private`, que l'API de Supabase ne publie pas.
@@ -356,6 +369,7 @@ Le modèle est dans `cms/.env.example`. Les variables `PUBLIC_*` peuvent aller d
 | `PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Vercel, `.env` | Clé publiable `sb_publishable_…` (Project Settings → API Keys ; l'ancienne clé `anon` fait le même travail) |
 | `SUPABASE_SECRET_KEY` | Vercel seulement | Clé secrète `sb_secret_…` (l'ancienne `service_role`) : sert à créer les comptes de l'équipe et à écrire dans le Storage, rien d'autre |
 | `PUBLIC_MEDIA_URL` | Vercel, `.env` | Adresse publique du seau `media` : `https://<ref>.supabase.co/storage/v1/object/public/media`. Les envois passent par `SUPABASE_SECRET_KEY` |
+| `BLOB_READ_WRITE_TOKEN` | Vercel (posé en reliant le magasin Blob au projet) ; `.env` pour essayer l'envoi en local | Le jeton du magasin Vercel Blob `parabole-fond`, celui des vidéos de fond (section 9.7). Serveur seulement : il signe les envois du navigateur et efface les fichiers devenus inutiles. Sans lui, l'admin gère la liste des vidéos mais n'en envoie aucune |
 | `CRON_SECRET` | Vercel | Une longue chaîne aléatoire : protège l'import quotidien Radio Cult |
 | `PGLITE_DIR` | `.env`, facultatif | Autre dossier pour la base locale (par défaut `cms/.pglite`) |
 
@@ -436,6 +450,7 @@ Toutes les lectures se font sous le rôle `anon`, en lecture seule. Elles ne voi
 | `getEvent(slug)` | | `EventDetail` : description, adresse, billetterie, artistes, galerie dans l'ordre. Ou `null` |
 | `getPage(slug)` | | `{ slug, title, body, updatedAt }` (Markdown). Ou `null` |
 | `search(texte, { limit })` | `limit` par type (10 par défaut) | `{ query, shows, artists, events }`, les plus pertinents d'abord |
+| `listBackgroundClips()` | | Les vidéos de fond de la rotation, dans l'ordre de la liste : `[{ src, title, poster }]` |
 
 Une vignette de show (`ShowCard`) porte de quoi remplir les grilles des croquis : titre, type, date, durée, pochette, artistes et étiquettes. Les images arrivent prêtes pour `<img>` :
 
@@ -464,13 +479,14 @@ npm test
 npm run typecheck
 ```
 
-109 tests, sur une base PGlite en mémoire : aucun compte, aucun réseau, une dizaine de secondes. `npm test` marche aussi depuis la racine du projet. Ils couvrent :
+122 tests, sur une base PGlite en mémoire : aucun compte, aucun réseau, une dizaine de secondes. `npm test` marche aussi depuis la racine du projet. Ils couvrent :
 
 - **les migrations** : elles passent sur une base vide, et leur relance ne change rien. Chaque table publique a sa RLS et ses règles. Le schéma Drizzle et la base sont d'accord. drizzle-kit n'a plus rien à générer : une migration oubliée fait échouer le test ;
 - **le seed** : il passe, se rejoue sans doublon, se retire sans toucher au reste, et marque bien tout comme exemple ;
 - **les lectures** : filtres, pagination, tracklist, index A–Z, événements à venir et passés, pages ;
 - **la recherche** : français, accents, débuts de mots, brouillons jamais visibles, saisies piégées ;
 - **les règles d'accès**, sous des rôles simulés comme ceux de Supabase : le public, un compte sans fiche, un éditeur, un admin, le dernier admin, et l'ancienne version de `auth.uid()`.
+- **les vidéos de fond** : les clips d'origine inscrits par la migration, la liste que lit le site, les règles d'accès, puis l'ajout, le titre, la mise de côté, l'ordre, le remplacement du fichier et la suppression ;
 - **l'admin** : la saisie vérifiée champ par champ, la tracklist collée, les minutages, l'heure de Paris aux changements d'heure ; puis, sous le rôle d'un éditeur, la création d'un show avec un artiste et une étiquette nés à la volée, la publication, la tracklist remplacée, l'enregistrement concurrent, la suppression ; et le refus d'un compte hors de l'équipe.
 
 PGlite tourne sous Postgres 18, Supabase sous Postgres 17. Pour vérifier aussi le vrai moteur de Supabase, avec ses rôles et ses droits, Docker suffit :
@@ -512,6 +528,8 @@ Sous `/admin`, dans le projet Astro, rendus côté serveur, en français, pensé
 
 Puis l'interface a été refondue : barre latérale, recherche de partout (⌘K, `/admin/recherche`), mode sombre, filtres en pastilles, fiches au titre en grand avec leurs actions dans une barre, tracklist en feuille de calcul (Entrée, Alt+↑ ↓), et un petit éditeur Tiptap pour les descriptions et les bios, qui enregistre du Markdown (l'aperçu à part a disparu). Le tableau de bord montre les prochaines diffusions et ce qui manque : les shows déjà diffusés sans tracklist ou sans son, les artistes sans photo ou sans bio (`overview()`, et le filtre `missing` des listes, pour que le nombre annoncé soit celui de la liste où l'on arrive).
 
+Ensuite, l'écran **Vidéos de fond** (`/admin/videos`, rubrique « Site ») : les clips du fond du site dans l'ordre de leur liste, avec leur image, leur titre (modifiable sur place) et leur numéro de chaîne ; mettre de côté ou remettre dans la rotation, monter et descendre, voir, remplacer, supprimer, et ajouter une vidéo, qui part directement du navigateur vers Vercel Blob (9.7).
+
 Pas encore : le reste du tableau de bord (imports Radio Cult à relire, prochains événements, textes alternatifs), les événements, les étiquettes, les pages, la médiathèque, l'équipe, les imports Radio Cult, l'envoi des images (9.3), « Retrouver la piste » SoundCloud, « Trouver les liens Hopper », l'aperçu sur le site et l'invalidation du cache.
 
 ### 9.1 Connexion et session
@@ -539,6 +557,7 @@ Pas encore : le reste du tableau de bord (imports Radio Cult à relire, prochain
 | **Médiathèque** | Grille des fichiers, ceux sans texte alternatif en tête | Texte alternatif, crédit, où le fichier sert ; supprimer seulement s'il ne sert plus (et dans le Storage aussi) |
 | **Équipe** (admin seulement) | Nom, adresse, rôle, dernière connexion | Ajouter : adresse, nom, rôle. Le serveur crée le compte avec la clé secrète (`supabase.auth.admin.createUser({ email, password, email_confirm: true })`, mot de passe tiré au hasard et montré une seule fois à l'admin), puis écrit la fiche `member` sous le rôle de l'admin. Plus tard, avec les e-mails : `inviteUserByEmail` à la place. Poser un nouveau mot de passe, changer un rôle, retirer un membre (la base garde toujours un admin) |
 | **Imports Radio Cult** | Journal des imports : créés, mis à jour, laissés | — |
+| **Vidéos de fond** ✓ | Cartes dans l'ordre de la liste : image, numéro de chaîne, titre, durée, cadre, poids ; celles mises de côté en gris | Titre (sur place), dans la rotation ou de côté, monter et descendre ; ajouter et remplacer (envoi direct vers Vercel Blob, 9.7), supprimer avec confirmation |
 
 Pour chaque contenu : **Enregistrer** (brouillon), **Publier**, **Dépublier**, **Aperçu** (la page du site, brouillon compris, pour l'équipe seulement), **Supprimer**, avec confirmation. Publier un show exige une date de diffusion : la base refuse sinon, et l'écran doit le dire avant.
 
@@ -566,7 +585,7 @@ Côté Supabase (Storage → New bucket) :
 - `originaux` : privé, taille maximale 25 Mo, types permis `image/jpeg`, `image/png`, `image/webp`, `image/avif` ;
 - `media` : public, taille maximale 5 Mo, type permis `image/webp`.
 
-**Les limites de la formule gratuite** (pricing de Supabase, novembre 2026) : 1 Go de fichiers, 5 Go de trafic sortant par mois (plus 5 Go servis depuis le cache du CDN), 50 Mo par fichier. Le redimensionnement à la volée de Supabase est réservé aux formules payantes : on ne s'en sert pas, `sharp` prépare les tailles à l'envoi. Une version de 800 px pèse une centaine de Ko : le trafic suffit pour les images. Pas pour les vidéos de fond, qui pèsent plusieurs Mo chacune : elles restent dans `public/`, sur Vercel. L'usage se suit dans Project Settings → Usage.
+**Les limites de la formule gratuite** (pricing de Supabase, novembre 2026) : 1 Go de fichiers, 5 Go de trafic sortant par mois (plus 5 Go servis depuis le cache du CDN), 50 Mo par fichier. Le redimensionnement à la volée de Supabase est réservé aux formules payantes : on ne s'en sert pas, `sharp` prépare les tailles à l'envoi. Une version de 800 px pèse une centaine de Ko : le trafic suffit pour les images. Pas pour les vidéos de fond, qui pèsent plusieurs Mo chacune : elles vont sur Vercel Blob (9.7), et les clips d'origine restent dans `public/`. L'usage se suit dans Project Settings → Usage.
 
 ### 9.4 Import quotidien de la programmation Radio Cult
 
@@ -605,3 +624,26 @@ Les écrans masquent ce qu'un rôle ne peut pas faire, mais c'est la base qui d�
 - Ne jamais envoyer au navigateur `DATABASE_URL` ni `SUPABASE_SECRET_KEY`.
 - Garder la vérification d'origine des formulaires d'Astro (`security.checkOrigin`).
 - Une session se vérifie côté serveur à chaque requête. L'identifiant passé à `asMember()` vient toujours de `supabase.auth.getUser()`, jamais d'un champ de formulaire.
+
+### 9.7 Les vidéos de fond
+
+Les clips qui passent au hasard derrière toutes les pages du site. Leur liste est la table `background_clip` : l'ordre (`position`, qui donne aussi le numéro de chaîne), le titre (que le site peut afficher à l'arrivée du clip, avec son numéro), la rotation (publié) ou la mise de côté (brouillon), et les adresses de la vidéo et de son image d'attente. L'écran est `/admin/videos`.
+
+**Où sont les fichiers.**
+
+- Les 15 clips d'origine restent dans `public/PARABOLE RADIO/VIDEO/BACKGROUND/`, livrés avec le site : Vercel les sert comme le reste (100 Go de trafic par mois en Hobby). La migration `0005_fond_acces.sql` les inscrit dans la liste. Supprimer l'un d'eux dans l'admin le retire de la liste ; son fichier reste dans le dépôt, à retirer par un commit pour alléger le site.
+- Les vidéos envoyées depuis l'admin vont dans le magasin **Vercel Blob** `parabole-fond` (public, région `cdg1`, Paris), relié au projet le 1er novembre 2026 : Vercel a posé `BLOB_READ_WRITE_TOKEN` en Production, Preview et Development. Pas Supabase Storage : son trafic gratuit (5 Go par mois) est partagé avec la base et les images, et le dépasser peut restreindre tout le projet, connexion à l'admin comprise.
+
+**L'envoi** (`src/components/admin/ClipsScreen.tsx`, `src/pages/admin/videos.astro`, `src/lib/admin/blob.ts`). Une fonction Vercel n'accepte pas plus de 4,5 Mo par requête : la vidéo part directement du navigateur vers le magasin.
+
+1. Le navigateur lit la vidéo : sa durée, son cadre, et sa première image en JPEG (640 px de large au plus), qui devient l'image d'attente. Une vidéo qu'il ne sait pas lire est refusée : les visiteurs ne la liraient pas non plus.
+2. Pour chaque fichier, l'écran demande un jeton (`intent=ticket`). Le serveur vérifie le type (MP4 ou WebM ; JPEG ou WebP pour l'image) et la taille (40 Mo au plus), tire le nom (`fond/<uuid>.mp4`) et signe un jeton valable une demi-heure pour ce seul fichier.
+3. Le navigateur dépose le fichier avec `put()` de `@vercel/blob/client`, en plusieurs parties au-delà de 8 Mo, avec une barre de progression. L'envoi continue si l'on change d'écran ; fermer l'onglet demande confirmation.
+4. `intent=add` (ou `replace`) : le serveur vérifie que le fichier est bien dans le magasin (`head`), garde sa taille réelle et l'inscrit à la fin de la liste, dans la rotation. Un refus efface les fichiers envoyés, un remplacement efface l'ancien, une suppression aussi. Le serveur n'efface que des fichiers de ce magasin, rangés sous `fond/`, et jamais ceux d'un clip encore dans la liste.
+5. Un nom ne sert qu'une fois : navigateurs et réseau de Vercel gardent chaque fichier un an.
+
+**Le site** lit la liste par `GET /api/fond`, celles de la rotation dans l'ordre. Vercel la garde 30 secondes, les navigateurs la redemandent à chaque visite : un changement de l'admin arrive en une minute environ. Si elle ne répond pas dans les 1,5 s du chargement, le fond démarre sur la liste de secours de `src/scripts/settings.ts` (les clips d'origine) et prend celle de l'admin dès qu'elle arrive. Un clip illisible, retiré entre-temps par exemple, cède sa place au suivant.
+
+**Les limites de la formule Hobby** (tarifs de Vercel, septembre 2026) : 1 Go de fichiers, 10 Go de trafic Blob par mois, 10 000 opérations simples (lectures hors cache) et 2 000 avancées (envois, listes). Elles valent pour tout le compte Vercel : le magasin `lennygotchi-media`, d'un autre projet, les partage. Chaque lecture d'une vidéo compte dans le trafic, cache ou pas : une vidéo de 4 Mo vue 2 500 fois fait 10 Go. Au-delà, Vercel Blob s'arrête jusqu'à 30 jours : seules les vidéos envoyées ne se chargent plus, le fond passe aux suivantes, le site et l'admin continuent. D'où les conseils de l'écran (640 px de large, moins de 10 Mo), et la formule Pro si le site grandit. L'usage se suit dans Vercel, Storage, `parabole-fond`.
+
+**En local**, l'envoi a besoin du jeton : `vercel env pull` l'écrit dans `.env.local`, avec d'autres réglages, à ne jamais versionner. Les envois faits en local vont dans le vrai magasin : supprimer ensuite la vidéo d'essai depuis l'admin, ce qui efface ses fichiers.

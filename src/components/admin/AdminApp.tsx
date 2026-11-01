@@ -9,6 +9,7 @@ import { AdminShell } from "./AdminShell";
 import { AppearanceProvider } from "./appearance";
 import { ArtistEditor } from "./ArtistEditor";
 import { ArtistsList } from "./ArtistsList";
+import { ClipsScreen } from "./ClipsScreen";
 import { CommandProvider } from "./CommandPalette";
 import { Dashboard } from "./Dashboard";
 import { PasswordScreen } from "./PasswordScreen";
@@ -63,6 +64,8 @@ function CurrentScreen({ viewer }: { viewer: Viewer }) {
       return <ArtistEditor key={visit} {...screen.data} />;
     case "password":
       return <PasswordScreen key={visit} viewer={viewer} {...screen.data} />;
+    case "clips":
+      return <ClipsScreen {...screen.data} />;
   }
 }
 

@@ -14,6 +14,7 @@ import { asPublic } from "../access.ts";
 import type { Db } from "../db.ts";
 import type { ArtistRole, ShowType, TagKind } from "../schema.ts";
 import { getArtist, listArtists } from "./artists.ts";
+import { listBackgroundClips } from "./clips.ts";
 import { getEvent, listEvents, type EventFilters } from "./events.ts";
 import { getPage } from "./pages.ts";
 import { search } from "./search.ts";
@@ -44,12 +45,15 @@ export function createReader(db: Db, { mediaBaseUrl }: ReaderOptions) {
     getPage: (slug: string) => asPublic(db, (tx) => getPage(tx, slug)),
     /** La recherche plein texte en français, sans accents, sur les shows, les artistes et les événements. */
     search: (query: string, options: { limit?: number } = {}) => asPublic(db, (tx) => search(tx, mediaBaseUrl, query, options)),
+    /** Les vidéos de fond de la rotation, dans l'ordre de la liste de l'admin. */
+    listBackgroundClips: () => asPublic(db, (tx) => listBackgroundClips(tx)),
   };
 }
 
 export type Reader = ReturnType<typeof createReader>;
 
 export type { ArtistCard, ArtistDetail, ArtistIndex } from "./artists.ts";
+export type { ClipCard } from "./clips.ts";
 export type { ArtistRef, Image, Paged, TagRef } from "./common.ts";
 export type { EventCard, EventDetail, EventFilters, EventPhoto } from "./events.ts";
 export type { PageContent } from "./pages.ts";

@@ -18,6 +18,9 @@ const CONSTRAINTS: Record<string, [field: string, message: string]> = {
   artist_slug_unique: ["slug", "Cette adresse sert déjà à un autre artiste."],
   artist_slug_format: ["slug", "Minuscules, chiffres et tirets seulement."],
   tag_slug_format: ["tags", "Une étiquette doit contenir au moins une lettre ou un chiffre."],
+  background_clip_video_url_unique: ["video", "Cette vidéo est déjà dans la liste."],
+  background_clip_video_url: ["video", "L'adresse de la vidéo n'est pas valable."],
+  background_clip_poster_url: ["video", "L'adresse de l'image d'attente n'est pas valable."],
 };
 
 /** L'erreur Postgres derrière un échec : Drizzle l'enveloppe (« Failed query… ») et garde l'originale dans « cause ». */

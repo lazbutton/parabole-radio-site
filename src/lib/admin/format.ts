@@ -71,3 +71,8 @@ export function duration(seconds: number): string {
   if (!hours) return `${rest} min`;
   return rest ? `${hours} h ${String(rest).padStart(2, "0")}` : `${hours} h`;
 }
+
+const weight = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
+
+/** « 9,6 Mo », « 430 ko » : le poids d'un fichier. */
+export const megabytes = (bytes: number) => (bytes < 1_000_000 ? `${Math.max(1, Math.round(bytes / 1000))} ko` : `${weight.format(bytes / 1_000_000)} Mo`);

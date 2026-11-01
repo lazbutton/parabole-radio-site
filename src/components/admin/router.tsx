@@ -15,11 +15,19 @@ import { useNotify } from "./toast";
 import type { Screen } from "./types";
 
 /** Les adresses que l'application affiche elle-même ; les autres (connexion, déconnexion…) se chargent normalement. */
-const APP_PATHS = [/^\/admin\/?$/, /^\/admin\/shows\/?$/, /^\/admin\/shows\/[^/]+\/?$/, /^\/admin\/artistes\/?$/, /^\/admin\/artistes\/[^/]+\/?$/, /^\/admin\/mot-de-passe\/?$/];
+const APP_PATHS = [
+  /^\/admin\/?$/,
+  /^\/admin\/shows\/?$/,
+  /^\/admin\/shows\/[^/]+\/?$/,
+  /^\/admin\/artistes\/?$/,
+  /^\/admin\/artistes\/[^/]+\/?$/,
+  /^\/admin\/videos\/?$/,
+  /^\/admin\/mot-de-passe\/?$/,
+];
 export const isAppPath = (pathname: string) => APP_PATHS.some((pattern) => pattern.test(pathname));
 
 /** Les écrans qu'on peut montrer de mémoire en attendant la version à jour : les listes, pas les fiches. */
-const CACHEABLE = new Set<Screen["name"]>(["dashboard", "shows", "artists"]);
+const CACHEABLE = new Set<Screen["name"]>(["dashboard", "shows", "artists", "clips"]);
 /** Combien de temps un écran chargé d'avance reste bon à afficher. */
 const AHEAD_MS = 10_000;
 

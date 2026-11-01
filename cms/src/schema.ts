@@ -347,6 +347,49 @@ export const page = pgTable(
 ).enableRLS();
 
 // ---------------------------------------------------------------------------------------------------------------
+// Vidéos de fond
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * Un clip du fond du site : les vidéos muettes qui passent au hasard derrière toutes les pages, l'une après l'autre.
+ * Le fichier est dans le site (public/, les clips d'origine : « /PARABOLE RADIO/VIDEO/BACKGROUND/background4.mp4 »)
+ * ou sur Vercel Blob (https://…, envoyé depuis l'admin). Publié : dans la rotation ; brouillon : mis de côté. La
+ * place dans la liste (position) donne l'ordre de l'admin et le numéro de chaîne.
+ */
+export const backgroundClip = pgTable(
+  "background_clip",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** « Kiss FM Paris (INA) ». Le site peut l'afficher à l'arrivée du clip ; vide, le numéro seul. */
+    title: text("title").notNull().default(""),
+    /** La vidéo : un chemin du site (« /PARABOLE RADIO/… ») ou une adresse https de Vercel Blob. */
+    videoUrl: text("video_url").notNull().unique(),
+    /** Sa première image, montrée pendant que la vidéo charge. */
+    posterUrl: text("poster_url"),
+    /** « video/mp4 » ou « video/webm ». */
+    mimeType: text("mime_type").notNull().default("video/mp4"),
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
+    durationSeconds: integer("duration_seconds"),
+    width: integer("width"),
+    height: integer("height"),
+    /** 1, 2, 3… : l'ordre de la liste. Deux clips de même place se départagent par leur date d'ajout. */
+    position: integer("position").notNull(),
+    status: contentStatus("status").notNull().default("draft"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check("background_clip_video_url", sql`${t.videoUrl} ~ '^(/[^/]|https://)'`),
+    check("background_clip_poster_url", sql`${t.posterUrl} is null or ${t.posterUrl} ~ '^(/[^/]|https://)'`),
+    check("background_clip_position", sql`${t.position} >= 1`),
+    check("background_clip_dimensions", sql`(${t.width} is null) = (${t.height} is null) and coalesce(${t.width} > 0 and ${t.height} > 0, true)`),
+    check("background_clip_size", sql`${t.sizeBytes} is null or ${t.sizeBytes} >= 0`),
+    check("background_clip_duration", sql`${t.durationSeconds} is null or ${t.durationSeconds} > 0`),
+    index("background_clip_status_position").on(t.status, t.position),
+  ],
+).enableRLS();
+
+// ---------------------------------------------------------------------------------------------------------------
 // L'équipe
 // ---------------------------------------------------------------------------------------------------------------
 
@@ -438,5 +481,7 @@ export type Event = typeof event.$inferSelect;
 export type NewEvent = typeof event.$inferInsert;
 export type Page = typeof page.$inferSelect;
 export type NewPage = typeof page.$inferInsert;
+export type BackgroundClip = typeof backgroundClip.$inferSelect;
+export type NewBackgroundClip = typeof backgroundClip.$inferInsert;
 export type Member = typeof member.$inferSelect;
 export type NewMember = typeof member.$inferInsert;

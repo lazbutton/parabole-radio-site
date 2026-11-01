@@ -1,19 +1,49 @@
-// ---------- LA PLAYLIST DU FOND (clips listés dans settings.ts), ET LE ZAPPING ----------
-// Un clip au hasard, puis un autre à la fin de chacun (jamais deux fois le même de suite). Un clic sur le fond lui-même
+// ---------- LA PLAYLIST DU FOND (liste de l'admin, Vidéos de fond), ET LE ZAPPING ----------
+// La liste se tient dans l'admin et arrive par notre route (CLIPS_URL). Le fond l'attend 1,5 s au plus pendant
+// l'allumage, démarre sinon sur la liste de secours de settings.ts, et prend celle de l'admin dès qu'elle arrive. Un
+// clip au hasard, puis un autre à la fin de chacun (jamais deux fois le même de suite). Un clic sur le fond lui-même
 // (pas sur l'en-tête, la ligne du bas, un panneau, la feuille d'une rubrique ou un bouton) en lance un autre ; un clip
 // mis par le staff (un fichier à lui) reste. Entre deux clips, on zappe : la neige tombe (neige.ts), le numéro de la
 // chaîne et le titre du clip s'affichent (si CHAINE_AU_ZAPPING, settings.ts), et l'image revient en roulant dès que le
-// clip joue. Au chargement de l'onglet, le premier clip arrive ainsi, après l'allumage du téléviseur (html.allumage,
-// tele.css). Avec « réduire les animations », ni neige ni roulis : le clip change. La vidéo est dans la coque : elle
-// continue pendant la navigation.
+// clip joue. Un clip illisible (retiré entre-temps, réseau) cède sa place au suivant. Au chargement de l'onglet, le
+// premier clip arrive ainsi, après l'allumage du téléviseur (html.allumage, tele.css). Avec « réduire les
+// animations », ni neige ni roulis : le clip change. La vidéo est dans la coque : elle continue pendant la navigation.
 import { neige } from "./neige";
-import { bgPlaylist, CHAINE_AU_ZAPPING } from "./settings";
+import { bgPlaylist, CHAINE_AU_ZAPPING, CLIPS_URL } from "./settings";
 
-(function initBgPlaylist() {
+type Clip = { src: string; titre?: string; poster?: string };
+
+/** Ce qu'on attend la liste de l'admin avant de démarrer sur celle de secours : l'écran reste en neige jusque-là. */
+const PATIENCE_MS = 1500;
+
+/** La liste de l'admin, ou null si elle ne répond pas. */
+async function fetchClips(): Promise<Clip[] | null> {
+  if (!CLIPS_URL) return null;
+  try {
+    const response = await fetch(CLIPS_URL, { signal: AbortSignal.timeout(15000) });
+    if (!response.ok) return null;
+    const { clips } = (await response.json()) as { clips?: unknown };
+    return Array.isArray(clips) ? clips.filter((clip): clip is Clip => typeof clip?.src === "string" && Boolean(clip.src)) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** L'image d'attente : celle que donne la liste, sinon le .jpg posé à côté d'un clip d'origine. */
+const posterOf = (clip: Clip) => clip.poster ?? (/\.mp4$/.test(clip.src) ? clip.src.replace(/\.mp4$/, ".jpg") : "");
+
+(async function initBgPlaylist() {
   const v = document.getElementById("backgroundVideo") as HTMLVideoElement | null;
   const root = document.documentElement;
   const still = !!window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!v || !bgPlaylist.length) {
+  const start = performance.now();
+  const fromAdmin = v ? fetchClips() : Promise.resolve(null);
+  let playlist: Clip[] = (await Promise.race([fromAdmin, new Promise<null>((resolve) => setTimeout(resolve, PATIENCE_MS, null))])) ?? bgPlaylist;
+  // Arrivée en retard, la liste de l'admin vaut pour les clips suivants.
+  fromAdmin.then((clips) => {
+    if (clips) playlist = clips;
+  });
+  if (!v || !playlist.length) {
     neige.eteindre();
     root.classList.remove("allumage");
     return;
@@ -21,14 +51,15 @@ import { bgPlaylist, CHAINE_AU_ZAPPING } from "./settings";
   const osd = document.getElementById("osd"),
     osdNumber = document.getElementById("osdNumero"),
     osdTitle = document.getElementById("osdTitre");
-  let current = -1,
+  let current = "", // le clip qui passe (son adresse) : le suivant en est un autre, même si la liste a changé
     zap = 0, // le zapping en cours : un nouveau prend la main sur l'ancien
+    failures = 0, // les clips illisibles de suite
     osdTimer: ReturnType<typeof setTimeout> | undefined;
   function pickRandom() {
     let n: number;
     do {
-      n = Math.floor(Math.random() * bgPlaylist.length);
-    } while (n === current && bgPlaylist.length > 1);
+      n = Math.floor(Math.random() * playlist.length);
+    } while (playlist[n].src === current && playlist.length > 1);
     return n;
   }
   // la chaîne, comme sur un téléviseur : son numéro (sa place dans la liste) et son titre, quelques secondes
@@ -36,7 +67,7 @@ import { bgPlaylist, CHAINE_AU_ZAPPING } from "./settings";
     if (!CHAINE_AU_ZAPPING || !osd || !osdNumber || !osdTitle) return;
     clearTimeout(osdTimer);
     osdNumber.textContent = String(n + 1).padStart(2, "0");
-    osdTitle.textContent = bgPlaylist[n].titre || "";
+    osdTitle.textContent = playlist[n].titre || "";
     osd.classList.add("visible");
   }
   const hideChannel = (after: number) => {
@@ -49,12 +80,12 @@ import { bgPlaylist, CHAINE_AU_ZAPPING } from "./settings";
    */
   function tune(n: number, minimum: number) {
     const id = ++zap,
-      clip = bgPlaylist[n],
+      clip = playlist[n],
       from = performance.now();
-    current = n;
+    current = clip.src;
     showChannel(n);
     if (!still) neige.allumer();
-    v!.poster = clip.src.replace(/\.mp4$/, ".jpg");
+    v!.poster = posterOf(clip);
     v!.src = clip.src;
     v!.load();
     v!.play().catch(() => {});
@@ -93,14 +124,20 @@ import { bgPlaylist, CHAINE_AU_ZAPPING } from "./settings";
     return tune(n, 420 + Math.random() * 280);
   }
 
-  // l'allumage : le premier clip, après au moins 1,2 s de neige ; html.allumage s'en va quand tout est posé
+  // l'allumage : le premier clip, après au moins 1,2 s de neige depuis le chargement (l'attente de la liste comprise) ;
+  // html.allumage s'en va quand tout est posé
   if (still) neige.eteindre();
-  tune(pickRandom(), 1200).then(() =>
+  tune(pickRandom(), Math.max(0, 1200 - (performance.now() - start))).then(() =>
     setTimeout(() => root.classList.remove("allumage"), Math.max(0, 4200 - performance.now())),
   );
-  if (bgPlaylist.length < 2) return; // un seul clip : l'attribut loop le répète sans couture
+  if (playlist.length < 2) return; // un seul clip : l'attribut loop le répète sans couture
   v.loop = false;
   v.addEventListener("ended", () => zapTo(pickRandom())); // le suivant, au hasard (jamais le même)
+  // Un clip illisible : un autre, mais pas en boucle si plus rien ne se charge.
+  v.addEventListener("playing", () => (failures = 0));
+  v.addEventListener("error", () => {
+    if (!v.currentSrc.startsWith("blob:") && ++failures < 4) zapTo(pickRandom());
+  });
   document.addEventListener("click", (e) => {
     const target = e.target as Element;
     if (

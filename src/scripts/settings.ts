@@ -43,15 +43,16 @@ export const CHAT_URL =
 // HISTORIQUE : un lien « Retrouver » sous chaque morceau que Hopper (hppr.fr) trouve mot pour mot sur les plateformes,
 // comme sur OutLive. Demandé à notre route src/pages/api/hopper.ts, qui garde chaque réponse 30 jours. "" : aucun lien.
 export const HOPPER_URL = "/api/hopper";
+// Les vidéos de fond : la liste se tient dans l'admin (Vidéos de fond) et arrive par notre route src/pages/api/fond.ts.
+// "" : seulement la liste de secours ci-dessous.
+export const CLIPS_URL = "/api/fond";
 
-// Les clips de fond. UN clip : il boucle sans couture (rien à faire).
-// Pour en faire tourner plusieurs : déposer les vidéos dans le MÊME dossier
-//   public/PARABOLE RADIO/VIDEO/BACKGROUND/
-// et ajouter chaque chemin ci-dessous. Ils passent au hasard (jamais deux fois le même de suite), avec de la neige
-// entre deux, comme quand on zappe. Chaque clip est une chaîne : avec CHAINE_AU_ZAPPING, son numéro (sa place dans la
-// liste) et son titre s'affichent quelques secondes à son arrivée ; sans titre, le numéro seul.
-// À côté de chaque clip, une image .jpg du même nom (sa première image) s'affiche pendant qu'il charge :
-//   ffmpeg -i background16.mp4 -frames:v 1 -q:v 4 background16.jpg
+// Les clips de fond se gèrent dans l'admin (Vidéos de fond) : ajouter, remplacer, retirer, renommer, ranger. La liste
+// ci-dessous n'est que le secours, quand celle de l'admin ne répond pas (base injoignable) : les clips d'origine,
+// livrés avec le site dans public/PARABOLE RADIO/VIDEO/BACKGROUND/. Ils passent au hasard (jamais deux fois le même
+// de suite), avec de la neige entre deux, comme quand on zappe. Chaque clip est une chaîne : avec CHAINE_AU_ZAPPING,
+// son numéro (sa place dans la liste) et son titre s'affichent quelques secondes à son arrivée ; sans titre, le numéro
+// seul. À côté de chaque clip d'origine, une image .jpg du même nom (sa première image) s'affiche pendant qu'il charge.
 // Afficher la chaîne (numéro et titre du clip) à chaque zapping : éteint pour le moment, la neige zappe seule.
 export const CHAINE_AU_ZAPPING = false;
 export const bgPlaylist: { src: string; titre?: string }[] = [
