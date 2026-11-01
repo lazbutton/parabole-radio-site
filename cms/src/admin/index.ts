@@ -34,7 +34,7 @@ export function createAdmin(db: Db, userId: string) {
     /** Sa fiche d'équipe, ou null pour un compte hors de l'équipe. */
     member: () => as((tx) => getMember(tx, userId)),
     /** Le tableau de bord. */
-    overview: () => as((tx) => overview(tx)),
+    overview: (options?: { now?: Date }) => as((tx) => overview(tx, options)),
     /** Les shows, brouillons compris, filtrés et triés par date. */
     listShows: (filters: AdminShowFilters = {}) => as((tx) => listShows(tx, filters)),
     /** Un show à modifier, ou null. */

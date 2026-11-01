@@ -4,15 +4,18 @@
  * page (router.tsx), et les fiches s'enregistrent sans recharger non plus. La connexion reste une page à part.
  */
 import { AlertDialog, Button, Flex, Theme } from "@radix-ui/themes";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AdminShell } from "./AdminShell";
+import { AppearanceProvider } from "./appearance";
 import { ArtistEditor } from "./ArtistEditor";
 import { ArtistsList } from "./ArtistsList";
+import { CommandProvider } from "./CommandPalette";
 import { Dashboard } from "./Dashboard";
 import { PasswordScreen } from "./PasswordScreen";
 import { RouterProvider, useRouter } from "./router";
 import { ShowEditor } from "./ShowEditor";
 import { ShowsList } from "./ShowsList";
+import { preloadTextEditor } from "./TextEditor";
 import { ToastProvider } from "./toast";
 import type { AppProps, Viewer } from "./types";
 
@@ -20,16 +23,26 @@ type Leaving = { proceed(): void; save?(): Promise<boolean> };
 
 export default function AdminApp({ viewer, href, screen }: AppProps) {
   const [leaving, setLeaving] = useState<Leaving | null>(null);
+  // L'éditeur de texte des fiches se charge au premier temps mort, pour être prêt à l'ouverture d'une fiche.
+  useEffect(() => {
+    if ("requestIdleCallback" in window) requestIdleCallback(preloadTextEditor, { timeout: 4000 });
+    else setTimeout(preloadTextEditor, 1500);
+  }, []);
+  // L'apparence suit la classe `dark` de la page (appearance.tsx) : « inherit ».
   return (
-    <Theme accentColor="indigo" grayColor="slate" radius="medium" scaling="100%" panelBackground="solid" className="admin-theme">
-      <ToastProvider>
-        <RouterProvider href={href} screen={screen} onBlocked={(proceed, save) => setLeaving({ proceed, save })}>
-          <AdminShell viewer={viewer}>
-            <CurrentScreen viewer={viewer} />
-          </AdminShell>
-          <LeaveDialog leaving={leaving} onClose={() => setLeaving(null)} />
-        </RouterProvider>
-      </ToastProvider>
+    <Theme appearance="inherit" accentColor="indigo" grayColor="slate" radius="medium" scaling="100%" panelBackground="solid" className="admin-theme">
+      <AppearanceProvider>
+        <ToastProvider>
+          <RouterProvider href={href} screen={screen} onBlocked={(proceed, save) => setLeaving({ proceed, save })}>
+            <CommandProvider>
+              <AdminShell viewer={viewer}>
+                <CurrentScreen viewer={viewer} />
+              </AdminShell>
+            </CommandProvider>
+            <LeaveDialog leaving={leaving} onClose={() => setLeaving(null)} />
+          </RouterProvider>
+        </ToastProvider>
+      </AppearanceProvider>
     </Theme>
   );
 }
@@ -49,7 +62,7 @@ function CurrentScreen({ viewer }: { viewer: Viewer }) {
     case "artist":
       return <ArtistEditor key={visit} {...screen.data} />;
     case "password":
-      return <PasswordScreen key={visit} {...screen.data} />;
+      return <PasswordScreen key={visit} viewer={viewer} {...screen.data} />;
   }
 }
 
@@ -81,7 +94,7 @@ function LeaveDialog({ leaving, onClose }: { leaving: Leaving | null; onClose():
         <Flex gap="3" mt="5" justify="end" direction={{ initial: "column-reverse", sm: "row" }}>
           <AlertDialog.Cancel>
             <Button variant="soft" color="gray" disabled={saving}>
-              Annuler
+              Rester sur la fiche
             </Button>
           </AlertDialog.Cancel>
           <Button variant="soft" color="red" disabled={saving} onClick={() => leaving && leave(leaving)}>

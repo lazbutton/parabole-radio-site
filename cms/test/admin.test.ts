@@ -11,7 +11,7 @@ import { frenchOrder } from "../src/read/common.ts";
 import { createReader } from "../src/read/index.ts";
 import { artist, show, tag, track } from "../src/schema.ts";
 import { formatTimecode, parseTimecode, parseTracklist } from "../src/tracklist.ts";
-import { createAccount, exampleDb, MEDIA_BASE } from "./helpers.ts";
+import { createAccount, exampleDb, MEDIA_BASE, NOW } from "./helpers.ts";
 
 describe("les minutages", () => {
   it("lisent m:ss, mm:ss au-delà d'une heure, et h:mm:ss", () => {
@@ -259,6 +259,15 @@ describe("les shows dans l'admin", () => {
     expect(row).toMatchObject({ artists: ["Bastien Ocre (exemple)", "Yaya Kossi (exemple)"], tracks: 4, hasSound: true, fromRadioCult: false });
   });
 
+  it("trouve les shows déjà diffusés sans tracklist ou sans son, brouillons compris", async () => {
+    const slugs = async (missing: string) => (await editor.listShows({ missing, now: NOW })).items.map((row) => row.slug).sort();
+    expect(await slugs("tracklist")).toEqual(["exemple-carte-blanche", "exemple-ecologie-au-quotidien", "exemple-voix-de-la-goutte-d-or"]);
+    expect(await slugs("sound")).toEqual(["exemple-carte-blanche", "exemple-ecologie-au-quotidien", "exemple-jazz-du-marche-dejean", "exemple-set-non-publie", "exemple-voix-de-la-goutte-d-or"]);
+    // Un show à venir ne manque encore de rien ; une valeur inconnue ne filtre pas.
+    expect((await editor.listShows({ missing: "sound", now: new Date(NOW.getTime() + 10 * 24 * 3600_000) })).items.map((row) => row.slug)).toContain("exemple-session-a-venir");
+    expect((await editor.listShows({ missing: "?", now: NOW })).total).toBe(9);
+  });
+
   it("crée un show en brouillon avec un nouvel artiste, une nouvelle étiquette et sa tracklist", async () => {
     const [eloise] = await connection.db.select({ id: artist.id }).from(artist).where(eq(artist.slug, "exemple-eloise-vachon"));
     const saved = await saveForm(editor, {
@@ -401,6 +410,24 @@ describe("les artistes dans l'admin", () => {
     expect((await editor.listArtists({ role: "resident", q: "bastien" })).total).toBe(1);
   });
 
+  it("trouvent les fiches sans photo ou sans bio", async () => {
+    // Les artistes nés d'un show (tests plus haut) n'ont ni photo ni bio : on regarde les exemples, et ce qui change.
+    const rows = async (missing: string) => (await editor.listArtists({ missing })).groups.flatMap((group) => group.artists);
+    const withoutPhoto = await rows("photo");
+    const examples = withoutPhoto.filter((one) => one.slug.startsWith("exemple-")).map((one) => one.slug).sort();
+    expect(examples).toEqual(["exemple-404-crew", "exemple-collectif-goutte-d-or", "exemple-elle-et-lui", "exemple-yaya-kossi", "exemple-zelie-marteau"]);
+    expect(withoutPhoto.every((one) => !one.hasPhoto)).toBe(true);
+    const before = await rows("bio");
+    expect(before.some((one) => one.slug.startsWith("exemple-"))).toBe(false);
+    const { values } = readArtistForm({ name: "Sans Bio", slug: "", role: "guest", bio: "   ", links: [] });
+    const created = await editor.saveArtist({ values });
+    const after = await rows("bio");
+    expect(after.length).toBe(before.length + 1);
+    expect(after.find((one) => one.name === "Sans Bio")).toMatchObject({ hasBio: false });
+    expect(after.every((one) => !one.hasBio)).toBe(true);
+    if (created.ok) await editor.deleteArtist(created.id);
+  });
+
   it("créent, publient et suppriment une fiche, liens compris", async () => {
     const { values } = readArtistForm({ name: "Nouvelle Résidente", slug: "", role: "resident", bio: "Une bio.", links: [{ label: "", url: "https://soundcloud.com/nouvelle" }] });
     const created = await editor.saveArtist({ values });
@@ -440,5 +467,20 @@ describe("le tableau de bord", () => {
     expect(overview.drafts.length).toBeGreaterThan(0);
     const dates = overview.drafts.map((draft) => draft.updatedAt.getTime());
     expect(dates).toEqual([...dates].sort((a, b) => b - a));
+  });
+
+  it("annonce les prochaines diffusions, et compte ce qui manque comme le font les listes", async () => {
+    const overview = await editor.overview({ now: NOW });
+    expect(overview.upcoming.map((one) => one.title)).toContain("Session à venir (exemple)");
+    const times = overview.upcoming.map((one) => one.broadcastAt.getTime());
+    expect(times.every((time) => time > NOW.getTime())).toBe(true);
+    expect(times).toEqual([...times].sort((a, b) => a - b));
+    expect(overview.upcoming.find((one) => one.title === "Session à venir (exemple)")).toMatchObject({ type: "dj_set", artists: ["404 Crew (exemple)"] });
+    // Le nombre annoncé est celui de la liste filtrée où mène le tableau de bord.
+    expect(overview.missing.tracklist).toBe((await editor.listShows({ missing: "tracklist", now: NOW })).total);
+    expect(overview.missing.sound).toBe((await editor.listShows({ missing: "sound", now: NOW })).total);
+    expect(overview.missing.photo).toBe((await editor.listArtists({ missing: "photo" })).total);
+    expect(overview.missing.bio).toBe((await editor.listArtists({ missing: "bio" })).total);
+    expect(overview.missing.tracklist).toBeGreaterThan(0);
   });
 });

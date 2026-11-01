@@ -1,33 +1,41 @@
 ---
 /**
- * Le tableau de bord de l'admin : les chiffres des rubriques et les derniers brouillons. Les autres blocs prévus
- * (imports Radio Cult à relire, prochains événements, images sans texte alternatif : cms/README.md, 9.2) viendront
- * avec leurs écrans. Comme chaque écran de l'admin, il est servi en HTML au premier affichage et en JSON quand
- * l'application navigue (src/components/admin/router.tsx).
+ * L'accueil de l'admin : les prochaines diffusions, ce qui reste à compléter (chaque nombre mène à la liste filtrée),
+ * les brouillons à reprendre et les chiffres des rubriques. Les autres blocs prévus (imports Radio Cult à relire,
+ * prochains événements, images sans texte alternatif : cms/README.md, 9.2) viendront avec leurs écrans. Comme chaque
+ * écran de l'admin, il est servi en HTML au premier affichage et en JSON quand l'application navigue
+ * (src/components/admin/router.tsx).
  */
 import type { Screen } from "../../components/admin/types";
 import Admin from "../../layouts/Admin.astro";
-import { since } from "../../lib/admin/format";
+import { inDays, parisDayParts, parisLongDay, parisTime, since } from "../../lib/admin/format";
 import { json, wantsJson } from "../../lib/admin/views";
 
 export const prerender = false;
 
-const overview = await Astro.locals.admin!.overview();
 const now = new Date();
+const overview = await Astro.locals.admin!.overview({ now });
 const screen: Screen = {
   name: "dashboard",
-  title: "Tableau de bord",
+  title: "Accueil",
   data: {
-    stats: [
-      { label: "Shows publiés", value: overview.shows.published, href: "/admin/shows?status=published" },
-      { label: "Shows en brouillon", value: overview.shows.draft, href: "/admin/shows?status=draft" },
-      { label: "Artistes publiés", value: overview.artists.published, href: "/admin/artistes?status=published" },
-      { label: "Artistes en brouillon", value: overview.artists.draft, href: "/admin/artistes?status=draft" },
-    ],
+    today: parisLongDay(now),
+    stats: { shows: overview.shows, artists: overview.artists },
+    upcoming: overview.upcoming.map((show) => ({
+      href: `/admin/shows/${show.id}`,
+      title: show.title,
+      artists: show.artists.join(", "),
+      type: show.type,
+      status: show.status,
+      ...parisDayParts(show.broadcastAt),
+      time: parisTime(show.broadcastAt),
+      when: inDays(show.broadcastAt, now),
+    })),
+    missing: overview.missing,
     drafts: overview.drafts.map((draft) => ({
       href: `/admin/${draft.kind === "show" ? "shows" : "artistes"}/${draft.id}`,
       title: draft.title,
-      kind: draft.kind === "show" ? "Show" : "Artiste",
+      kind: draft.kind,
       since: since(draft.updatedAt, now),
     })),
   },

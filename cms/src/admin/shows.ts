@@ -43,11 +43,27 @@ export type AdminShowFilters = {
   tag?: string;
   /** Identifiant d'un artiste. */
   artist?: string;
+  /** Ce qui manque à un show déjà diffusé : « tracklist », ou « sound » (la piste SoundCloud). */
+  missing?: string;
   /** « recent » (par défaut) : les plus récents d'abord, ceux sans date en tête ; « oldest » : les plus anciens. */
   order?: string;
   limit?: number;
   offset?: number;
+  /** L'instant qui sépare le déjà diffusé de l'à venir (maintenant, sauf dans les tests). */
+  now?: Date;
 };
+
+/** Les noms des artistes d'un show, brouillons compris, dans l'ordre d'affichage. */
+export const artistNames = () =>
+  sql<string[]>`coalesce((select json_agg(a.name order by sa.position, a.name) from ${showArtist} sa join ${artist} a on a.id = sa.artist_id
+    where sa.show_id = ${outer(show.id)}), '[]'::json)`;
+
+/** Un show déjà diffusé sans tracklist : le tableau de bord les compte, la liste les filtre. */
+export const lacksTracklist = (now: Date) =>
+  sql`(${show.broadcastAt} <= ${now.toISOString()}::timestamptz and not exists (select 1 from ${track} tr where tr.show_id = ${outer(show.id)}))`;
+
+/** Un show déjà diffusé sans piste SoundCloud : le lecteur du site n'a rien à jouer. */
+export const lacksSound = (now: Date) => sql`(${show.broadcastAt} <= ${now.toISOString()}::timestamptz and ${show.soundcloudTrackId} is null)`;
 
 /** La recherche de l'admin : comme celle du site (src/read/search.ts), brouillons compris. */
 function matching(input: string): SQL | undefined {
@@ -75,6 +91,8 @@ export async function listShows(tx: Tx, filters: AdminShowFilters = {}): Promise
   if (filters.type && oneOf(showType.enumValues, filters.type)) conditions.push(eq(show.type, filters.type));
   if (isUuid(filters.tag)) conditions.push(sql`exists (select 1 from ${showTag} st where st.show_id = ${outer(show.id)} and st.tag_id = ${filters.tag})`);
   if (isUuid(filters.artist)) conditions.push(sql`exists (select 1 from ${showArtist} sa where sa.show_id = ${outer(show.id)} and sa.artist_id = ${filters.artist})`);
+  if (filters.missing === "tracklist") conditions.push(lacksTracklist(filters.now ?? new Date()));
+  else if (filters.missing === "sound") conditions.push(lacksSound(filters.now ?? new Date()));
   const where = and(...conditions);
   const order = filters.order === "oldest" ? [sql`${show.broadcastAt} asc nulls last`, asc(show.title)] : [sql`${show.broadcastAt} desc nulls first`, desc(show.updatedAt)];
   const rows = await tx
@@ -87,8 +105,7 @@ export async function listShows(tx: Tx, filters: AdminShowFilters = {}): Promise
       broadcastAt: show.broadcastAt,
       durationSeconds: show.durationSeconds,
       updatedAt: show.updatedAt,
-      artists: sql<string[]>`coalesce((select json_agg(a.name order by sa.position, a.name) from ${showArtist} sa join ${artist} a on a.id = sa.artist_id
-        where sa.show_id = ${outer(show.id)}), '[]'::json)`,
+      artists: artistNames(),
       tracks: sql<number>`(select count(*) from ${track} tr where tr.show_id = ${outer(show.id)})`.mapWith(Number),
       hasSound: sql<boolean>`${show.soundcloudTrackId} is not null`,
       fromRadioCult: sql<boolean>`${show.radiocultEventId} is not null`,

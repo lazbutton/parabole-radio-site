@@ -1,18 +1,24 @@
 /**
- * Les artistes : l'index A–Z, brouillons compris, avec la recherche et les filtres résident / invité et statut
- * (cms/README.md, 9.2), appliqués sans recharger la page. Les lettres en haut mènent à leur groupe.
+ * Les artistes : l'index A–Z, brouillons compris, avec la recherche et les filtres en pastilles — rôle, statut, ce
+ * qui manque (photo, bio) — appliqués sans recharger la page (cms/README.md, 9.2). Les lettres en haut mènent à leur
+ * groupe.
  */
 import { LABELS } from "@parabole/cms/labels";
-import { PlusIcon } from "@radix-ui/react-icons";
-import { Avatar, Badge, Button, Card, Flex, Link, SegmentedControl, Select, Table, Text } from "@radix-ui/themes";
+import { PersonIcon, PlusIcon } from "@radix-ui/react-icons";
+import { Avatar, Badge, Button, Card, Flex, Link, Select, Table, Text } from "@radix-ui/themes";
 import { Fragment } from "react";
-import { PageHeader, StatusBadge } from "./AdminShell";
-import { ALL, listHref, SearchField, useListFilters } from "./filters";
+import { PageHeader } from "./AdminShell";
+import { FilterPill, listHref, SearchField, useListFilters } from "./filters";
+import { StatusBadge } from "./marks";
 import { useRouter } from "./router";
+import { counted, initial } from "./text";
 import type { ArtistFilters, ArtistsListData } from "./types";
 
 const anchor = (letter: string) => (letter === "#" ? "lettre-chiffres" : `lettre-${letter.toLowerCase()}`);
 const hrefOf = (filters: ArtistFilters) => listHref("/admin/artistes", filters);
+
+/** Ce qui manque à une fiche : les choix du filtre, et leurs libellés. */
+const MISSING: Record<string, string> = { photo: "Sans photo", bio: "Sans bio" };
 
 /** Aller au groupe d'une lettre, sans toucher à l'adresse. */
 function jumpTo(letter: string) {
@@ -23,13 +29,13 @@ function jumpTo(letter: string) {
 export function ArtistsList({ groups, total, filters }: ArtistsListData) {
   const { loading } = useRouter();
   const { shown, set, query } = useListFilters(filters, hrefOf);
-  const filtered = Boolean(filters.q || filters.role || filters.status);
+  const filtered = Boolean(filters.q || filters.role || filters.status || filters.missing);
 
   return (
-    <>
+    <div className="admin-page">
       <PageHeader
         title="Artistes"
-        description={`${total} ${total > 1 ? "artistes" : "artiste"}${filtered ? " pour ces filtres" : ""}`}
+        description={`${counted(total, "artiste")}${filtered ? " pour ces filtres" : ""}`}
         actions={
           <Button asChild>
             <a href="/admin/artistes/nouveau" data-astro-prefetch="false">
@@ -38,61 +44,58 @@ export function ArtistsList({ groups, total, filters }: ArtistsListData) {
           </Button>
         }
       />
-      <Card size="2" mb="4" className="admin-card">
-        <Flex gap="3" wrap="wrap" align="center">
-          <SearchField query={query} placeholder="Rechercher un nom…" />
-          <SegmentedControl.Root value={shown.role || ALL} onValueChange={(role) => set({ role })} aria-label="Rôle">
-            <SegmentedControl.Item value={ALL}>Tous</SegmentedControl.Item>
-            <SegmentedControl.Item value="resident">Résidents</SegmentedControl.Item>
-            <SegmentedControl.Item value="guest">Invités</SegmentedControl.Item>
-          </SegmentedControl.Root>
-          <Select.Root value={shown.status || ALL} onValueChange={(status) => set({ status })}>
-            <Select.Trigger aria-label="Statut" variant="soft" color="gray" />
-            <Select.Content>
-              <Select.Item value={ALL}>Tous les statuts</Select.Item>
-              <Select.Item value="published">Publiés</Select.Item>
-              <Select.Item value="draft">Brouillons</Select.Item>
-            </Select.Content>
-          </Select.Root>
+      <div className="admin-toolbar">
+        <SearchField query={query} placeholder="Rechercher un nom…" />
+        <div className="admin-pills">
+          <FilterPill label="Rôle" allLabel="Résidents et invités" value={shown.role} valueLabel={shown.role === "resident" ? "Résidents" : "Invités"} onChange={(role) => set({ role })}>
+            <Select.Item value="resident">Résidents</Select.Item>
+            <Select.Item value="guest">Invités</Select.Item>
+          </FilterPill>
+          <FilterPill label="Statut" allLabel="Tous les statuts" value={shown.status} valueLabel={shown.status === "draft" ? "Brouillons" : "Publiés"} onChange={(status) => set({ status })}>
+            <Select.Item value="published">Publiés</Select.Item>
+            <Select.Item value="draft">Brouillons</Select.Item>
+          </FilterPill>
+          <FilterPill label="À compléter" allLabel="Toutes les fiches" value={shown.missing} valueLabel={MISSING[shown.missing]} onChange={(missing) => set({ missing })}>
+            <Select.Item value="photo">Sans photo</Select.Item>
+            <Select.Item value="bio">Sans bio</Select.Item>
+          </FilterPill>
           {filtered && (
-            <Button variant="ghost" color="gray" asChild>
+            <Button variant="ghost" color="gray" size="2" asChild>
               <a href="/admin/artistes" data-astro-prefetch="false">
                 Effacer les filtres
               </a>
             </Button>
           )}
-        </Flex>
-      </Card>
+        </div>
+      </div>
 
       <div className="admin-results" data-loading={loading || undefined}>
         {groups.length > 1 && (
-          <Flex gap="1" wrap="wrap" mb="3" asChild>
-            <nav aria-label="Lettres">
-              {groups.map((group) => (
-                <Button key={group.letter} asChild variant="soft" color="gray" size="1" className="admin-letter">
-                  <a
-                    href={`#${anchor(group.letter)}`}
-                    data-astro-prefetch="false"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      jumpTo(group.letter);
-                    }}
-                  >
-                    {group.letter}
-                  </a>
-                </Button>
-              ))}
-            </nav>
-          </Flex>
+          <nav className="admin-letters" aria-label="Lettres">
+            {groups.map((group) => (
+              <a
+                key={group.letter}
+                className="admin-letter"
+                href={`#${anchor(group.letter)}`}
+                data-astro-prefetch="false"
+                onClick={(event) => {
+                  event.preventDefault();
+                  jumpTo(group.letter);
+                }}
+              >
+                {group.letter}
+              </a>
+            ))}
+          </nav>
         )}
 
         {groups.length ? (
-          <Table.Root variant="surface" size="2" className="admin-table">
+          <Table.Root variant="ghost" size="2" className="admin-table">
             <Table.Header>
               <Table.Row>
-                <Table.ColumnHeaderCell>Nom</Table.ColumnHeaderCell>
-                <Table.ColumnHeaderCell className="admin-hide-mobile">Rôle</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Artiste</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell className="admin-hide-mobile">Shows</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell className="admin-hide-tablet">Fiche</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell justify="end">Statut</Table.ColumnHeaderCell>
               </Table.Row>
             </Table.Header>
@@ -101,40 +104,57 @@ export function ArtistsList({ groups, total, filters }: ArtistsListData) {
                 <Fragment key={group.letter}>
                   <Table.Row className="admin-group" id={anchor(group.letter)}>
                     <Table.Cell colSpan={4}>
-                      <Text size="2" weight="bold" color="indigo">
-                        {group.letter === "#" ? "Chiffres et signes" : group.letter}
-                      </Text>
+                      <Flex align="center" gap="2">
+                        <Text size="2" weight="bold" highContrast>
+                          {group.letter === "#" ? "Chiffres et signes" : group.letter}
+                        </Text>
+                        <Text size="1" color="gray">
+                          {group.artists.length}
+                        </Text>
+                      </Flex>
                     </Table.Cell>
                   </Table.Row>
                   {group.artists.map((artist) => {
                     const href = `/admin/artistes/${artist.id}`;
+                    const gaps = [!artist.hasPhoto && "sans photo", !artist.hasBio && "sans bio"].filter((gap): gap is string => Boolean(gap));
                     return (
                       <Table.Row key={artist.id} className="admin-row" data-href={href}>
                         <Table.RowHeaderCell>
                           <Flex align="center" gap="3">
-                            <Avatar size="2" radius="full" fallback={artist.name.trim().charAt(0).toUpperCase() || "?"} color={artist.role === "resident" ? "indigo" : "gray"} />
+                            <Avatar size="2" radius="full" fallback={initial(artist.name)} color={artist.role === "resident" ? "indigo" : "gray"} variant="soft" />
                             <Flex direction="column" minWidth="0">
                               <Link href={href} weight="medium" highContrast underline="hover" data-astro-prefetch="false" className="admin-break">
                                 {artist.name}
                               </Link>
                               <Text size="1" color="gray">
-                                <span className="admin-show-mobile">{LABELS.artistRole[artist.role]} · </span>
-                                {artist.shows ? `${artist.shows} show${artist.shows > 1 ? "s" : ""}` : "aucun show"}
-                                {artist.hasPhoto ? "" : " · sans photo"}
+                                {LABELS.artistRole[artist.role]}
+                                <span className="admin-show-mobile"> · {artist.shows ? counted(artist.shows, "show") : "aucun show"}</span>
                               </Text>
                             </Flex>
                           </Flex>
                         </Table.RowHeaderCell>
                         <Table.Cell className="admin-hide-mobile">
-                          <Badge color={artist.role === "resident" ? "indigo" : "gray"} variant="soft">
-                            {LABELS.artistRole[artist.role]}
-                          </Badge>
+                          <Text size="2" color={artist.shows ? undefined : "gray"}>
+                            {artist.shows ? counted(artist.shows, "show") : "Aucun"}
+                          </Text>
                         </Table.Cell>
-                        <Table.Cell className="admin-hide-mobile">
-                          <Text color="gray">{artist.shows}</Text>
+                        <Table.Cell className="admin-hide-tablet">
+                          {gaps.length ? (
+                            <Flex gap="1" wrap="wrap">
+                              {gaps.map((gap) => (
+                                <Badge key={gap} size="1" color="amber" variant="soft">
+                                  {gap}
+                                </Badge>
+                              ))}
+                            </Flex>
+                          ) : (
+                            <Text size="1" color="gray">
+                              Complète
+                            </Text>
+                          )}
                         </Table.Cell>
                         <Table.Cell justify="end">
-                          <StatusBadge status={artist.status} size="1" />
+                          <StatusBadge status={artist.status} />
                         </Table.Cell>
                       </Table.Row>
                     );
@@ -144,10 +164,16 @@ export function ArtistsList({ groups, total, filters }: ArtistsListData) {
             </Table.Body>
           </Table.Root>
         ) : (
-          <Card size="3" className="admin-card">
-            <Flex direction="column" align="center" gap="3" py="5">
+          <Card size="3" className="admin-empty-card">
+            <Flex direction="column" align="center" gap="3" py="6">
+              <span className="admin-empty-icon" aria-hidden>
+                <PersonIcon width="22" height="22" />
+              </span>
               <Text size="3" weight="medium">
                 {filtered ? "Aucun artiste pour ces filtres" : "Pas encore d'artiste"}
+              </Text>
+              <Text size="2" color="gray" align="center">
+                {filtered ? "Essaie une autre recherche, ou retire un filtre." : "Les résidents et les invités de la radio, avec leur bio et leurs liens."}
               </Text>
               {filtered ? (
                 <Button variant="soft" asChild>
@@ -166,6 +192,6 @@ export function ArtistsList({ groups, total, filters }: ArtistsListData) {
           </Card>
         )}
       </div>
-    </>
+    </div>
   );
 }

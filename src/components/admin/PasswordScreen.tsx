@@ -4,16 +4,17 @@
  * les gestionnaires de mots de passe y voient un envoi réussi et proposent d'enregistrer le nouveau.
  */
 import { CheckCircledIcon, ExclamationTriangleIcon } from "@radix-ui/react-icons";
-import { Box, Button, Callout, Card, Flex, TextField } from "@radix-ui/themes";
+import { Avatar, Box, Button, Callout, Card, Flex, Text, TextField } from "@radix-ui/themes";
 import { useState, type SubmitEvent } from "react";
 import { PageHeader } from "./AdminShell";
 import { Field, postForm } from "./sheet";
+import { initial } from "./text";
 import { useNotify } from "./toast";
-import type { PasswordData } from "./types";
+import type { PasswordData, Viewer } from "./types";
 
 type Errors = Record<string, string>;
 
-export function PasswordScreen({ email }: PasswordData) {
+export function PasswordScreen({ email, viewer }: PasswordData & { viewer: Viewer }) {
   const notify = useNotify();
   const [errors, setErrors] = useState<Errors>({});
   const [sending, setSending] = useState(false);
@@ -37,9 +38,20 @@ export function PasswordScreen({ email }: PasswordData) {
   }
 
   return (
-    <>
-      <PageHeader title="Mot de passe" description={email} />
+    <div className="admin-page">
+      <PageHeader title="Mot de passe" description="Pour te connecter à l'admin, sur cet appareil comme sur les autres." />
       <Box maxWidth="520px">
+        <Flex align="center" gap="3" mb="4" className="admin-who">
+          <Avatar size="3" radius="full" fallback={initial(viewer.name)} variant="solid" />
+          <Flex direction="column" minWidth="0">
+            <Text size="2" weight="medium">
+              {viewer.name}
+            </Text>
+            <Text size="2" color="gray" className="admin-break">
+              {email} · {viewer.role === "admin" ? "admin" : "éditeur"}
+            </Text>
+          </Flex>
+        </Flex>
         {done ? (
           <Callout.Root color="green">
             <Callout.Icon>
@@ -49,7 +61,7 @@ export function PasswordScreen({ email }: PasswordData) {
               <Callout.Text>Mot de passe changé. Il servira à ta prochaine connexion.</Callout.Text>
               <Button asChild variant="soft" color="green">
                 <a href="/admin" data-astro-prefetch="false">
-                  Retour au tableau de bord
+                  Retour à l'accueil
                 </a>
               </Button>
             </Flex>
@@ -64,21 +76,21 @@ export function PasswordScreen({ email }: PasswordData) {
                 <Callout.Text>{errors.form}</Callout.Text>
               </Callout.Root>
             )}
-            <Card size="3" className="admin-card">
+            <Card size="3" className="admin-panel">
               <form method="post" noValidate onSubmit={(event) => void submit(event)}>
                 <input type="text" name="username" value={email} autoComplete="username" readOnly hidden />
                 <Flex direction="column" gap="4">
                   <Field label="Mot de passe actuel" htmlFor="current" error={errors.current}>
-                    <TextField.Root id="current" name="current" type="password" autoComplete="current-password" color={errors.current ? "red" : undefined} />
+                    <TextField.Root size="3" id="current" name="current" type="password" autoComplete="current-password" color={errors.current ? "red" : undefined} />
                   </Field>
                   <Field label="Nouveau mot de passe" htmlFor="next" hint="12 caractères au moins. Une phrase de quelques mots fait un bon mot de passe." error={errors.next}>
-                    <TextField.Root id="next" name="next" type="password" autoComplete="new-password" minLength={12} color={errors.next ? "red" : undefined} />
+                    <TextField.Root size="3" id="next" name="next" type="password" autoComplete="new-password" minLength={12} color={errors.next ? "red" : undefined} />
                   </Field>
                   <Field label="Encore une fois" htmlFor="again" error={errors.again}>
-                    <TextField.Root id="again" name="again" type="password" autoComplete="new-password" color={errors.again ? "red" : undefined} />
+                    <TextField.Root size="3" id="again" name="again" type="password" autoComplete="new-password" color={errors.again ? "red" : undefined} />
                   </Field>
                   <Flex justify="end">
-                    <Button type="submit" loading={sending}>
+                    <Button type="submit" size="3" loading={sending}>
                       Changer le mot de passe
                     </Button>
                   </Flex>
@@ -88,6 +100,6 @@ export function PasswordScreen({ email }: PasswordData) {
           </>
         )}
       </Box>
-    </>
+    </div>
   );
 }

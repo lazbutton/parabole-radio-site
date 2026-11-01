@@ -1,10 +1,12 @@
 /**
  * Ce que partagent les listes (shows, artistes) : des filtres qui vivent dans l'adresse (une liste filtrée se garde ou
- * se partage), appliqués sans recharger la page, et une recherche qui part dès qu'on s'arrête de taper.
+ * se partage), appliqués sans recharger la page, une recherche qui part dès qu'on s'arrête de taper, et les filtres
+ * en pastilles : discrètes tant qu'elles ne filtrent rien, colorées et lisibles (« Type : Podcast ») dès qu'elles
+ * filtrent.
  */
 import { Cross2Icon, MagnifyingGlassIcon } from "@radix-ui/react-icons";
-import { IconButton, TextField } from "@radix-ui/themes";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { IconButton, Select, TextField } from "@radix-ui/themes";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter, type NavigateOptions } from "./router";
 
 /** La valeur « tous » d'un filtre (Radix Select n'accepte pas de valeur vide). */
@@ -87,6 +89,7 @@ export function SearchField({ query, placeholder }: { query: ListQuery; placehol
       }}
     >
       <TextField.Root
+        size="3"
         value={query.value}
         onChange={(event) => query.change(event.target.value)}
         onKeyDown={(event) => {
@@ -101,7 +104,7 @@ export function SearchField({ query, placeholder }: { query: ListQuery; placehol
         autoComplete="off"
       >
         <TextField.Slot>
-          <MagnifyingGlassIcon />
+          <MagnifyingGlassIcon width="16" height="16" />
         </TextField.Slot>
         {query.value && (
           <TextField.Slot side="right">
@@ -112,5 +115,31 @@ export function SearchField({ query, placeholder }: { query: ListQuery; placehol
         )}
       </TextField.Root>
     </form>
+  );
+}
+
+/**
+ * Un filtre en pastille (Radix Select) : « Type » quand il ne filtre rien, « Type : Podcast » sur fond coloré quand il
+ * filtre. Le premier choix, « tous », le remet à zéro. Les choix sont les Select.Item passés en enfants.
+ */
+export function FilterPill({ label, value, valueLabel, allLabel, onChange, children }: { label: string; value: string; valueLabel?: string; allLabel: string; onChange(value: string): void; children: ReactNode }) {
+  const active = Boolean(value && value !== ALL);
+  return (
+    <Select.Root value={active ? value : ALL} onValueChange={onChange}>
+      <Select.Trigger variant="soft" color={active ? undefined : "gray"} radius="full" className="admin-pill" aria-label={label}>
+        {active ? (
+          <>
+            {label} : <strong>{valueLabel ?? value}</strong>
+          </>
+        ) : (
+          label
+        )}
+      </Select.Trigger>
+      <Select.Content position="popper" sideOffset={6}>
+        <Select.Item value={ALL}>{allLabel}</Select.Item>
+        <Select.Separator />
+        {children}
+      </Select.Content>
+    </Select.Root>
   );
 }

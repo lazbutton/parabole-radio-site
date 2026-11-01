@@ -1,12 +1,13 @@
 ---
 /**
- * Les shows dans l'admin : tous, brouillons compris, du plus récent au plus ancien (ceux sans date en tête), avec les
- * filtres de cms/README.md (9.2) : statut, type, étiquette, artiste, et la recherche. Les filtres sont dans l'adresse :
- * une liste filtrée se garde en favori ou se partage avec l'équipe. Servie en HTML ou en JSON, comme chaque écran.
+ * Les shows dans l'admin : tous, brouillons compris, du plus récent au plus ancien (ceux sans date en tête), rangés
+ * par mois, avec les filtres de cms/README.md (9.2) : statut, type, étiquette, artiste, ce qui manque (tracklist, son),
+ * et la recherche. Les filtres sont dans l'adresse : une liste filtrée se garde en favori ou se partage avec
+ * l'équipe, et l'accueil y mène. Servie en HTML ou en JSON, comme chaque écran.
  */
 import type { Screen } from "../../../components/admin/types";
 import Admin from "../../../layouts/Admin.astro";
-import { duration, parisDateTime } from "../../../lib/admin/format";
+import { duration, parisMonth, parisShortDay, parisTime } from "../../../lib/admin/format";
 import { json, wantsJson } from "../../../lib/admin/views";
 
 export const prerender = false;
@@ -20,10 +21,12 @@ const filters = {
   type: params.get("type") ?? "",
   tag: params.get("tag") ?? "",
   artist: params.get("artist") ?? "",
+  missing: params.get("missing") ?? "",
   order: params.get("order") === "oldest" ? "oldest" : "recent",
 };
 const page = Math.max(1, Math.trunc(Number(params.get("page"))) || 1);
-const [result, choices] = await Promise.all([admin.listShows({ ...filters, limit: PER_PAGE, offset: (page - 1) * PER_PAGE }), admin.showChoices()]);
+const now = new Date();
+const [result, choices] = await Promise.all([admin.listShows({ ...filters, now, limit: PER_PAGE, offset: (page - 1) * PER_PAGE }), admin.showChoices()]);
 const screen: Screen = {
   name: "shows",
   title: "Shows",
@@ -33,7 +36,10 @@ const screen: Screen = {
       title: item.title,
       artists: item.artists.join(", "),
       type: item.type,
-      date: item.broadcastAt ? parisDateTime(item.broadcastAt) : "Sans date",
+      day: item.broadcastAt ? parisShortDay(item.broadcastAt) : "",
+      time: item.broadcastAt ? parisTime(item.broadcastAt) : "",
+      month: item.broadcastAt ? parisMonth(item.broadcastAt) : "",
+      upcoming: Boolean(item.broadcastAt && item.broadcastAt > now),
       duration: item.durationSeconds ? duration(item.durationSeconds) : "",
       tracks: item.tracks,
       hasSound: item.hasSound,
