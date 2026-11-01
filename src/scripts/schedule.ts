@@ -99,7 +99,7 @@ export function renderSchedule(keepScroll?: boolean) {
     .map((r) => {
       const live = r.from <= nowMinute && nowMinute < r.to,
         gone = today && r.to <= nowMinute;
-      const meta = (live ? ['<span class="sched-live">En cours</span>', "encore " + lasting(r.to - nowMinute)] : [lasting(r.to - r.from)]).concat(
+      const meta = (live ? ['<span class="sched-live">On air</span>', "encore " + lasting(r.to - nowMinute)] : [lasting(r.to - r.from)]).concat(
         !r.gap && r.kind && KINDS[r.kind] ? [`<span class="sched-tag">${KINDS[r.kind]}</span>`] : [],
       );
       const progress = live
