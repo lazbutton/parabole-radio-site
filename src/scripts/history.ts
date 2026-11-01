@@ -2,7 +2,8 @@
 // Attend {items: [{played_at, title, artist, album}]}, du plus récent au plus ancien. En tête : ce que le direct sait,
 // le morceau en cours et le suivant.
 import type { History, Track } from "../lib/station/types";
-import { HISTORY_URL, HOPPER_URL, STATION_TIMEZONE } from "./settings";
+import { askHopper, hopperSlot } from "./hopper";
+import { HISTORY_URL, STATION_TIMEZONE } from "./settings";
 import { station } from "./state";
 import { escapeHtml, fetchJson, popupMessage, withQuery } from "./util";
 
@@ -77,62 +78,6 @@ export async function loadHistory() {
     askHopper([track, ...played]);
   } catch (e) {
     list.innerHTML = top + popupMessage("Historique indisponible pour le moment.", "Réessayez dans un instant.");
-  }
-}
-
-// HOPPER : la page hppr.fr de chaque morceau, quand Hopper le trouve mot pour mot (rien sinon : un lien faux est pire
-// qu'aucun). Les réponses sont gardées tant que l'onglet est ouvert ; deux morceaux sont demandés à la fois ; un
-// morceau dont la réponse n'est pas venue (Hopper occupé : 10 par minute sans clé partenaire) attend 2 minutes avant
-// d'être redemandé. Un morceau déjà en cours de recherche n'est pas redemandé en même temps.
-const hopper = {
-  links: new Map<string, string | null>(),
-  later: new Map<string, number>(),
-  queue: [] as Track[],
-  asking: new Set<string>(),
-  running: 0,
-};
-const hopperKey = (t: Track) => t.artist + "|" + t.title;
-function hopperLink(url: string) {
-  return `<a class="hppr" href="${escapeHtml(url)}" target="_blank" rel="noopener" title="Ouvrir ce titre sur ta plateforme (hppr.fr)">Retrouver ↗</a>`;
-}
-function hopperSlot(t: Track | null) {
-  if (!HOPPER_URL || !t || !t.artist || !t.title) return "";
-  const url = hopper.links.get(hopperKey(t));
-  return `<span class="hppr-slot" data-key="${escapeHtml(hopperKey(t))}">${url ? hopperLink(url) : ""}</span>`;
-}
-function askHopper(tracks: (Track | null)[]) {
-  if (!HOPPER_URL) return;
-  for (const t of tracks) {
-    if (!t || !t.artist || !t.title) continue;
-    const key = hopperKey(t);
-    if (
-      hopper.links.has(key) ||
-      hopper.asking.has(key) ||
-      (hopper.later.get(key) || 0) > Date.now() ||
-      hopper.queue.some((q) => hopperKey(q) === key)
-    )
-      continue;
-    hopper.queue.push(t);
-  }
-  while (hopper.running < 2 && hopper.queue.length) {
-    const t = hopper.queue.shift()!,
-      key = hopperKey(t);
-    hopper.running++;
-    hopper.asking.add(key);
-    fetchJson<{ url: string | null }>(withQuery(HOPPER_URL, "artist=" + encodeURIComponent(t.artist) + "&title=" + encodeURIComponent(t.title)))
-      .then(({ url }) => {
-        hopper.links.set(key, url || null);
-        if (url)
-          document.querySelectorAll<HTMLElement>(".hppr-slot").forEach((slot) => {
-            if (slot.dataset.key === key) slot.innerHTML = hopperLink(url);
-          });
-      })
-      .catch(() => hopper.later.set(key, Date.now() + 120000))
-      .finally(() => {
-        hopper.running--;
-        hopper.asking.delete(key);
-        askHopper([]);
-      });
   }
 }
 

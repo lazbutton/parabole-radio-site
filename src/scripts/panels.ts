@@ -1,5 +1,5 @@
 // ---------- LES PANNEAUX : PROGRAMMATION, HISTORIQUE et CHAT ----------
-// Une touche ouvre son panneau juste au-dessus du bandeau ; un seul à la fois sur écran étroit. Sur ordinateur,
+// Une touche ouvre son panneau juste au-dessus de la ligne du bas ; un seul à la fois sur écran étroit. Sur ordinateur,
 // PROGRAMMATION est une fenêtre à part : toujours ouverte sur l'accueil (styles, html[data-page="accueil"]), ouverte à la
 // demande ailleurs, sans fermer HISTORIQUE ni CHAT. Les panneaux sont dans la coque : ils restent ouverts, à leur place,
 // d'une page à l'autre.
@@ -20,8 +20,9 @@ const wide = () => !!window.matchMedia && window.matchMedia("(min-width: 821px)"
 const schedulePinned = () => wide() && document.documentElement.dataset.page === "accueil";
 
 /**
- * La hauteur du bandeau (--band-h) : PROGRAMMATION se centre dans la place au-dessus, les autres panneaux s'ouvrent
- * dessus, et le contenu des rubriques s'arrête là. Elle change quand PREVIOUS apparaît sur un écran étroit : suivie.
+ * La hauteur de la ligne du bas (--band-h ; le bandeau son est en haut, dans --barre-h) : PROGRAMMATION se centre dans
+ * la place au-dessus, les autres panneaux s'ouvrent dessus, et le contenu des rubriques s'arrête là. Elle change quand
+ * PREVIOUS apparaît sur un écran étroit : suivie.
  */
 function setBandHeight() {
   const band = document.getElementById("floatBottom"),
@@ -42,7 +43,7 @@ export function togglePopup(which: Which) {
   });
   if (willOpen) {
     const bandHeight = setBandHeight();
-    if (which !== "schedule" && !("moved" in target.dataset)) target.style.bottom = bandHeight + 12 + "px"; // les autres : au-dessus du bandeau, s'ils n'ont pas été déplacés
+    if (which !== "schedule" && !("moved" in target.dataset)) target.style.bottom = bandHeight + 12 + "px"; // les autres : au-dessus de la ligne du bas, s'ils n'ont pas été déplacés
     target.classList.add("open");
     restoreWindow(target);
     ({ schedule: loadSchedule, lastplayed: loadHistory, chat: loadChat })[which]();
@@ -176,7 +177,7 @@ if (windowsOn) {
   });
 }
 
-// À l'arrivée sur une page (au chargement, puis après chaque navigation, router.ts) : la hauteur du bandeau, la
+// À l'arrivée sur une page (au chargement, puis après chaque navigation, router.ts) : la hauteur de la ligne du bas, la
 // PROGRAMMATION de l'accueil remplie, les panneaux à leur place.
 let wasPinned = false;
 export function pageChanged() {

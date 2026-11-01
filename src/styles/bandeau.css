@@ -1,5 +1,6 @@
-/* Le bandeau du bas, sur toutes les pages : le lecteur ON AIR, puis la ligne du dessous (PREVIOUS, réseaux sociaux,
-   contributeurs, touches des panneaux). Il ne quitte jamais la page : la navigation ne remplace que <main id="page">. */
+/* Le bandeau son, collé sous la barre du haut (le lecteur ON AIR, Band.astro), et la ligne du bas (PREVIOUS, réseaux
+   sociaux, contributeurs, touches des panneaux, BottomBar.astro), sur toutes les pages. Ils ne quittent jamais la page :
+   la navigation ne remplace que <main id="page">. */
 
 .bottom-social {
   display: flex;
@@ -60,7 +61,7 @@
 }
 .donate-btn.cycle-subtitle:hover { background: #000dff; color: #fff039; transform: scale(0.97); text-decoration: none; }
 
-/* ---------- LA COUCHE FLOTTANTE : le bandeau au pied de la page ----------
+/* ---------- LA COUCHE FLOTTANTE : la ligne au pied de la page ----------
    Après les touches : sa règle « > * { margin-left: 0 } » l'emporte sur leur marge, comme dans index.html. */
 #floatLayer { position: fixed; inset: 0; z-index: 20; pointer-events: none; }
 #floatLayer .float-item { pointer-events: auto; }
@@ -73,7 +74,7 @@
 }
 .float-actions > * { margin-left: 0; }
 
-/* Sur écran étroit, la ligne sous le bandeau passe à la ligne : le morceau d'avant, puis les touches, centrées */
+/* Sur écran étroit, la ligne du bas passe à la ligne : le morceau d'avant, puis les touches, centrées */
 @media (max-width: 820px) {
   .bottom-row { flex-wrap: wrap; padding: 8px 12px 12px; }
   .player-previous { flex-basis: 100%; }
@@ -85,18 +86,15 @@
 }
 
 /* ---------- LE LECTEUR DE LA STATION (son flux et ce qui passe, src/scripts/audio.ts et nowplaying.ts) ----------
-   Un bandeau sur toute la largeur : la touche de lecture, le panneau ON AIR, une bande d'oscilloscope, le titre qui
-   défile, la progression, le son. Dessous, le morceau d'avant et les liens.
+   Un bandeau sur toute la largeur, sous la barre du haut, dans le même bloc noir (le trait jaune de l'en-tête le ferme) :
+   la touche de lecture, le panneau ON AIR, une bande d'oscilloscope, le titre qui défile, la progression, le son.
    data-state sur #player : off (pas de flux) · idle · loading · playing · error
    data-air sur #player : on · off (ce que dit le direct de la station) */
 .player {
   display: flex; align-items: center; gap: 18px;
-  height: 44px; padding-right: 16px;
+  height: var(--lecteur-h); padding-right: 16px;
   background: #000000;
   color: #ffffff;
-  border-top: 2px solid #fff039; border-bottom: 2px solid #fff039;
-  margin-bottom: 12px;                                           /* un peu au-dessus de la ligne du dessous */
-  text-shadow: 0 1px 3px rgba(0,0,0,0.85);                       /* lisible sur la vidéo */
 }
 /* le panneau ON AIR, bleu sur jaune quand la station est à l'antenne ; une seule largeur quoi qu'il dise, pour que
    le bandeau ne bouge jamais. Son témoin clignote pendant l'écoute, plus vite pendant la connexion. */
@@ -193,8 +191,8 @@
   .player-onair { width: 88px; font-size: 10px; letter-spacing: 0.1em; }
 }
 
-/* sous le bandeau : le morceau d'avant (il ouvre HISTORIQUE), puis les liens et les touches des panneaux */
-.bottom-row { display: flex; align-items: center; gap: 12px; padding: 8px 16px; }   /* transparente : la vidéo se voit */
+/* la ligne du bas : le morceau d'avant (il ouvre HISTORIQUE), puis les liens et les touches des panneaux */
+.bottom-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px 12px; }   /* transparente : la vidéo se voit */
 .player-previous {
   flex: 1; min-width: 0;
   display: flex; align-items: center; gap: 8px;

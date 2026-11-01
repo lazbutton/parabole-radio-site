@@ -37,8 +37,8 @@
 .popup-chat { height: min(480px, 55vh); background: #000000; }
 .popup-chat iframe { display: block; width: 100%; height: 100%; border: 0; }
 /* ---------- PROGRAMMATION : un panneau au centre à droite de la fenêtre, comme sur la maquette ----------
-   Son milieu est celui de la place libre entre la barre du haut (--barre-h) et le bandeau (--band-h, posé par
-   panels.ts). Dedans, la journée comme une ligne : les émissions en sont les arrêts, la musique en continu remplit
+   Son milieu est celui de la place libre entre l'en-tête (--barre-h, bandeau son compris) et la ligne du bas (--band-h,
+   posé par panels.ts). Dedans, la journée comme une ligne : les émissions en sont les arrêts, la musique en continu remplit
    les creux, l'émission à l'antenne est une carte jaune avec son avancement. */
 .popup-schedule {
   --free: calc(100vh - var(--barre-h) - 16px - var(--band-h, 110px) - 16px);
@@ -57,6 +57,11 @@
   .popup-schedule { right: 128px; }
   html[data-page="accueil"] .popup-schedule { display: flex; }
   html[data-page="accueil"] .popup-schedule .popup-close, html[data-page="accueil"] #scheduleToggle { display: none; }
+}
+/* sur l'accueil, pas assez large pour les mettre côte à côte : il s'arrête au-dessus de ce qui passe (affiché comme
+   la chaîne, tele.css, environ 110 px de haut) */
+@media (min-width: 821px) and (max-width: 1100px) {
+  html[data-page="accueil"] .popup-schedule { --free: calc(100vh - var(--barre-h) - 16px - var(--band-h, 110px) - 150px); }
 }
 /* assez large : HISTORIQUE et CHAT s'ouvrent à côté du panneau, pas dessus (128 + 400 + 16 px) */
 @media (min-width: 1100px) { .popup:not(.popup-schedule) { right: 544px; } }

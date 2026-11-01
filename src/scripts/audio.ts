@@ -236,7 +236,7 @@ export const radioControl: RadioControl | null = (function audioControl() {
       return;
     } // respecter le choix du visiteur
     const target = e.target as Element | null;
-    if (target && target.closest && target.closest("#soundToggle, #playerToggle, #playerVolume, #playerMute, .window-bar")) return; // déplacer un panneau n'est pas demander du son
+    if (target && target.closest && target.closest("#soundToggle, #playerToggle, #playerVolume, #playerMute, [data-ecouter], .window-bar")) return; // déplacer un panneau n'est pas demander du son
     playRadio().then(detach).catch(playFailed);
   }
   function detach() {
@@ -256,13 +256,18 @@ export const radioControl: RadioControl | null = (function audioControl() {
       }
     });
 
-  // la touche de lecture du bandeau lance et arrête la radio
-  toggle.disabled = !STREAM_URL;
-  toggle.addEventListener("click", () => {
+  // la touche de lecture du bandeau lance et arrête la radio ; la grande touche ÉCOUTER de l'accueil aussi (elle est
+  // dans le contenu de la page, d'où l'écoute sur le document)
+  function toggleRadio() {
     userChose = true;
     detach();
     if (wanted) stopRadio();
     else playRadio().catch(playFailed);
+  }
+  toggle.disabled = !STREAM_URL;
+  toggle.addEventListener("click", toggleRadio);
+  document.addEventListener("click", (e) => {
+    if (STREAM_URL && (e.target as Element).closest?.("[data-ecouter]")) toggleRadio();
   });
 
   // écran verrouillé et boutons du casque
