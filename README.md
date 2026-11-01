@@ -49,7 +49,31 @@ Pour une nouvelle page :
 | `src/pages/` | Accueil, `about`, `show`, `residents`, `event`, 404, et l'API (`api/`) |
 | `src/lib/station/` | **L'adaptateur de la station** : Radio Cult aujourd'hui |
 | `src/lib/menu.ts` | Les rubriques du menu |
+| `cms/` | **Le CMS** : modèle de données, base Supabase, lectures du site, écritures de l'admin (son `README.md`) |
+| `src/pages/admin/`, `src/middleware.ts` | **L'admin** (`/admin`) et sa garde : voir plus bas |
 | `public/PARABOLE RADIO/` | Vidéos de fond, logo animé, polices, feuille Tailwind figée |
+
+## L'admin (`/admin`)
+
+L'espace de l'équipe : les shows et leur tracklist, les artistes. Il est rendu par le serveur à chaque requête, hors de
+la coque (ni bandeau, ni vidéo), et marche au téléphone comme à l'ordinateur. Le cahier des charges et l'avancement
+sont dans `cms/README.md`, section 9.
+
+- **La garde** (`src/middleware.ts`) : toute adresse sous `/admin` vérifie la session auprès de Supabase Auth, puis
+  lit la fiche d'équipe sous le rôle de la personne. Sans session : la connexion ; sans fiche : « Ce compte ne fait
+  pas partie de l'équipe ». Les cookies de session ne valent que pour `/admin` et ne se lisent pas en JavaScript.
+- **Les écritures** : chaque page envoie son formulaire à elle-même ; le serveur vérifie la saisie, puis écrit avec
+  `Astro.locals.admin` (`createAdmin()` du CMS), sous le rôle de la personne connectée. Les règles d'accès de la
+  base décident : un bouton oublié ne donne aucun droit.
+- **Les fichiers** : `src/pages/admin/` (les écrans), `src/layouts/Admin.astro`, `src/components/admin/`,
+  `src/lib/admin/` (session, formulaires, dates), `src/scripts/admin/` (réordonner, coller une tracklist, aperçu du
+  Markdown), `src/styles/admin.css`.
+- **Les réglages** : `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_PUBLISHABLE_KEY` et `DATABASE_URL`, dans `.env` en
+  local et dans Vercel en ligne (`cms/README.md`, section 5). S'il en manque un, l'admin le dit ; le site public
+  n'en a pas besoin.
+- **En local** : `npm run dev`, puis http://localhost:4321/admin. Avec le `.env` du projet en ligne, on travaille
+  sur la vraie base ; pour essayer sans rien toucher en ligne, un Supabase local (`cms/README.md`, « L'admin en
+  local »).
 
 ## La station et notre API
 
