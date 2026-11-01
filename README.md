@@ -56,8 +56,15 @@ Pour une nouvelle page :
 ## L'admin (`/admin`)
 
 L'espace de l'équipe : les shows et leur tracklist, les artistes. C'est une application React (Radix Themes), hors de
-la coque (ni bandeau, ni vidéo), qui marche au téléphone comme à l'ordinateur ; seule l'entrée (connexion, refus,
-panne) garde le style du site. Le cahier des charges et l'avancement sont dans `cms/README.md`, section 9.
+la coque (ni bandeau, ni vidéo), qui marche au téléphone comme à l'ordinateur, en clair comme en sombre ; seule
+l'entrée (connexion, refus, panne) garde le style du site. Le cahier des charges et l'avancement sont dans
+`cms/README.md`, section 9.
+
+- **L'interface** : une barre latérale (une barre en haut sur téléphone), la recherche de partout (⌘K ou « / »),
+  un accueil qui dit quoi faire (prochaines diffusions, ce qui manque, brouillons), des listes aux filtres en
+  pastilles, et des fiches au titre en grand, aux propriétés en lignes, avec toutes leurs actions dans une barre.
+  Les textes longs s'écrivent dans un petit éditeur Tiptap qui enregistre du Markdown ; il se charge à part
+  (`TextEditor.tsx`), pour que l'accueil et les listes s'ouvrent vite.
 
 - **La garde** (`src/middleware.ts`) : toute adresse sous `/admin` vérifie la session auprès de Supabase Auth, puis
   lit la fiche d'équipe sous le rôle de la personne. Sans session : la connexion ; sans fiche : « Ce compte ne fait
