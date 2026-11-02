@@ -5,12 +5,11 @@
  * qui s'écrit sur place, les propriétés en lignes (libellé à gauche, valeur à droite), les sections, et le panneau
  * de côté (image, son, informations). Plus l'envoi au serveur (postForm, qui sert aussi au mot de passe).
  */
-import { ArrowLeftIcon, CheckIcon, DotsHorizontalIcon, ExclamationTriangleIcon, EyeNoneIcon, ImageIcon, TrashIcon } from "@radix-ui/react-icons";
+import { ArrowLeftIcon, CheckIcon, DotsHorizontalIcon, ExclamationTriangleIcon, EyeNoneIcon, TrashIcon } from "@radix-ui/react-icons";
 import { AlertDialog, Button, DropdownMenu, Flex, Heading, IconButton, Kbd, Spinner, Text, Tooltip } from "@radix-ui/themes";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { FieldErrors } from "@parabole/cms";
 import { StatusBadge, useModKey } from "./marks";
-import type { MediaView } from "./types";
 
 export type Intent = "save" | "publish" | "unpublish" | "delete";
 /** Ce qu'envoient les boutons de la barre : tout sauf la suppression, qui passe par une confirmation. */
@@ -293,30 +292,6 @@ export function SheetBar({
         </AlertDialog.Root>
       )}
     </div>
-  );
-}
-
-/** L'emplacement d'une image (pochette, photo), en attendant l'envoi vers Supabase Storage (prochaine étape). */
-export function MediaSlot({ media, kind }: { media: MediaView; kind: "pochette" | "photo" }) {
-  return (
-    <Flex gap="3" align="start">
-      <div className="admin-media-frame" data-filled={media ? true : undefined} title={media?.key}>
-        <ImageIcon width="22" height="22" aria-hidden />
-      </div>
-      <Flex direction="column" gap="1" minWidth="0">
-        <Text as="p" size="2" weight="medium">
-          {media ? "Image enregistrée" : `Pas encore de ${kind}`}
-        </Text>
-        {media && (
-          <Text as="p" size="1" color="gray" className="admin-break">
-            {media.alt ? `Texte alternatif : « ${media.alt} »` : "Sans texte alternatif"}
-          </Text>
-        )}
-        <Text as="p" size="1" color="gray">
-          L'envoi des images arrive à la prochaine étape.
-        </Text>
-      </Flex>
-    </Flex>
   );
 }
 

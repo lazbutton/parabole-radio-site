@@ -33,7 +33,15 @@ export type TagChoice = { id: string; name: string; places: { facetId: string; g
  * l'ordre et les étiquettes de chacun dans l'ordre alphabétique (des identifiants d'étiquettes).
  */
 export type FacetChoice = { id: string; name: string; description: string | null; showTypes: ShowType[]; groups: { tagId: string; members: string[] }[] };
-export type MediaView = { key: string; alt: string } | null;
+/**
+ * Une image d'une fiche, prête à montrer : son adresse dans le seau « media » (la plus grande version), une version
+ * réduite pour l'aperçu, ses dimensions, son texte alternatif (vide : image décorative) et son crédit.
+ */
+export type MediaView = { id: string; url: string; thumb: string; width: number | null; height: number | null; alt: string; credit: string | null };
+/** L'envoi des images : branché ou non (la clé secrète de Supabase), et le poids maximal d'un original. */
+export type UploadSettings = { ready: boolean; maxBytes: number };
+/** La réponse du serveur à une image mise sur une fiche, ou retirée : l'image, et la fiche à jour (cms : placeMedia). */
+export type PlaceResponse = { ok: true; image: MediaView | null; version: string | null; updated: string | null } | { ok: false; errors: FieldErrors };
 
 /** Le nombre de contenus publiés et en brouillon. */
 export type Counts = { published: number; draft: number };
@@ -90,7 +98,8 @@ export type ShowSheet = {
   created: string | null;
   updated: string | null;
   form: ShowForm;
-  cover: MediaView;
+  cover: MediaView | null;
+  uploads: UploadSettings;
   radiocultEventId: string | null;
   artists: Choice[];
   tags: TagChoice[];
@@ -110,7 +119,8 @@ export type ArtistSheet = {
   created: string | null;
   updated: string | null;
   form: ArtistForm;
-  photo: MediaView;
+  photo: MediaView | null;
+  uploads: UploadSettings;
   radiocultArtistId: string | null;
   shows: { id: string; title: string; type: ShowType; status: ContentStatus; date: string }[];
   events: number;

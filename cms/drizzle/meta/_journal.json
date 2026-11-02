@@ -78,6 +78,13 @@
       "when": 1793622085022,
       "tag": "0010_antenne_acces",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793636276058,
+      "tag": "0011_seaux",
+      "breakpoints": true
     }
   ]
 }

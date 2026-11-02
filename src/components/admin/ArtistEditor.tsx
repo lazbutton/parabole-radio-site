@@ -2,7 +2,7 @@
  * La fiche d'un artiste (cms/README.md, 9.2) : la barre de la fiche en haut (sheet.tsx), puis le nom en grand, le
  * rôle, ses étiquettes (une ligne par filtre des artistes : Activité — podcast, playlist, DJ), la bio et les liens
  * (dans l'ordre) ; à côté, la photo, ses shows et les informations. Même enregistrement que la fiche d'un show, sans
- * quitter l'écran.
+ * quitter l'écran. La photo, elle, se met en place dès son envoi (ImageField).
  */
 import { LABELS } from "@parabole/cms/labels";
 import type { ArtistForm, FieldErrors } from "@parabole/cms";
@@ -10,15 +10,16 @@ import { ArrowDownIcon, ArrowUpIcon, BookmarkIcon, DotsHorizontalIcon, DragHandl
 import { Badge, Button, DataList, DropdownMenu, Flex, IconButton, SegmentedControl, Text, TextField } from "@radix-ui/themes";
 import { useEffect, useMemo, useState } from "react";
 import { FacetPicker } from "./FacetPicker";
+import { ImageField, placeImage } from "./ImageField";
 import { StatusBadge, TypeTile } from "./marks";
 import { forgetRecent, rememberRecent } from "./recents";
 import { useBlocker, useRouter } from "./router";
-import { Field, filledPlaces, FormError, MediaSlot, mergeSaved, placeErrors, postForm, Property, Section, SheetBar, SidePanel, TitleInput, useSheetKeys, type Intent, type SaveIntent } from "./sheet";
+import { Field, filledPlaces, FormError, mergeSaved, placeErrors, postForm, Property, Section, SheetBar, SidePanel, TitleInput, useSheetKeys, type Intent, type SaveIntent } from "./sheet";
 import { useSortable } from "./sortable";
 import { counted } from "./text";
 import { TextEditor } from "./TextEditor";
 import { useNotify } from "./toast";
-import type { ArtistEditorData, ArtistSheet, SaveResponse } from "./types";
+import type { ArtistEditorData, ArtistSheet, MediaView, SaveResponse } from "./types";
 
 type LinkRow = { label: string; url: string; key: string };
 type EditorForm = Omit<ArtistForm, "links"> & { links: LinkRow[] };
@@ -92,6 +93,16 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
     if ("version" in result && result.version) setSheet((current) => ({ ...current, version: result.version! }));
     notify({ kind: "error", title: "La fiche n'est pas enregistrée", description: result.errors.form ?? "Corrige les champs signalés." });
     return false;
+  }
+
+  /** Met une image à la place de la photo, ou la retire : tout de suite, sans enregistrer le reste de la fiche. */
+  async function placePhoto(image: MediaView | null): Promise<string | null> {
+    const result = await placeImage(url, "photo", image, sheet.version);
+    if (!result.ok) return result.errors.form ?? result.errors.image ?? "Le serveur a refusé.";
+    setSheet((current) => ({ ...current, photo: result.image, version: result.version ?? current.version, updated: result.updated ?? current.updated }));
+    // Les listes (artistes sans photo…) ont changé.
+    router.invalidate();
+    return null;
   }
 
   async function remove() {
@@ -170,7 +181,16 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
 
           <aside className="admin-sheet-side" aria-label="Photo, shows et informations">
             <SidePanel title="Photo">
-              <MediaSlot media={sheet.photo} kind="photo" />
+              <ImageField
+                image={sheet.photo}
+                kind="photo"
+                shape="square"
+                suggestion={`Portrait de ${form.name.trim() || "l'artiste"}`}
+                uploads={sheet.uploads}
+                blocked={sheet.id ? undefined : "Enregistre d'abord la fiche : sa photo s'ajoute ensuite."}
+                onPlace={placePhoto}
+                onDescribed={(photo) => setSheet((current) => ({ ...current, photo }))}
+              />
             </SidePanel>
             {sheet.id && (
               <SidePanel title="Ses shows" aside={sheet.shows.length ? <Badge color="gray" radius="full">{sheet.shows.length}</Badge> : undefined}>

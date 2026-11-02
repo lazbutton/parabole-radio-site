@@ -31,8 +31,9 @@ import {
 } from "./chat.ts";
 import { addClip, deleteClip, getClip, listClips, moveClip, replaceClipFile, updateClip, type ClipAdd, type ClipChange } from "./clips.ts";
 import type { NotSaved } from "./common.ts";
-import type { ClipFile, FacetValues } from "./input.ts";
+import type { ClipFile, FacetValues, MediaText } from "./input.ts";
 import { fieldErrorsFrom } from "./errors.ts";
+import { addMedia, describeMedia, getMedia, placeMedia, releaseMedia, type MediaPlace, type MediaSlot, type MediaUpload } from "./media.ts";
 import { deleteShow, getShow, listShows, saveShow, showChoices, type AdminShowFilters, type ShowSave } from "./shows.ts";
 import {
   addTags,
@@ -130,6 +131,16 @@ export function createAdmin(db: Db, userId: string) {
     moveClip: (id: string, direction: "up" | "down") => as((tx) => moveClip(tx, id, direction)),
     /** Supprime une vidéo de fond. Rend les adresses de ses fichiers, à effacer du stockage, ou null. */
     deleteClip: (id: string) => as((tx) => deleteClip(tx, id)),
+    /** Une image, ou null. */
+    getMedia: (id: string) => as((tx) => getMedia(tx, id)),
+    /** Inscrit une image envoyée (ses versions sont déjà sur le Storage), avec son texte alternatif et son crédit. */
+    addMedia: (file: MediaUpload) => saving(() => as((tx) => addMedia(tx, file))),
+    /** Change le texte alternatif et le crédit d'une image. */
+    describeMedia: (id: string, text: MediaText) => saving(() => as((tx) => describeMedia(tx, id, text))),
+    /** Met une image à sa place sur une fiche (photo d'un artiste, pochette d'un show), ou l'en retire. Rend l'image d'avant. */
+    placeMedia: (slot: MediaSlot, place: MediaPlace) => saving(() => as((tx) => placeMedia(tx, slot, place))),
+    /** Retire les images envoyées qui ne servent plus. Rend les clés de leurs versions, à effacer du Storage. */
+    releaseMedia: (ids: (string | null | undefined)[]) => as((tx) => releaseMedia(tx, ids)),
     /** L'antenne libre : les réglages, les messages, ce qui attend la régie, les sanctions, la liste de mots. */
     antenne: (options?: { now?: Date; limit?: number }) => as((tx) => antenneOverview(tx, options)),
     /** Retire un message : brouillé par la régie chez tout le monde. Faux s'il n'était plus à l'antenne. */
@@ -165,6 +176,7 @@ export type { AdminArtist, AdminArtistFilters, AdminArtistIndex, AdminArtistRow,
 export { DELAY_CHOICES, MUTE_CHOICES, SLOW_CHOICES } from "./chat.ts";
 export type { AdminAntenne, AdminChatAuthor, AdminChatMessage, AdminChatSettings, AdminChatTerm, ChatSettingsChange } from "./chat.ts";
 export type { AdminClip, ClipAdd, ClipChange, ClipFiles } from "./clips.ts";
+export { UPLOAD_FOLDER, type AdminMedia, type MediaPlace, type MediaSlot, type MediaUpload } from "./media.ts";
 export type { AdminFacet, AdminFacetChoice, AdminTagChoice, AdminTagUse, TagFilterMenu, TagFilterOption, TagPlace, TagsAdded, Taxonomy } from "./tags.ts";
 export type { NotSaved, Saved } from "./common.ts";
 export {
@@ -179,6 +191,7 @@ export {
   readClipFile,
   readClipTitle,
   readFacetForm,
+  readMediaText,
   readShowForm,
   readTagForm,
   readTagNames,
@@ -191,6 +204,8 @@ export {
   type FacetForm,
   type FacetValues,
   type FieldErrors,
+  type MediaText,
+  type MediaTextForm,
   type ShowForm,
   type ShowValues,
 } from "./input.ts";

@@ -38,6 +38,9 @@ export const LIMITS = {
   batch: 300,
   facet: 60,
   description: 500,
+  /** Le texte alternatif d'une image : une phrase, pas une légende. */
+  alt: 300,
+  credit: 120,
 };
 
 const oneOf = <T extends string>(values: readonly T[], value: string): value is T => (values as readonly string[]).includes(value);
@@ -422,6 +425,29 @@ export function readFacetForm(input: FacetForm): { values: FacetValues; errors: 
   const description = longText(input.description);
   if (description.length > LIMITS.description) errors.description = `${LIMITS.description} caractères au plus.`;
   return { values: { name, slug, scope: scope as FacetScope, showTypes, description: description || null }, errors };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Images
+// ---------------------------------------------------------------------------------------------------------------
+
+/** Le texte d'une image tel que l'écran l'envoie : son texte alternatif, son crédit, la case « Image décorative ». */
+export type MediaTextForm = { alt: string; credit: string; decorative: boolean };
+/** Ce que la base en garde : un texte alternatif vide, c'est une image décorative. */
+export type MediaText = { alt: string; credit: string | null };
+
+/**
+ * Le texte alternatif est demandé à l'envoi (README, 9.3) : ce que montre l'image, pour qui ne la voit pas. Vide
+ * seulement pour une image décorative, cochée comme telle. Le crédit (« © Prénom Nom ») est facultatif.
+ */
+export function readMediaText(input: MediaTextForm): { values: MediaText; errors: FieldErrors } {
+  const errors: FieldErrors = {};
+  const alt = input.decorative ? "" : clean(input.alt);
+  if (!input.decorative && !alt) errors.alt = "Décris l'image en quelques mots, ou coche « Image décorative ».";
+  else if (alt.length > LIMITS.alt) errors.alt = `${LIMITS.alt} caractères au plus.`;
+  const credit = clean(input.credit);
+  if (credit.length > LIMITS.credit) errors.credit = `${LIMITS.credit} caractères au plus.`;
+  return { errors, values: { alt, credit: credit || null } };
 }
 
 // ---------------------------------------------------------------------------------------------------------------

@@ -2,7 +2,8 @@
  * Ce que Supabase fournit d'office et que PGlite n'a pas : les rôles de l'API (anon, authenticated, service_role), le
  * schéma auth avec sa table des comptes et ses fonctions (auth.uid(), auth.role(), auth.jwt()), et les droits par
  * défaut des rôles de l'API sur le schéma public. Recopié d'après l'image supabase/postgres (migrations/db) pour que
- * les migrations et les règles d'accès se comportent ici comme en ligne.
+ * les migrations et les règles d'accès se comportent ici comme en ligne. Plus Realtime et la table des seaux du
+ * Storage, en imitation.
  *
  * Seulement pour PGlite (développement et tests) : sur Supabase, tout cela existe déjà. Rejouable sans effet.
  */
@@ -72,4 +73,17 @@ CREATE OR REPLACE FUNCTION realtime.send(payload jsonb, event text, topic text, 
   INSERT INTO realtime.messages (topic, extension, event, payload, private) VALUES (topic, 'broadcast', event, payload, private)
 $f$;
 GRANT USAGE ON SCHEMA realtime TO anon, authenticated, service_role;
+
+-- Supabase Storage, en imitation : la table des seaux, que remplit 0011_seaux.sql. Sur Supabase, le Storage crée et
+-- garde ce schéma lui-même ; les fichiers, eux, ne passent jamais par la base.
+CREATE SCHEMA IF NOT EXISTS storage;
+CREATE TABLE IF NOT EXISTS storage.buckets (
+  id                 text PRIMARY KEY,
+  name               text NOT NULL,
+  public             boolean DEFAULT false,
+  file_size_limit    bigint,
+  allowed_mime_types text[],
+  created_at         timestamptz DEFAULT now(),
+  updated_at         timestamptz DEFAULT now()
+);
 `;

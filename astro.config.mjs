@@ -34,6 +34,10 @@ export default defineConfig({
       // l'adresse ni la clé publiable ne sont secrètes.
       PUBLIC_SUPABASE_URL: envField.string({ context: "client", access: "public", optional: true }),
       PUBLIC_SUPABASE_PUBLISHABLE_KEY: envField.string({ context: "client", access: "public", optional: true }),
+      // La clé secrète de Supabase (sb_secret_…, ou l'ancienne service_role) : le serveur seul s'en sert, pour écrire
+      // dans le Storage les images envoyées depuis l'admin (src/lib/admin/storage.ts). Sans elle, l'admin n'envoie
+      // aucune image. Jamais dans le navigateur, jamais pour les contenus : ceux-là s'écrivent sous le rôle du membre.
+      SUPABASE_SECRET_KEY: envField.string({ context: "server", access: "secret", optional: true }),
       // L'adresse publique du seau des images du CMS (Supabase Storage). Vide : celle du seau « media » de
       // PUBLIC_SUPABASE_URL (src/lib/cms.ts) ; un autre seau, ou un serveur d'images local pour les essais, la remplace.
       PUBLIC_MEDIA_URL: envField.string({ context: "server", access: "public", optional: true }),

@@ -24,7 +24,7 @@ export function database(): Promise<Db> {
 }
 
 /** L'adresse publique du seau des images : PUBLIC_MEDIA_URL, sinon le seau « media » du projet Supabase. */
-const mediaBaseUrl = PUBLIC_MEDIA_URL || (PUBLIC_SUPABASE_URL ? `${PUBLIC_SUPABASE_URL.replace(/\/+$/, "")}/storage/v1/object/public/media` : "");
+export const mediaBaseUrl =PUBLIC_MEDIA_URL || (PUBLIC_SUPABASE_URL ? `${PUBLIC_SUPABASE_URL.replace(/\/+$/, "")}/storage/v1/object/public/media` : "");
 
 /** Les lectures du site (cms/src/read) : sous le rôle du public, elles ne voient que le publié. */
 export async function reader(): Promise<Reader> {
