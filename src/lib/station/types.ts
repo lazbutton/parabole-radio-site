@@ -42,6 +42,8 @@ export interface ScheduleItem {
   title: string;
   /** emission : émission de la grille ; set : mix enregistré ; direct : en direct. */
   kind: "emission" | "set" | "direct";
+  /** Les noms des artistes du créneau, quand la station les donne. */
+  artists?: string[];
 }
 
 /** La programmation des 7 prochains jours (depuis la veille, pour les heures déjà passées d'aujourd'hui). */

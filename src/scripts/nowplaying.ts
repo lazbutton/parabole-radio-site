@@ -1,7 +1,8 @@
 // ---------- LE DIRECT (ce qui passe, NOWPLAYING_URL dans settings.ts) ----------
-// Lit {title, artist, show, source, elapsed, received_at, previous, next_autodj} toutes les 10 s, pour la ligne ON AIR
-// de l'en-tête (ce qui passe, qui défile ; sur l'accueil, les phrases de Parabole), l'affichage de l'accueil et
-// HISTORIQUE.
+// Lit {title, artist, show, source, elapsed, received_at, previous, next_autodj} toutes les 10 s, ou le reçoit en temps
+// réel quand la station le pousse, pour la ligne ON AIR de l'en-tête (ce qui passe, qui défile ; sur l'accueil, les
+// phrases de Parabole), l'affichage de l'accueil et HISTORIQUE.
+import { subscribe } from "../lib/station";
 import type { NowPlaying, Track } from "../lib/station/types";
 import { radioControl } from "./audio";
 import { historyOpen, loadHistory } from "./history";
@@ -113,53 +114,74 @@ export function refreshNowPlaying() {
   let current: Play | null = null,
     shownOnAir = "";
   if (!NOWPLAYING_URL) return;
+  function apply(d: NowPlaying & { played_at?: string }) {
+    station.now = d;
+    const waiting = !d.title || /en attente/i.test(d.title);
+    setTicker(d, waiting);
+    microText = waiting ? d.show || "—" : [d.artist, d.title].filter(Boolean).join(" — ");
+    // l'affichage : une émission en titre, avec son morceau dessous ; sinon le morceau, avec son artiste
+    headline.etat = d.source === "off" ? "Off air" : "On air";
+    headline.morceau = waiting || !d.artist ? null : { title: d.title, artist: d.artist };
+    headline.titre = d.show || (waiting ? "Parabole Radio" : d.title);
+    headline.sousTitre = d.show
+      ? waiting
+        ? "Paris 18"
+        : [d.artist, d.title].filter(Boolean).join(" — ")
+      : waiting
+        ? "Paris 18 · 24/7"
+        : [d.artist, d.album].filter(Boolean).join(" · ");
+    refreshNowPlaying();
+    const key = waiting ? null : (d.artist || "") + "|" + d.title;
+    if (current && key && key !== current.key) station.played = [current, ...station.played].slice(0, 20); // HISTORIQUE : le morceau qui vient de finir
+    if (key && (!current || key !== current.key)) {
+      // son heure de début : Radio Cult donne le début, Radiocompas l'avancement
+      const start = Date.parse(d.received_at!) - (Number(d.elapsed) || 0) * 1000;
+      current = {
+        key,
+        title: d.title,
+        artist: d.artist,
+        album: d.album,
+        played_at: new Date(Number.isFinite(start) && start < Date.now() + 60000 ? start : Date.now()).toISOString(),
+      };
+    }
+    if (key) d.played_at = current!.played_at;
+    // HISTORIQUE ouvert suit tout de suite quand le morceau ou l'émission change
+    const onAir = (d.show || "") + "|" + (key || "");
+    if (onAir !== shownOnAir) {
+      shownOnAir = onAir;
+      if (historyOpen()) loadHistory();
+    }
+    if (radioControl) {
+      radioControl.setOnAir(d.source !== "off");
+      radioControl.setMeta(waiting ? (d.show ? { title: d.show } : null) : d);
+    }
+  }
+  let pushed = 0; // l'heure du dernier message du temps réel
   async function poll() {
     try {
-      const d: NowPlaying & { played_at?: string } = await fetchJson<NowPlaying>(NOWPLAYING_URL, { cache: "no-store" });
-      station.now = d;
-      const waiting = !d.title || /en attente/i.test(d.title);
-      setTicker(d, waiting);
-      microText = waiting ? d.show || "—" : [d.artist, d.title].filter(Boolean).join(" — ");
-      // l'affichage : une émission en titre, avec son morceau dessous ; sinon le morceau, avec son artiste
-      headline.etat = d.source === "off" ? "Off air" : "On air";
-      headline.morceau = waiting || !d.artist ? null : { title: d.title, artist: d.artist };
-      headline.titre = d.show || (waiting ? "Parabole Radio" : d.title);
-      headline.sousTitre = d.show
-        ? waiting
-          ? "Paris 18"
-          : [d.artist, d.title].filter(Boolean).join(" — ")
-        : waiting
-          ? "Paris 18 · 24/7"
-          : [d.artist, d.album].filter(Boolean).join(" · ");
-      refreshNowPlaying();
-      const key = waiting ? null : (d.artist || "") + "|" + d.title;
-      if (current && key && key !== current.key) station.played = [current, ...station.played].slice(0, 20); // HISTORIQUE : le morceau qui vient de finir
-      if (key && (!current || key !== current.key)) {
-        // son heure de début : Radio Cult donne le début, Radiocompas l'avancement
-        const start = Date.parse(d.received_at!) - (Number(d.elapsed) || 0) * 1000;
-        current = {
-          key,
-          title: d.title,
-          artist: d.artist,
-          album: d.album,
-          played_at: new Date(Number.isFinite(start) && start < Date.now() + 60000 ? start : Date.now()).toISOString(),
-        };
-      }
-      if (key) d.played_at = current!.played_at;
-      // HISTORIQUE ouvert suit tout de suite quand le morceau ou l'émission change
-      const onAir = (d.show || "") + "|" + (key || "");
-      if (onAir !== shownOnAir) {
-        shownOnAir = onAir;
-        if (historyOpen()) loadHistory();
-      }
-      if (radioControl) {
-        radioControl.setOnAir(d.source !== "off");
-        radioControl.setMeta(waiting ? (d.show ? { title: d.show } : null) : d);
-      }
+      const d = await fetchJson<NowPlaying>(NOWPLAYING_URL, { cache: "no-store" });
+      // notre API garde ce qui passe quelques secondes : juste après un message du temps réel, elle peut être en retard
+      if (Date.now() - pushed > 15000) apply(d);
     } catch (e) {
       /* garder les dernières valeurs ; la prochaine lecture réessaie */
     }
   }
+  // Quand la station pousse le direct en temps réel (subscribe, lib/station), chaque changement arrive tout de suite et
+  // une lecture par minute suffit pour rattraper un message perdu ; sinon, ou quand le lien tombe, une toutes les 10 s.
+  let live = false,
+    since = 0;
+  subscribe(
+    (d) => {
+      pushed = Date.now();
+      apply(d);
+    },
+    (up) => (live = up),
+  );
   poll();
-  setInterval(poll, 10000);
+  setInterval(() => {
+    since += 10;
+    if (live && since < 60) return;
+    since = 0;
+    poll();
+  }, 10000);
 })();

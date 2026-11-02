@@ -1,6 +1,6 @@
 // ---------- PROGRAMMATION (la programmation de la station, SCHEDULE_URL dans settings.ts) ----------
-// Attend {timezone, items: [{starts_at, ends_at, title, kind}]} pour les 7 prochains jours (format Radiocompas, que
-// sert notre API).
+// Attend {timezone, items: [{starts_at, ends_at, title, kind, artists?}]} pour les 7 prochains jours (format
+// Radiocompas, que sert notre API). Les artistes d'un créneau s'affichent sous son nom, quand la station les donne.
 import type { Schedule } from "../lib/station/types";
 import { SCHEDULE_URL, STATION_TIMEZONE } from "./settings";
 import { escapeHtml, fetchJson, popupMessage } from "./util";
@@ -30,7 +30,7 @@ export async function loadSchedule() {
 // La journée comme une ligne : chaque émission est un arrêt (sa part de la journée, pour une émission qui passe minuit),
 // la musique en continu remplit les creux. Aujourd'hui, ce qui est passé est atténué et ce qui passe est une carte
 // jaune avec son avancement ; la liste s'ouvre dessus.
-type Row = { gap?: boolean; from: number; to: number; title?: string; kind?: string };
+type Row = { gap?: boolean; from: number; to: number; title?: string; kind?: string; artists?: string[] };
 export function renderSchedule(keepScroll?: boolean) {
   if (!schedule.data) return;
   const days = document.getElementById("scheduleDays")!;
@@ -112,6 +112,7 @@ export function renderSchedule(keepScroll?: boolean) {
         `<div class="sched-row${r.gap ? " gap" : ""}${live ? " now" : ""}${gone ? " past" : ""}" style="min-height:${height}px">` +
         `<span class="sched-time">${hhmm(r.from)}<small>${hhmm(r.to)}</small></span><span class="sched-rail" aria-hidden="true"></span>` +
         `<div class="sched-body"><div class="sched-name">${escapeHtml(r.gap ? "Musique en continu" : r.title)}</div>` +
+        (!r.gap && r.artists?.length ? `<div class="sched-artists">avec ${escapeHtml(r.artists.join(", "))}</div>` : "") +
         `<div class="sched-meta">${meta.join("")}</div>${progress}</div></div>`
       );
     })
