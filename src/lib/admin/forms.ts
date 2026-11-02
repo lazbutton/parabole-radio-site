@@ -15,6 +15,7 @@ export function showFormOf(show: AdminShow): ShowForm {
     type: show.type,
     broadcastAt: show.broadcastAt ? toParisInput(show.broadcastAt) : "",
     duration: show.durationSeconds ? formatTimecode(show.durationSeconds) : "",
+    energy: show.energy ? String(show.energy) : "",
     description: show.description ?? "",
     soundcloudUrl: show.soundcloudUrl ?? "",
     soundcloudTrackId: show.soundcloudTrackId ?? "",
@@ -46,6 +47,7 @@ export function showFormFrom(data: FormData): ShowForm {
     type: text(data, "type"),
     broadcastAt: text(data, "broadcastAt"),
     duration: text(data, "duration"),
+    energy: text(data, "energy"),
     description: text(data, "description"),
     soundcloudUrl: text(data, "soundcloudUrl"),
     soundcloudTrackId: text(data, "soundcloudTrackId"),
@@ -62,7 +64,14 @@ export function showFormFrom(data: FormData): ShowForm {
 }
 
 /** Les champs d'un artiste enregistré. */
-export const artistFormOf = (artist: AdminArtist): ArtistForm => ({ name: artist.name, slug: artist.slug, role: artist.role, bio: artist.bio ?? "", links: artist.links });
+export const artistFormOf = (artist: AdminArtist): ArtistForm => ({
+  name: artist.name,
+  slug: artist.slug,
+  role: artist.role,
+  bio: artist.bio ?? "",
+  links: artist.links,
+  tags: artist.tags.map((tag) => tag.id),
+});
 
 /** Le formulaire d'un artiste tel qu'envoyé. */
 export function artistFormFrom(data: FormData): ArtistForm {
@@ -74,6 +83,7 @@ export function artistFormFrom(data: FormData): ArtistForm {
     role: text(data, "role"),
     bio: text(data, "bio"),
     links: Array.from({ length: Math.max(labels.length, urls.length) }, (_, index) => ({ label: labels[index] ?? "", url: urls[index] ?? "" })),
+    tags: texts(data, "tag"),
   };
 }
 

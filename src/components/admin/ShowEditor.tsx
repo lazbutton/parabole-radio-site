@@ -1,14 +1,17 @@
 /**
  * La fiche d'un show (cms/README.md, 9.2). En haut, la barre de la fiche (sheet.tsx) : toutes les actions au même
- * endroit. Dessous, le titre en grand, puis les propriétés en lignes — type, diffusion, durée, artistes, étiquettes —,
- * la description et la tracklist ; à côté, la pochette, le son et les informations. Enregistrer, Publier et Dépublier
- * envoient la fiche sans quitter l'écran : le serveur vérifie, écrit sous le rôle de la personne connectée, et renvoie
- * la fiche à jour ; une erreur s'affiche à côté du champ fautif. Une fiche modifiée retient la navigation.
+ * endroit. Dessous, le titre en grand, puis les propriétés en lignes — type, diffusion, durée, artistes, étiquettes,
+ * mood —, la description et la tracklist ; à côté, la pochette, le son et les informations. Enregistrer, Publier et
+ * Dépublier envoient la fiche sans quitter l'écran : le serveur vérifie, écrit sous le rôle de la personne connectée,
+ * et renvoie la fiche à jour ; une erreur s'affiche à côté du champ fautif. Une fiche modifiée retient la navigation.
+ *
+ * Les étiquettes se choisissent dans un seul champ, chacune avec sa place dans les filtres du site (« Club ·
+ * Afrique / Moyen-Orient ») ; dessous, les filtres où le show apparaîtra. Un nom inconnu crée une étiquette à classer.
  */
-import { LABELS } from "@parabole/cms/labels";
+import { ENERGY, LABELS } from "@parabole/cms/labels";
 import type { FieldErrors, ShowForm } from "@parabole/cms";
-import { BookmarkIcon, CalendarIcon, ExternalLinkIcon, FaceIcon, LayersIcon, PersonIcon, ReaderIcon, TimerIcon } from "@radix-ui/react-icons";
-import { DataList, IconButton, SegmentedControl, Text, TextField } from "@radix-ui/themes";
+import { BookmarkIcon, CalendarIcon, ExternalLinkIcon, LayersIcon, MixerHorizontalIcon, PersonIcon, TimerIcon } from "@radix-ui/react-icons";
+import { Button, DataList, Flex, IconButton, SegmentedControl, Text, TextField } from "@radix-ui/themes";
 import { useEffect, useMemo, useState } from "react";
 import { forgetRecent, rememberRecent } from "./recents";
 import { useBlocker, useRouter } from "./router";
@@ -17,7 +20,7 @@ import { TextEditor } from "./TextEditor";
 import { useNotify } from "./toast";
 import { TokenPicker } from "./TokenPicker";
 import { trackRow, TracklistEditor, type TrackRow } from "./TracklistEditor";
-import type { SaveResponse, ShowEditorData, ShowSheet } from "./types";
+import type { Choice, SaveResponse, ShowEditorData, ShowSheet } from "./types";
 
 type EditorForm = Omit<ShowForm, "tracks"> & { tracks: TrackRow[] };
 
@@ -31,7 +34,7 @@ function formData(form: EditorForm, intent: Intent, version: string): FormData {
   const data = new FormData();
   data.set("intent", intent);
   data.set("version", version);
-  for (const field of ["title", "slug", "type", "broadcastAt", "duration", "description", "soundcloudUrl", "soundcloudTrackId"] as const) data.set(field, form[field]);
+  for (const field of ["title", "slug", "type", "broadcastAt", "duration", "energy", "description", "soundcloudUrl", "soundcloudTrackId"] as const) data.set(field, form[field]);
   for (const value of form.artists) data.append("artist", value);
   for (const value of form.tags) data.append("tag", value);
   for (const line of form.tracks.filter(filled)) {
@@ -44,7 +47,45 @@ function formData(form: EditorForm, intent: Intent, version: string): FormData {
 }
 
 const DONE: Record<SaveIntent, string> = { save: "Show enregistré", publish: "Show publié", unpublish: "Show dépublié : repassé en brouillon" };
-const TAG_ICONS = { genre: BookmarkIcon, mood: FaceIcon, theme: ReaderIcon };
+const PLURALS = { dj_set: "DJ sets", playlist: "playlists", podcast: "podcasts" };
+const ENERGY_STEPS = Array.from({ length: ENERGY.max - ENERGY.min + 1 }, (_, index) => String(ENERGY.min + index));
+
+/**
+ * Les étiquettes à proposer, avec leur place en précision (« Club · Afrique / Moyen-Orient », « Genre » pour un groupe),
+ * et ce qu'elles disent des filtres où ira le show : pour chaque filtre, les groupes couverts par les étiquettes choisies.
+ */
+function useTagView(sheet: ShowSheet, chosen: string[], type: string) {
+  return useMemo(() => {
+    const facets = new Map(sheet.facets.map((facet) => [facet.id, facet]));
+    const names = new Map(sheet.tags.map((tag) => [tag.id, tag.name]));
+    const byId = new Map(sheet.tags.map((tag) => [tag.id, tag]));
+    const options: Choice[] = sheet.tags.map((tag) => ({
+      id: tag.id,
+      name: tag.name,
+      note: tag.places.length ? [...new Set(tag.places.map((place) => (place.groupId ? names.get(place.groupId) : facets.get(place.facetId)?.name)))].join(" · ") : "à classer",
+    }));
+    const fits = (facetId: string) => {
+      const facet = facets.get(facetId);
+      return !type || !facet || !facet.showTypes.length || facet.showTypes.includes(type as never);
+    };
+    const preferred = (option: Choice) => (byId.get(option.id)?.places ?? []).some((place) => fits(place.facetId));
+    // Les groupes couverts, filtre par filtre, dans l'ordre des filtres.
+    const covered = new Map<string, Set<string>>();
+    const unplaced: string[] = [];
+    for (const value of chosen) {
+      const tag = byId.get(value);
+      if (!tag || !tag.places.length) {
+        unplaced.push(tag?.name ?? value.replace(/^nouveau:/, ""));
+        continue;
+      }
+      for (const place of tag.places) covered.set(place.facetId, (covered.get(place.facetId) ?? new Set()).add(names.get(place.groupId ?? tag.id) ?? ""));
+    }
+    const summary = sheet.facets
+      .filter((facet) => covered.has(facet.id))
+      .map((facet) => ({ name: facet.name, groups: [...covered.get(facet.id)!], fits: fits(facet.id) }));
+    return { options, preferred, summary, unplaced };
+  }, [sheet.facets, sheet.tags, chosen, type]);
+}
 
 export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
   const router = useRouter();
@@ -122,8 +163,8 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
   useBlocker(dirty, () => save("save"));
   useSheetKeys(dirty, () => void save("save"));
   const name = form.title.trim() || (sheet.id ? "Sans titre" : "Nouveau show");
-  /** Le type d'une étiquette choisie : « nouveau:genre:… », ou celui de l'étiquette connue. */
-  const kindOf = (value: string) => (value.startsWith("nouveau:") ? value.split(":")[1] : sheet.tags.find((tag) => tag.id === value)?.kind);
+  const tagView = useTagView(sheet, form.tags, form.type);
+  const typePlural = PLURALS[form.type as keyof typeof PLURALS];
   const soundcloud = /^https?:\/\//.test(form.soundcloudUrl.trim()) ? form.soundcloudUrl.trim() : null;
 
   return (
@@ -202,27 +243,70 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
                   ordered
                 />
               </Property>
-              {(["genre", "mood", "theme"] as const).map((kind) => {
-                const Icon = TAG_ICONS[kind];
-                return (
-                  <Property key={kind} label={LABELS.tagKind[kind]} icon={<Icon />} htmlFor={`show-tags-${kind}`}>
-                    <TokenPicker
-                      id={`show-tags-${kind}`}
-                      label={LABELS.tagKind[kind]}
-                      kind={kind}
-                      values={form.tags.filter((value) => kindOf(value) === kind)}
-                      options={sheet.tags.filter((tag) => tag.kind === kind)}
-                      onChange={(values) => set("tags", [...form.tags.filter((value) => kindOf(value) !== kind), ...values])}
-                      placeholder={`Ajouter un ${LABELS.tagKind[kind].toLowerCase()}…`}
-                      newLabel="nouvelle"
-                    />
-                  </Property>
-                );
-              })}
-              {errors.tags && (
-                <Text as="p" size="1" color="red" role="alert" className="admin-props-error">
-                  {errors.tags}
-                </Text>
+              <Property
+                label="Étiquettes"
+                icon={<BookmarkIcon />}
+                htmlFor="show-tags"
+                hint={
+                  <>
+                    {tagView.summary.length || tagView.unplaced.length ? (
+                      <span className="admin-tag-summary">
+                        {tagView.summary.map((facet) => (
+                          <span key={facet.name} data-off={!facet.fits || undefined}>
+                            {facet.name} : {facet.groups.join(", ")}
+                            {!facet.fits && typePlural ? ` — pas pour les ${typePlural}` : ""}
+                          </span>
+                        ))}
+                        {tagView.unplaced.length > 0 && <span>À classer : {tagView.unplaced.join(", ")}</span>}
+                      </span>
+                    ) : (
+                      "Genres, régions, thèmes : tape les premières lettres. Un nom inconnu crée une étiquette à classer dans Étiquettes."
+                    )}
+                  </>
+                }
+                error={errors.tags}
+              >
+                <TokenPicker
+                  id="show-tags"
+                  label="Étiquettes"
+                  values={form.tags}
+                  options={tagView.options}
+                  preferred={tagView.preferred}
+                  onChange={(values) => set("tags", values)}
+                  placeholder="Ajouter une étiquette…"
+                  newLabel="nouvelle"
+                  newNote="à classer"
+                  error={errors.tags}
+                />
+              </Property>
+              {form.type !== "podcast" && (
+                <Property
+                  label="Mood"
+                  icon={<MixerHorizontalIcon />}
+                  hint={`De ${LABELS.energy.low.toLowerCase()} (${ENERGY.min}) à ${LABELS.energy.high.toLowerCase()} (${ENERGY.max}) : le curseur des filtres du site, pour les DJ sets et les playlists.`}
+                  error={errors.energy}
+                >
+                  <Flex align="center" gap="3" wrap="wrap">
+                    <Text size="2" color="gray">
+                      {LABELS.energy.low}
+                    </Text>
+                    <SegmentedControl.Root value={form.energy} onValueChange={(value) => set("energy", value)} aria-label="Mood, de calme à énergique" size="1" className="admin-energy">
+                      {ENERGY_STEPS.map((step) => (
+                        <SegmentedControl.Item key={step} value={step}>
+                          {step}
+                        </SegmentedControl.Item>
+                      ))}
+                    </SegmentedControl.Root>
+                    <Text size="2" color="gray">
+                      {LABELS.energy.high}
+                    </Text>
+                    {form.energy && (
+                      <Button type="button" size="1" variant="ghost" color="gray" onClick={() => set("energy", "")}>
+                        Retirer
+                      </Button>
+                    )}
+                  </Flex>
+                </Property>
               )}
             </div>
             <Section title="Description">

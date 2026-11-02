@@ -1,8 +1,8 @@
 /* Les écrans de travail de l'admin : Radix Themes fait l'essentiel (@radix-ui/themes/styles.css), en clair comme en
    sombre. Cette feuille règle ce que Radix ne couvre pas : la coque (barre latérale, barre du haut sur téléphone), la
    recherche de partout (⌘K), la barre des fiches et leurs propriétés, les pastilles des artistes et des étiquettes,
-   la tracklist et les liens en feuille de calcul, le petit éditeur de texte (Tiptap), l'accueil, et les
-   notifications (Radix Toast). Elle ne s'appuie que sur les variables de Radix (--gray-*, --accent-*, --space-*,
+   la tracklist et les liens en feuille de calcul, le petit éditeur de texte (Tiptap), l'accueil, l'écran des
+   étiquettes et des filtres, et les notifications (Radix Toast). Elle ne s'appuie que sur les variables de Radix (--gray-*, --accent-*, --space-*,
    --radius-*…) : le mode sombre suit tout seul.
 
    Les seules valeurs propres, provisoires tant qu'il n'y a pas de DESIGN.md : la largeur de la barre latérale
@@ -207,6 +207,81 @@ body { margin: 0; }
   .admin-clip-play { opacity: 1; }
 }
 
+/* ---------- Les étiquettes et les filtres ---------- */
+.admin-tabs { margin-bottom: 20px; }
+.admin-tab-count {
+  margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: var(--gray-a3); color: var(--gray-11);
+  font-size: 11px; font-variant-numeric: tabular-nums;
+}
+.admin-tab-count[data-alert] { background: var(--amber-a4); color: var(--amber-11); }
+.admin-facet-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
+.admin-facet-head p { margin: 0; max-width: 72ch; }
+.admin-groups { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.admin-group-card { padding: 12px 14px 14px; border-radius: var(--radius-4); background: var(--color-panel-solid); box-shadow: 0 0 0 1px var(--gray-a5); }
+.admin-group-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-bottom: 10px; }
+.admin-group-title { margin: 0; }
+.admin-group-name {
+  display: inline-flex; align-items: center; gap: 6px; margin: -2px -6px; padding: 2px 6px; border: 0; border-radius: var(--radius-2);
+  background: transparent; color: var(--gray-12); font: inherit; font-weight: 600; text-align: left; cursor: pointer;
+}
+.admin-group-name:hover { background: var(--gray-a3); }
+.admin-group-name:focus-visible { outline: 2px solid var(--focus-8); }
+
+/* Les étiquettes d'un groupe, en pastilles qui ouvrent leur fiche */
+.admin-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.admin-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; box-sizing: border-box; border: 0;
+  border-radius: 999px; background: var(--gray-a3); color: var(--gray-12); font: inherit; font-size: var(--font-size-2); line-height: 1;
+  white-space: nowrap; cursor: pointer;
+}
+.admin-chip:hover { background: var(--accent-a4); color: var(--accent-12); }
+.admin-chip:focus-visible { outline: 2px solid var(--focus-8); outline-offset: 1px; }
+.admin-chip[data-unused] { background: transparent; box-shadow: inset 0 0 0 1px var(--gray-a5); color: var(--gray-11); }
+.admin-chip[data-unused]:hover { box-shadow: inset 0 0 0 1px var(--accent-a7); color: var(--accent-12); }
+.admin-chip-count { color: var(--gray-11); font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.admin-chip-more { padding: 1px 5px; border-radius: 999px; background: var(--accent-a3); color: var(--accent-11); font-size: 10px; font-weight: 600; }
+.admin-group-name .admin-chip-count { font-weight: 500; }
+.admin-chip-add {
+  display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 4px 0 9px; box-sizing: border-box;
+  border-radius: 999px; box-shadow: inset 0 0 0 1px var(--gray-a6); color: var(--gray-10);
+}
+.admin-chip-add:focus-within { box-shadow: inset 0 0 0 1px var(--accent-8); color: var(--accent-11); }
+.admin-chip-add[data-busy] { opacity: 0.7; }
+.admin-chip-input {
+  width: 9.5em; height: 26px; padding: 0 4px; border: 0; outline: 0; background: transparent;
+  color: var(--gray-12); font: inherit; font-size: var(--font-size-2);
+}
+.admin-chip-input:focus, .admin-chip-input[data-wide] { width: 15em; }
+.admin-chip-input::placeholder, .admin-add-input::placeholder { color: var(--gray-a9); }
+.admin-chips-loose { gap: 8px; }
+
+/* Ajouter un groupe : un champ large, et son bouton */
+.admin-new-group { margin-top: 16px; max-width: 640px; }
+.admin-add { width: 100%; }
+.admin-add-field {
+  display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; height: var(--space-6); padding: 0 10px; box-sizing: border-box;
+  border-radius: var(--radius-2); background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--gray-a7); color: var(--gray-10);
+}
+.admin-add-field:focus-within { outline: 2px solid var(--focus-8); outline-offset: -1px; }
+.admin-add-input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--gray-12); font: inherit; font-size: var(--font-size-2); }
+.admin-tags-empty { margin: 8px 0; padding: 24px; border-radius: var(--radius-4); box-shadow: inset 0 0 0 1px var(--gray-a5); text-align: center; }
+
+/* La recherche : une ligne par étiquette, avec ses places */
+.admin-tag-result { width: 100%; border: 0; background: transparent; font: inherit; text-align: left; cursor: pointer; }
+
+/* La fiche d'une étiquette, et celle d'un filtre */
+.admin-dialog-section { margin-top: 20px; padding-top: 16px; box-shadow: 0 -1px var(--gray-a4); }
+.admin-places { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.admin-place { display: flex; align-items: center; gap: 10px; padding: 6px 0; box-shadow: inset 0 -1px var(--gray-a3); }
+.admin-place-name { display: flex; flex: 1; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-width: 0; }
+.admin-radios, .admin-checks { display: flex; flex-wrap: wrap; flex-direction: row; gap: 8px 20px; }
+.admin-select-indent { padding-left: calc(var(--space-3) + 14px); }
+.admin-select-count { margin-left: 10px; color: var(--gray-10); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+/* Dans la fiche d'un show : où il ira dans les filtres du site */
+.admin-tag-summary { display: flex; flex-direction: column; gap: 2px; }
+.admin-tag-summary [data-off] { color: var(--amber-11); }
+
 /* ---------- La recherche de partout (⌘K) ---------- */
 .rt-DialogContent.admin-palette { padding: 0; overflow: hidden; }
 .admin-palette-search { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--gray-a5); color: var(--gray-10); }
@@ -338,7 +413,8 @@ body { margin: 0; }
 }
 .admin-suggestion { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-2); color: var(--gray-12); font-size: var(--font-size-2); cursor: pointer; }
 .admin-suggestion[data-active] { background: var(--accent-a4); color: var(--accent-12); }
-.admin-suggestion-note { margin-left: auto; color: var(--gray-11); font-size: var(--font-size-1); }
+.admin-suggestion-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-suggestion-note { flex-shrink: 0; max-width: 55%; margin-left: auto; overflow: hidden; color: var(--gray-11); font-size: var(--font-size-1); text-overflow: ellipsis; white-space: nowrap; }
 
 /* Un texte long : le petit éditeur Tiptap, sa barre d'outils et le texte dans un seul cadre */
 .admin-rich { overflow: hidden; border-radius: var(--radius-3); background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--gray-a7); }
@@ -518,4 +594,8 @@ input.admin-track-start { font-family: var(--code-font-family); font-variant-num
   .admin-toast-viewport { top: 56px; bottom: auto; padding: var(--space-3); }
   /* iOS ne zoome pas sur un champ en 16 px (le titre et la recherche sont plus grands). */
   .admin-cell, .admin-tokens-input, .admin-rich-content, .admin-theme .rt-TextFieldInput, .admin-theme .rt-TextAreaInput { font-size: 16px; }
+  .admin-chip-input, .admin-add-input { font-size: 16px; }
+  .admin-chip-input:focus, .admin-chip-input[data-wide] { width: 12.5em; }
+  .admin-group-card { padding: 10px 12px 12px; }
+  .admin-facet-head { margin-bottom: 16px; }
 }

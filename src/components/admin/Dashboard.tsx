@@ -5,6 +5,7 @@
 import { LABELS } from "@parabole/cms/labels";
 import {
   ArrowRightIcon,
+  BookmarkIcon,
   CheckCircledIcon,
   DiscIcon,
   FileTextIcon,
@@ -35,6 +36,7 @@ export function Dashboard({ viewer, today, stats, upcoming, missing, drafts }: D
     { count: stats.artists.draft, label: `${stats.artists.draft > 1 ? "Artistes" : "Artiste"} en brouillon`, href: "/admin/artistes?status=draft", icon: <FileTextIcon /> },
     { count: missing.photo, label: `${missing.photo > 1 ? "Artistes" : "Artiste"} sans photo`, href: "/admin/artistes?missing=photo", icon: <ImageIcon /> },
     { count: missing.bio, label: `${missing.bio > 1 ? "Artistes" : "Artiste"} sans bio`, href: "/admin/artistes?missing=bio", icon: <PersonIcon /> },
+    { count: missing.tags, label: `${missing.tags > 1 ? "Étiquettes" : "Étiquette"} à classer dans les filtres`, href: "/admin/etiquettes?filtre=a-classer", icon: <BookmarkIcon /> },
   ].filter((item) => item.count > 0);
 
   return (

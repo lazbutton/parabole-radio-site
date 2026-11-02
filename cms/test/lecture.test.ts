@@ -31,11 +31,33 @@ describe("liste des shows", () => {
     expect(slugs((await cms.listShows({ type: "playlist" })).items)).toEqual(["exemple-matin-calme", "exemple-jazz-du-marche-dejean"]);
   });
 
-  it("filtre par genre, mood et thème, sans confondre un genre et un mood du même nom", async () => {
-    expect(slugs((await cms.listShows({ genre: "exemple-house" })).items)).toEqual(["exemple-session-a-venir", "exemple-dimanche-house-a-la-chapelle"]);
-    expect(slugs((await cms.listShows({ genre: "exemple-ambient" })).items)).toEqual(["exemple-matin-calme"]);
-    expect(slugs((await cms.listShows({ mood: "exemple-ambient" })).items)).toEqual(["exemple-jazz-du-marche-dejean"]);
-    expect(slugs((await cms.listShows({ theme: "exemple-quartier" })).items)).toEqual(["exemple-voix-de-la-goutte-d-or"]);
+  it("filtre par étiquette ; une étiquette de groupe vaut pour tout son groupe", async () => {
+    expect(slugs((await cms.listShows({ tags: ["house"] })).items)).toEqual(["exemple-session-a-venir", "exemple-dimanche-house-a-la-chapelle"]);
+    expect(slugs((await cms.listShows({ tags: ["ambient"] })).items)).toEqual(["exemple-matin-calme"]);
+    expect(slugs((await cms.listShows({ tags: ["exemple-quartier"] })).items)).toEqual(["exemple-voix-de-la-goutte-d-or"]);
+    // House / techno : les shows House, Deep house, Techno et Detroit techno.
+    expect(slugs((await cms.listShows({ tags: ["house-techno"] })).items)).toEqual([
+      "exemple-session-a-venir",
+      "exemple-carte-blanche",
+      "exemple-dimanche-house-a-la-chapelle",
+      "exemple-techno-de-minuit",
+    ]);
+    expect(slugs((await cms.listShows({ tags: ["societe"] })).items)).toEqual(["exemple-voix-de-la-goutte-d-or", "exemple-ecologie-au-quotidien"]);
+  });
+
+  it("trouve une étiquette à chacune de ses places : Amapiano est dans Club et dans Afrique / Moyen-Orient", async () => {
+    expect(slugs((await cms.listShows({ tags: ["club"] })).items)).toEqual(["exemple-carte-blanche"]);
+    expect(slugs((await cms.listShows({ tags: ["afrique-moyen-orient"] })).items)).toEqual(["exemple-carte-blanche"]);
+    expect((await cms.listShows({ tags: ["caraibes"] })).total).toBe(0);
+  });
+
+  it("filtre par mood, de calme à énergique", async () => {
+    expect(slugs((await cms.listShows({ energy: { min: 4 } })).items)).toEqual(["exemple-carte-blanche", "exemple-dimanche-house-a-la-chapelle", "exemple-techno-de-minuit"]);
+    expect(slugs((await cms.listShows({ energy: { max: 2 } })).items)).toEqual(["exemple-matin-calme", "exemple-jazz-du-marche-dejean"]);
+    // Toute l'échelle : aucun filtre, les shows sans mood compris.
+    expect((await cms.listShows({ energy: { min: 1, max: 5 } })).total).toBe(8);
+    expect((await cms.listShows({ energy: { min: 4, max: 2 } })).total).toBe(0);
+    expect((await cms.listShows({ energy: { min: 2.5 } })).total).toBe(0);
   });
 
   it("filtre par artiste, sans montrer les shows en brouillon de cet artiste", async () => {
@@ -45,9 +67,10 @@ describe("liste des shows", () => {
   });
 
   it("combine les filtres", async () => {
-    const { items } = await cms.listShows({ type: "dj_set", mood: "exemple-dansant", genre: "exemple-techno" });
-    expect(slugs(items)).toEqual(["exemple-techno-de-minuit"]);
-    expect((await cms.listShows({ type: "podcast", genre: "exemple-techno" })).total).toBe(0);
+    const { items } = await cms.listShows({ type: "dj_set", tags: ["house-techno", "club"] });
+    expect(slugs(items)).toEqual(["exemple-carte-blanche"]);
+    expect(slugs((await cms.listShows({ type: "dj_set", tags: ["techno"], energy: { min: 5 } })).items)).toEqual(["exemple-techno-de-minuit"]);
+    expect((await cms.listShows({ type: "podcast", tags: ["techno"] })).total).toBe(0);
   });
 
   it("sépare les archives des shows à venir", async () => {
@@ -72,7 +95,11 @@ describe("liste des shows", () => {
     const { items } = await cms.listShows({ now: NOW });
     const techno = items.find((item) => item.slug === "exemple-techno-de-minuit")!;
     expect(techno.artists.map((artist) => artist.name)).toEqual(["Bastien Ocre (exemple)", "Yaya Kossi (exemple)"]);
-    expect(techno.tags.map((tag) => `${tag.kind}:${tag.slug}`)).toEqual(["genre:exemple-musiques-electroniques", "genre:exemple-techno", "mood:exemple-dansant"]);
+    expect(techno.tags).toEqual([
+      { slug: "detroit-techno", name: "Detroit techno" },
+      { slug: "techno", name: "Techno" },
+    ]);
+    expect(techno.energy).toBe(5);
     expect(techno.cover?.url).toBe(`${MEDIA_BASE}/exemples/pochette-techno-de-minuit.webp`);
     // L'invitée en brouillon n'apparaît pas sur un show publié.
     const carte = items.find((item) => item.slug === "exemple-carte-blanche")!;
@@ -81,8 +108,8 @@ describe("liste des shows", () => {
 
   it("rend une liste vide pour un filtre inconnu ou mal formé, sans erreur", async () => {
     expect((await cms.listShows({ type: "concert" as never })).total).toBe(0);
-    expect((await cms.listShows({ genre: "House; drop table show" })).total).toBe(0);
-    expect((await cms.listShows({ genre: "exemple-inconnu" })).total).toBe(0);
+    expect((await cms.listShows({ tags: ["House; drop table show"] })).total).toBe(0);
+    expect((await cms.listShows({ tags: ["exemple-inconnu"] })).total).toBe(0);
     expect(await cms.listShows({ limit: Number.NaN, offset: -4 })).toMatchObject({ limit: 24, offset: 0 });
   });
 });
@@ -121,20 +148,49 @@ describe("page d'un show", () => {
   });
 });
 
-describe("étiquettes", () => {
-  it("compte les shows publiés de chaque étiquette, par type d'étiquette puis par nom", async () => {
-    const tags = await cms.listTags();
-    expect(tags.map((tag) => tag.kind)).toEqual([...tags.map((tag) => tag.kind)].sort());
-    expect(tags.find((tag) => tag.kind === "genre" && tag.slug === "exemple-techno")?.shows).toBe(2);
-    // Mélancolique entre Dansant et… : l'ordre est alphabétique français.
-    expect(tags.filter((tag) => tag.kind === "mood").map((tag) => tag.name)).toEqual(["Ambient (exemple)", "Calme (exemple)", "Dansant (exemple)", "Mélancolique (exemple)"]);
+describe("filtres", () => {
+  it("donne les filtres d'un type de show, groupes dans l'ordre, étiquettes dans l'ordre alphabétique, avec leurs shows publiés", async () => {
+    const menus = await cms.listFacets({ scope: "show", type: "dj_set" });
+    expect(menus.map((menu) => menu.slug)).toEqual(["genre", "geographie"]);
+    const genre = menus[0]!;
+    expect(genre.groups.map((group) => [group.slug, group.count])).toEqual([
+      ["club", 1],
+      ["house-techno", 4],
+    ]);
+    expect(genre.groups[1]!.tags).toEqual([
+      { slug: "deep-house", name: "Deep house", count: 1 },
+      { slug: "detroit-techno", name: "Detroit techno", count: 1 },
+      { slug: "house", name: "House", count: 2 },
+      { slug: "techno", name: "Techno", count: 2 },
+    ]);
+    expect(menus[1]!.groups).toEqual([{ slug: "afrique-moyen-orient", name: "Afrique / Moyen-Orient", count: 1, tags: [{ slug: "amapiano", name: "Amapiano", count: 1 }] }]);
   });
 
-  it("filtre par type d'étiquette et par type de show", async () => {
-    expect((await cms.listTags({ kind: "theme" })).map((tag) => tag.slug)).toEqual(["exemple-ecologie", "exemple-quartier"]);
-    const playlists = await cms.listTags({ type: "playlist" });
-    expect(playlists.map((tag) => tag.slug)).not.toContain("exemple-techno");
-    expect(playlists.find((tag) => tag.slug === "exemple-jazz")?.shows).toBe(1);
+  it("garde à chaque page ses filtres : les thèmes aux podcasts, l'activité aux artistes, la catégorie aux événements", async () => {
+    const podcasts = await cms.listFacets({ scope: "show", type: "podcast" });
+    expect(podcasts.map((menu) => [menu.slug, menu.groups.map((group) => `${group.slug} ${group.count}`)])).toEqual([["theme", ["societe 2"]]]);
+    const playlists = await cms.listFacets({ scope: "show", type: "playlist" });
+    expect(playlists.flatMap((menu) => menu.groups.map((group) => group.slug))).toEqual(["jazz", "ambient"]);
+    const artists = await cms.listFacets({ scope: "artist" });
+    expect(artists.map((menu) => [menu.slug, menu.groups.map((group) => `${group.slug} ${group.count}`)])).toEqual([["activite", ["podcast 2", "playlist 2", "dj 4"]]]);
+    const events = await cms.listFacets({ scope: "event" });
+    expect(events[0]!.groups.map((group) => `${group.slug} ${group.count}`)).toEqual(["live-session-art-ensemble 2", "fete 2", "rencontre-talk 2", "evenement-special 1"]);
+  });
+
+  it("montre tout, étiquettes sans show comprises, à la demande", async () => {
+    const all = await cms.listFacets({ scope: "show", all: true });
+    expect(all.map((menu) => [menu.slug, menu.groups.length])).toEqual([
+      ["theme", 3],
+      ["genre", 14],
+      ["geographie", 5],
+    ]);
+    expect(all[2]!.groups.find((group) => group.slug === "caraibes")!.tags).toHaveLength(27);
+  });
+
+  it("rend une liste vide pour une page inconnue", async () => {
+    expect(await cms.listFacets({ scope: "show", type: "concert" as never })).toEqual([]);
+    expect(await cms.listFacets({ scope: "artist", type: "dj_set" })).toEqual([]);
+    expect(await cms.listFacets({ scope: "radio" as never })).toEqual([]);
   });
 });
 
@@ -156,7 +212,18 @@ describe("artistes", () => {
     expect((await cms.listArtists({ role: "dj" as never })).total).toBe(0);
   });
 
-  it("donne la page d'un artiste avec ses shows, ses événements et les étiquettes de ses shows", async () => {
+  it("filtre par activité, et donne les étiquettes de chacun", async () => {
+    const djs = await cms.listArtists({ tag: "dj" });
+    expect(djs.groups.flatMap((group) => group.artists).map((artist) => artist.slug)).toEqual(["exemple-bastien-ocre", "exemple-eloise-vachon", "exemple-yaya-kossi", "exemple-404-crew"]);
+    const residents = await cms.listArtists({ role: "resident", tag: "podcast" });
+    expect(residents.groups.flatMap((group) => group.artists).map((artist) => [artist.slug, artist.tags.map((tag) => tag.slug)])).toEqual([
+      ["exemple-collectif-goutte-d-or", ["playlist", "podcast"]],
+      ["exemple-eloise-vachon", ["dj", "podcast"]],
+    ]);
+    expect((await cms.listArtists({ tag: "pas une adresse" })).total).toBe(0);
+  });
+
+  it("donne la page d'un artiste avec ses étiquettes, ses shows, ses événements et les étiquettes de ses shows", async () => {
     const artist = await cms.getArtist("exemple-eloise-vachon");
     expect(artist).not.toBeNull();
     expect(artist!.role).toBe("resident");
@@ -165,7 +232,8 @@ describe("artistes", () => {
     expect(slugs(artist!.shows)).toEqual(["exemple-dimanche-house-a-la-chapelle", "exemple-ecologie-au-quotidien"]);
     // Son événement en brouillon n'apparaît pas.
     expect(slugs(artist!.events)).toEqual(["exemple-nuit-parabole", "exemple-talk-ecologie-sonore"]);
-    expect(artist!.tags.map((tag) => tag.slug)).toEqual(expect.arrayContaining(["exemple-house", "exemple-ecologie", "exemple-dansant"]));
+    expect(artist!.tags.map((tag) => tag.slug)).toEqual(["dj", "podcast"]);
+    expect(artist!.showTags.map((tag) => tag.slug)).toEqual(expect.arrayContaining(["house", "deep-house", "militantisme", "exemple-ecologie"]));
   });
 
   it("n'a pas de page pour un artiste en brouillon", async () => {
@@ -194,10 +262,12 @@ describe("événements", () => {
   });
 
   it("filtre par catégorie", async () => {
-    expect(slugs((await cms.listEvents({ period: "past", category: "talk", now: NOW })).items)).toEqual(["exemple-talk-ecologie-sonore"]);
-    expect(slugs((await cms.listEvents({ period: "upcoming", category: "talk", now: NOW })).items)).toEqual(["exemple-rencontre-radios-de-quartier"]);
-    expect((await cms.listEvents({ period: "past", category: "special", now: NOW })).total).toBe(1);
-    expect((await cms.listEvents({ period: "upcoming", category: "concert" as never, now: NOW })).total).toBe(0);
+    expect(slugs((await cms.listEvents({ period: "past", tag: "rencontre-talk", now: NOW })).items)).toEqual(["exemple-talk-ecologie-sonore"]);
+    expect(slugs((await cms.listEvents({ period: "upcoming", tag: "rencontre-talk", now: NOW })).items)).toEqual(["exemple-rencontre-radios-de-quartier"]);
+    expect(slugs((await cms.listEvents({ period: "past", tag: "fete", now: NOW })).items)).toEqual(["exemple-soiree-speciale-anniversaire"]);
+    expect((await cms.listEvents({ period: "past", tag: "evenement-special", now: NOW })).total).toBe(1);
+    expect((await cms.listEvents({ period: "upcoming", tag: "concert", now: NOW })).total).toBe(0);
+    expect((await cms.listEvents({ period: "upcoming", tag: "Concert !", now: NOW })).total).toBe(0);
   });
 
   it("garde un événement sans heure de fin « à venir » jusqu'à minuit, heure de Paris", async () => {
@@ -212,7 +282,7 @@ describe("événements", () => {
   it("donne la page d'un événement avec sa galerie dans l'ordre et ses légendes", async () => {
     const expo = await cms.getEvent("exemple-expo-sonore");
     expect(expo).not.toBeNull();
-    expect(expo!.category).toBe("art_ensemble");
+    expect(expo!.tags).toEqual([{ slug: "live-session-art-ensemble", name: "Live session_Art ensemble" }]);
     expect(expo!.photos.map((photo) => [photo.url.split("/").at(-1), photo.caption])).toEqual([
       ["galerie-expo-2.webp", "Le coin d'écoute"],
       ["galerie-expo-1.webp", "Le vernissage"],

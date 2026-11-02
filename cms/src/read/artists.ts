@@ -1,15 +1,17 @@
 /**
- * Les artistes pour le site : résidents et invités en index A–Z, et la page d'un artiste avec ses shows.
+ * Les artistes pour le site : résidents et invités en index A–Z, filtrés par activité (podcast, playlist, DJ), et la
+ * page d'un artiste avec ses shows.
  */
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import type { Tx } from "../access.ts";
-import { artist, artistRole, event, eventArtist, show, showArtist, showTag, tag, type ArtistLink, type ArtistRole } from "../schema.ts";
+import { artist, artistRole, artistTag, event, eventArtist, show, showArtist, showTag, tag, type ArtistLink, type ArtistRole } from "../schema.ts";
 import { isSlug } from "../slug.ts";
-import { frenchOrder, mediaJson, oneOf, outer, toImage, type Image, type TagRef } from "./common.ts";
+import { coveredTags, frenchOrder, mediaJson, oneOf, outer, toImage, type Image, type MediaRow, type TagRef } from "./common.ts";
 import { eventCardFields, toEventCard, type EventCard } from "./events.ts";
 import { hasArtist, showCardFields, toShowCard, type ShowCard } from "./shows.ts";
 
-export type ArtistCard = { slug: string; name: string; role: ArtistRole; photo: Image | null };
+/** Un portrait de l'index : le nom, le rôle, la photo, et les étiquettes de l'artiste (ce qu'il fait). */
+export type ArtistCard = { slug: string; name: string; role: ArtistRole; photo: Image | null; tags: TagRef[] };
 
 /** L'index A–Z : une lettre par groupe, « # » pour les noms qui commencent par un chiffre ou un signe. */
 export type ArtistIndex = { total: number; groups: { letter: string; artists: ArtistCard[] }[] };
@@ -19,7 +21,7 @@ export type ArtistDetail = ArtistCard & {
   links: ArtistLink[];
   updatedAt: Date;
   /** Les étiquettes de ses shows, des plus fréquentes aux plus rares. */
-  tags: TagRef[];
+  showTags: TagRef[];
   /** Ses shows publiés, du plus récent au plus ancien. */
   shows: ShowCard[];
   /** Ses événements publiés, du plus récent au plus ancien. */
@@ -32,16 +34,39 @@ export function indexLetter(name: string): string {
   return /^[A-Z]$/.test(first) ? first : "#";
 }
 
-const cardFields = { slug: artist.slug, name: artist.name, role: artist.role, photo: mediaJson(artist.photoId) };
+const artistTags = sql<TagRef[]>`coalesce((
+    select json_agg(json_build_object('slug', t.slug, 'name', t.name) order by t.name)
+    from ${artistTag} ag join ${tag} t on t.id = ag.tag_id
+    where ag.artist_id = ${outer(artist.id)}), '[]'::json)`;
 
-/** Les artistes publiés, par rôle ou tous, rangés par lettre dans l'ordre alphabétique français (# à la fin). */
-export async function listArtists(tx: Tx, base: string, { role }: { role?: ArtistRole } = {}): Promise<ArtistIndex> {
+/** Les colonnes d'un portrait, pour toute requête sur « artist » (index, recherche). */
+export const artistCardFields = { slug: artist.slug, name: artist.name, role: artist.role, photo: mediaJson(artist.photoId), tags: artistTags };
+
+type ArtistCardRow = Omit<ArtistCard, "photo"> & { photo: MediaRow | null };
+
+export const toArtistCard = (base: string, row: ArtistCardRow): ArtistCard => ({ ...row, photo: toImage(base, row.photo) });
+
+export type ArtistFilters = {
+  role?: ArtistRole;
+  /** L'adresse d'une étiquette (« dj ») : celle-ci, ou une étiquette de son groupe. */
+  tag?: string;
+};
+
+/** Les artistes publiés, par rôle et par étiquette, rangés par lettre dans l'ordre alphabétique français (# à la fin). */
+export async function listArtists(tx: Tx, base: string, { role, tag: tagSlug }: ArtistFilters = {}): Promise<ArtistIndex> {
   if (role !== undefined && !oneOf(artistRole.enumValues, role)) return { total: 0, groups: [] };
+  if (tagSlug !== undefined && !isSlug(tagSlug)) return { total: 0, groups: [] };
   const rows = await tx
-    .select(cardFields)
+    .select(artistCardFields)
     .from(artist)
-    .where(and(eq(artist.status, "published"), role ? eq(artist.role, role) : undefined));
-  const cards = rows.map((row) => ({ ...row, photo: toImage(base, row.photo) })).sort((a, b) => frenchOrder.compare(a.name, b.name));
+    .where(
+      and(
+        eq(artist.status, "published"),
+        role ? eq(artist.role, role) : undefined,
+        tagSlug ? sql`exists (select 1 from ${artistTag} ag where ag.artist_id = ${outer(artist.id)} and ag.tag_id in ${coveredTags(tagSlug)})` : undefined,
+      ),
+    );
+  const cards = rows.map((row) => toArtistCard(base, row)).sort((a, b) => frenchOrder.compare(a.name, b.name));
   const groups = new Map<string, ArtistCard[]>();
   for (const card of cards) {
     const letter = indexLetter(card.name);
@@ -59,7 +84,7 @@ export async function listArtists(tx: Tx, base: string, { role }: { role?: Artis
 export async function getArtist(tx: Tx, base: string, slug: string): Promise<ArtistDetail | null> {
   if (!isSlug(slug)) return null;
   const [row] = await tx
-    .select({ id: artist.id, ...cardFields, bio: artist.bio, links: artist.links, updatedAt: artist.updatedAt })
+    .select({ id: artist.id, ...artistCardFields, bio: artist.bio, links: artist.links, updatedAt: artist.updatedAt })
     .from(artist)
     .where(and(eq(artist.slug, slug), eq(artist.status, "published")))
     .limit(1);
@@ -69,8 +94,8 @@ export async function getArtist(tx: Tx, base: string, slug: string): Promise<Art
     .from(show)
     .where(and(eq(show.status, "published"), hasArtist({ id: row.id })))
     .orderBy(desc(show.broadcastAt), asc(show.title));
-  const tags = await tx
-    .select({ kind: tag.kind, slug: tag.slug, name: tag.name })
+  const showTags = await tx
+    .select({ slug: tag.slug, name: tag.name })
     .from(tag)
     .innerJoin(showTag, eq(showTag.tagId, tag.id))
     .innerJoin(show, and(eq(show.id, showTag.showId), eq(show.status, "published")))
@@ -83,14 +108,11 @@ export async function getArtist(tx: Tx, base: string, slug: string): Promise<Art
     .where(and(eq(event.status, "published"), sql`exists (select 1 from ${eventArtist} ea where ea.event_id = ${outer(event.id)} and ea.artist_id = ${row.id})`))
     .orderBy(desc(event.startsAt), asc(event.title));
   return {
-    slug: row.slug,
-    name: row.name,
-    role: row.role,
-    photo: toImage(base, row.photo),
+    ...toArtistCard(base, { slug: row.slug, name: row.name, role: row.role, photo: row.photo, tags: row.tags }),
     bio: row.bio,
     links: row.links,
     updatedAt: row.updatedAt,
-    tags,
+    showTags,
     shows: shows.map((show) => toShowCard(base, show)),
     events: events.map((event) => toEventCard(base, event)),
   };

@@ -1,12 +1,13 @@
 /**
  * La fiche d'un artiste (cms/README.md, 9.2) : la barre de la fiche en haut (sheet.tsx), puis le nom en grand, le
- * rôle, la bio et les liens (dans l'ordre) ; à côté, la photo, ses shows et les informations. Même enregistrement que
- * la fiche d'un show, sans quitter l'écran.
+ * rôle, ses étiquettes (une ligne par filtre des artistes : Activité — podcast, playlist, DJ), la bio et les liens
+ * (dans l'ordre) ; à côté, la photo, ses shows et les informations. Même enregistrement que la fiche d'un show, sans
+ * quitter l'écran.
  */
 import { LABELS } from "@parabole/cms/labels";
 import type { ArtistForm, FieldErrors } from "@parabole/cms";
-import { ArrowDownIcon, ArrowUpIcon, DotsHorizontalIcon, DragHandleDots2Icon, ExternalLinkIcon, PersonIcon, PlusIcon, TrashIcon } from "@radix-ui/react-icons";
-import { Badge, Button, DataList, DropdownMenu, Flex, IconButton, SegmentedControl, Text, TextField } from "@radix-ui/themes";
+import { ArrowDownIcon, ArrowUpIcon, BookmarkIcon, DotsHorizontalIcon, DragHandleDots2Icon, ExternalLinkIcon, PersonIcon, PlusIcon, TrashIcon } from "@radix-ui/react-icons";
+import { Badge, Button, CheckboxGroup, DataList, DropdownMenu, Flex, IconButton, SegmentedControl, Text, TextField } from "@radix-ui/themes";
 import { useEffect, useMemo, useState } from "react";
 import { StatusBadge, TypeTile } from "./marks";
 import { forgetRecent, rememberRecent } from "./recents";
@@ -26,13 +27,14 @@ const linkRow = (link: Partial<LinkRow> = {}): LinkRow => ({ label: "", url: "",
 const toEditor = (form: ArtistForm): EditorForm => ({ ...form, links: form.links.map((link) => linkRow(link)) });
 /** Un lien rempli ; les vides ne partent pas au serveur. */
 const filled = (link: LinkRow) => Boolean(link.label.trim() || link.url.trim());
-const fingerprint = (form: EditorForm) => JSON.stringify({ ...form, links: form.links.filter(filled).map(({ key: _key, ...link }) => link) });
+const fingerprint = (form: EditorForm) => JSON.stringify({ ...form, tags: [...form.tags].sort(), links: form.links.filter(filled).map(({ key: _key, ...link }) => link) });
 
 function formData(form: EditorForm, intent: Intent, version: string): FormData {
   const data = new FormData();
   data.set("intent", intent);
   data.set("version", version);
   for (const field of ["name", "slug", "role", "bio"] as const) data.set(field, form[field]);
+  for (const tag of form.tags) data.append("tag", tag);
   for (const link of form.links.filter(filled)) {
     data.append("linkLabel", link.label);
     data.append("linkUrl", link.url);
@@ -145,6 +147,32 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
                   ))}
                 </SegmentedControl.Root>
               </Property>
+              {sheet.facets.map((facet) => {
+                const options = sheet.tags.filter((tag) => tag.places.some((place) => place.facetId === facet.id));
+                const mine = (id: string) => options.some((option) => option.id === id);
+                return (
+                  <Property key={facet.id} label={facet.name} icon={<BookmarkIcon />} hint={facet.description ?? undefined} error={errors.tags}>
+                    {options.length ? (
+                      <CheckboxGroup.Root
+                        value={form.tags.filter(mine)}
+                        onValueChange={(values) => set("tags", [...form.tags.filter((id) => !mine(id)), ...values])}
+                        aria-label={facet.name}
+                        className="admin-checks"
+                      >
+                        {options.map((option) => (
+                          <CheckboxGroup.Item key={option.id} value={option.id}>
+                            {option.name}
+                          </CheckboxGroup.Item>
+                        ))}
+                      </CheckboxGroup.Root>
+                    ) : (
+                      <Text size="2" color="gray">
+                        Pas encore d'étiquette dans ce filtre : ajoute-les dans Étiquettes.
+                      </Text>
+                    )}
+                  </Property>
+                );
+              })}
             </div>
             <Section title="Bio">
               <TextEditor id="bio" label="Bio" value={form.bio} onChange={(value) => set("bio", value)} error={errors.bio} placeholder="Qui est-ce, ce qu'on entend dans ses shows, d'où ça vient…" />

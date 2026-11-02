@@ -2,8 +2,9 @@
  * Ce que partagent les listes (shows, artistes) : des filtres qui vivent dans l'adresse (une liste filtrée se garde ou
  * se partage), appliqués sans recharger la page, une recherche qui part dès qu'on s'arrête de taper, et les filtres
  * en pastilles : discrètes tant qu'elles ne filtrent rien, colorées et lisibles (« Type : Podcast ») dès qu'elles
- * filtrent.
+ * filtrent. Le filtre « Étiquette » est rangé comme les filtres du site.
  */
+import type { TagFilterMenu } from "@parabole/cms";
 import { Cross2Icon, MagnifyingGlassIcon } from "@radix-ui/react-icons";
 import { IconButton, Select, TextField } from "@radix-ui/themes";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
@@ -141,5 +142,29 @@ export function FilterPill({ label, value, valueLabel, allLabel, onChange, child
         {children}
       </Select.Content>
     </Select.Root>
+  );
+}
+
+/**
+ * Le filtre « Étiquette » d'une liste, rangé comme les filtres du site : pour chaque filtre, ses groupes, et leurs
+ * étiquettes en retrait, avec leur nombre de contenus. Choisir un groupe garde aussi les contenus de ses étiquettes.
+ */
+export function TagFilterPill({ label, allLabel, menu, value, onChange }: { label: string; allLabel: string; menu: TagFilterMenu; value: string; onChange(value: string): void }) {
+  const chosen = menu.flatMap((one) => one.options).find((option) => option.id === value);
+  return (
+    <FilterPill label={label} allLabel={allLabel} value={value} valueLabel={chosen?.name ?? "?"} onChange={onChange}>
+      {menu.map((one, index) => (
+        <Select.Group key={one.facet}>
+          {index > 0 && <Select.Separator />}
+          <Select.Label>{one.facet}</Select.Label>
+          {one.options.map((option) => (
+            <Select.Item key={`${one.facet}-${option.id}`} value={option.id} className={option.group ? undefined : "admin-select-indent"}>
+              {option.name}
+              <span className="admin-select-count">{option.count}</span>
+            </Select.Item>
+          ))}
+        </Select.Group>
+      ))}
+    </FilterPill>
   );
 }

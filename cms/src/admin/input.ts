@@ -3,8 +3,9 @@
  * la base, et un message par champ fautif. La base vérifie encore derrière (contraintes, src/admin/errors.ts) : deux
  * barrières plutôt qu'une. Les messages tutoient, comme le reste de l'admin.
  */
+import { ENERGY } from "../labels.ts";
 import { fromParisInput } from "../paris.ts";
-import { artistRole, showType, tagKind, type ArtistLink, type ArtistRole, type ShowType, type TagKind } from "../schema.ts";
+import { artistRole, facetScope, showType, type ArtistLink, type ArtistRole, type FacetScope, type ShowType } from "../schema.ts";
 import { slugify } from "../slug.ts";
 import { parseTimecode, parseTracklist, type TrackLine } from "../tracklist.ts";
 
@@ -13,16 +14,31 @@ export type FieldErrors = Record<string, string>;
 
 /** Un artiste choisi dans la liste (son identifiant), ou un nom nouveau : il sera créé, en brouillon. */
 export type ArtistPick = { id: string } | { name: string };
-/** Une étiquette choisie dans la liste, ou une nouvelle, créée à la volée. */
-export type TagPick = { id: string } | { kind: TagKind; name: string };
+/** Une étiquette choisie dans la liste, ou une nouvelle, créée à la volée (sans place : « à classer »). */
+export type TagPick = { id: string } | { name: string };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const isUuid = (value: unknown): value is string => typeof value === "string" && UUID.test(value);
 
-/** Le préfixe d'un choix nouveau dans les listes de l'écran : « nouveau:Nom », « nouveau:genre:Nom ». */
+/** Le préfixe d'un choix nouveau dans les listes de l'écran : « nouveau:Nom ». */
 export const NEW_PICK = "nouveau:";
 
-export const LIMITS = { title: 200, name: 200, text: 20_000, tag: 60, track: 300, tracks: 300, picks: 30, links: 20, label: 60, url: 500 };
+export const LIMITS = {
+  title: 200,
+  name: 200,
+  text: 20_000,
+  tag: 60,
+  track: 300,
+  tracks: 300,
+  picks: 30,
+  links: 20,
+  label: 60,
+  url: 500,
+  /** Les étiquettes ajoutées d'un coup (une liste collée). */
+  batch: 300,
+  facet: 60,
+  description: 500,
+};
 
 const oneOf = <T extends string>(values: readonly T[], value: string): value is T => (values as readonly string[]).includes(value);
 const clean = (text: string | undefined) => (text ?? "").replace(/\s+/g, " ").trim();
@@ -61,12 +77,14 @@ export type ShowForm = {
   broadcastAt: string;
   /** « h:mm:ss » ou « m:ss ». */
   duration: string;
+  /** Le mood, de « 1 » (calme) à « 5 » (énergique) ; vide s'il n'est pas renseigné. Ignoré pour un podcast. */
+  energy: string;
   description: string;
   soundcloudUrl: string;
   soundcloudTrackId: string;
   /** Dans l'ordre d'affichage : un identifiant, ou « nouveau:Nom ». */
   artists: string[];
-  /** Un identifiant, ou « nouveau:genre:Nom ». */
+  /** Un identifiant, ou « nouveau:Nom » (une étiquette créée sans place, à classer). */
   tags: string[];
   tracks: TrackLine[];
   /** Une tracklist collée en texte, à ajouter à la fin (quand le navigateur ne l'a pas déjà fait). */
@@ -81,6 +99,7 @@ export type ShowValues = {
   type: ShowType;
   broadcastAt: Date | null;
   durationSeconds: number | null;
+  energy: number | null;
   description: string | null;
   soundcloudUrl: string | null;
   soundcloudTrackId: string | null;
@@ -95,6 +114,7 @@ export const emptyShowForm = (): ShowForm => ({
   type: "",
   broadcastAt: "",
   duration: "",
+  energy: "",
   description: "",
   soundcloudUrl: "",
   soundcloudTrackId: "",
@@ -121,16 +141,15 @@ function readArtistPick(value: string): ArtistPick | null {
 function readTagPick(value: string): TagPick | null {
   if (UUID.test(value)) return { id: value.toLowerCase() };
   if (!value.startsWith(NEW_PICK)) return null;
-  const [kind = "", ...rest] = value.slice(NEW_PICK.length).split(":");
-  const name = clean(rest.join(":")).slice(0, LIMITS.tag);
-  return oneOf(tagKind.enumValues, kind) && name ? { kind, name } : null;
+  const name = tidyTagName(value.slice(NEW_PICK.length)).slice(0, LIMITS.tag);
+  return name ? { name } : null;
 }
 
 /** Un même artiste ou une même étiquette choisis deux fois ne comptent qu'une fois. */
 function unique<T extends ArtistPick | TagPick>(picks: T[]): T[] {
   const seen = new Set<string>();
   return picks.filter((pick) => {
-    const key = "id" in pick ? pick.id : `${"kind" in pick ? pick.kind : ""}:${slugify(pick.name)}`;
+    const key = "id" in pick ? pick.id : slugify(pick.name);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -164,6 +183,16 @@ export function readShowForm(input: ShowForm, { publish = false } = {}): { form:
   if (clean(form.duration)) {
     durationSeconds = parseTimecode(form.duration);
     if (!durationSeconds) errors.duration = "Au format h:mm:ss, par exemple 2:00:00.";
+  }
+
+  // Le mood ne vaut que pour les DJ sets et les playlists : un podcast n'en garde pas.
+  let energy: number | null = null;
+  if (clean(form.energy) && type !== "podcast") {
+    energy = Number(clean(form.energy));
+    if (!Number.isInteger(energy) || energy < ENERGY.min || energy > ENERGY.max) {
+      errors.energy = `Un cran de ${ENERGY.min} à ${ENERGY.max}.`;
+      energy = null;
+    }
   }
 
   const description = longText(form.description);
@@ -203,6 +232,7 @@ export function readShowForm(input: ShowForm, { publish = false } = {}): { form:
       type: type as ShowType,
       broadcastAt,
       durationSeconds,
+      energy,
       description: description || null,
       soundcloudUrl: soundcloudUrl || null,
       soundcloudTrackId: soundcloudTrackId || null,
@@ -225,6 +255,8 @@ export type ArtistForm = {
   bio: string;
   /** Dans l'ordre d'affichage. */
   links: ArtistLink[];
+  /** Les identifiants de ses étiquettes (ce qu'il fait : podcast, playlist, DJ). */
+  tags: string[];
 };
 
 export type ArtistValues = {
@@ -234,9 +266,10 @@ export type ArtistValues = {
   role: ArtistRole;
   bio: string | null;
   links: ArtistLink[];
+  tags: string[];
 };
 
-export const emptyArtistForm = (): ArtistForm => ({ name: "", slug: "", role: "guest", bio: "", links: [] });
+export const emptyArtistForm = (): ArtistForm => ({ name: "", slug: "", role: "guest", bio: "", links: [], tags: [] });
 
 /** Les noms des sites les plus courants, pour un lien saisi sans libellé. */
 const KNOWN_SITES: [RegExp, string][] = [
@@ -288,7 +321,107 @@ export function readArtistForm(input: ArtistForm): { form: ArtistForm; values: A
     return { label: link.label || linkLabel(link.url), url: link.url };
   });
 
-  return { form, errors, values: { name, slug, slugFromTitle, role: role as ArtistRole, bio: bio || null, links: values } };
+  const tags = [...new Set(form.tags.filter((value) => UUID.test(value)).map((value) => value.toLowerCase()))];
+  if (tags.length > LIMITS.picks) errors.tags = `${LIMITS.picks} étiquettes au plus.`;
+
+  return { form, errors, values: { name, slug, slugFromTitle, role: role as ArtistRole, bio: bio || null, links: values, tags } };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Étiquettes et filtres
+// ---------------------------------------------------------------------------------------------------------------
+
+/** Les mots qui gardent leurs majuscules dans une liste collée en capitales : sigles, noms propres. */
+const KEPT_WORDS = new Map(
+  [
+    ...["UK", "USA", "EDM", "IDM", "EBM", "DJ", "MC", "RnB", "R'n'B"],
+    ...["Detroit", "Chicago", "Baltimore", "Jersey", "Balkans", "Rajasthan", "Brésil", "Moyen-Orient", "Amérique", "d'Amérique", "Afrique", "Asie", "Europe", "Sud", "Nord"],
+  ].map((word) => [word.toLocaleLowerCase("fr"), word]),
+);
+
+/** « AFRO HOUSE » → « Afro house », « K-POP » → « K-pop », « UK FUNKY » → « UK funky ». */
+function fromCapitals(name: string): string {
+  const lower = name
+    .toLocaleLowerCase("fr")
+    .split(" ")
+    .map((word) => {
+      const bare = word.replace(/[,;:.!?)]+$/, "");
+      const kept = KEPT_WORDS.get(bare) ?? bare.replace(/^(\p{L})-/u, (prefix) => prefix.toLocaleUpperCase("fr"));
+      return kept + word.slice(bare.length);
+    })
+    .join(" ");
+  return lower.charAt(0).toLocaleUpperCase("fr") + lower.slice(1);
+}
+
+/**
+ * Le nom d'une étiquette tel qu'on le garde : sans le gras ni les échappements d'un texte copié d'un document
+ * (« **CLUB** », « LIVE SESSION\_ART »), les espaces remis au propre. `capitals` : un nom écrit tout en capitales,
+ * comme dans le document des filtres, passe en minuscules.
+ */
+export function tidyTagName(raw: string, { capitals = false } = {}): string {
+  const name = raw
+    .replace(/\*\*/g, "")
+    .replace(/\\([+_*#])/g, "$1")
+    .replace(/[’‘]/g, "'")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^[-–—•·*]+\s*|[\s,;.]+$/g, "");
+  return capitals && /\p{Lu}/u.test(name) && !/\p{Ll}/u.test(name) ? fromCapitals(name) : name;
+}
+
+/**
+ * Une ou plusieurs étiquettes à ajouter d'un coup : un nom, ou une liste collée (« AFRO HOUSE, AFROBEATS, AMAPIANO »,
+ * séparée par des virgules, des points-virgules ou des retours à la ligne), dont les noms en capitales passent en
+ * minuscules. Un nom seul reste tel qu'il est tapé. Chaque nom une fois.
+ */
+export function readTagNames(text: string): { names: string[]; errors: FieldErrors } {
+  const pieces = (text ?? "").split(/[,;\n]+/).filter((piece) => piece.trim());
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const piece of pieces) {
+    const name = tidyTagName(piece, { capitals: pieces.length > 1 });
+    const slug = slugify(name);
+    if (!name) continue;
+    if (!slug) return { names: [], errors: { names: `« ${name} » : ajoute au moins une lettre ou un chiffre.` } };
+    if (name.length > LIMITS.tag) return { names: [], errors: { names: `« ${name.slice(0, 30)}… » : ${LIMITS.tag} caractères au plus par étiquette.` } };
+    if (seen.has(slug)) continue;
+    seen.add(slug);
+    names.push(name);
+  }
+  if (!names.length) return { names, errors: { names: "Écris un nom d'étiquette." } };
+  if (names.length > LIMITS.batch) return { names: [], errors: { names: `${LIMITS.batch} étiquettes au plus d'un coup.` } };
+  return { names, errors: {} };
+}
+
+/** Le nom et l'adresse d'une étiquette qu'on renomme. Vide, l'adresse est tirée du nom. */
+export function readTagForm(input: { name: string; slug: string }): { values: { name: string; slug: string }; errors: FieldErrors } {
+  const errors: FieldErrors = {};
+  const name = tidyTagName(input.name ?? "");
+  if (!name) errors.name = "Le nom est obligatoire.";
+  else if (name.length > LIMITS.tag) errors.name = `${LIMITS.tag} caractères au plus.`;
+  const slug = slugify(clean(input.slug) || name);
+  if (!slug && name) errors.slug = "Ajoute au moins une lettre ou un chiffre.";
+  return { values: { name, slug }, errors };
+}
+
+/** Un filtre tel que l'écran l'envoie. */
+export type FacetForm = { name: string; slug: string; scope: string; showTypes: string[]; description: string };
+export type FacetValues = { name: string; slug: string; scope: FacetScope; showTypes: ShowType[]; description: string | null };
+
+/** Vérifie un filtre : son nom, son adresse, ce qu'il range et, pour les shows, les types concernés (aucun : tous). */
+export function readFacetForm(input: FacetForm): { values: FacetValues; errors: FieldErrors } {
+  const errors: FieldErrors = {};
+  const name = clean(input.name);
+  if (!name) errors.name = "Le nom est obligatoire.";
+  else if (name.length > LIMITS.facet) errors.name = `${LIMITS.facet} caractères au plus.`;
+  const slug = slugify(clean(input.slug) || name);
+  if (!slug && name) errors.slug = "Ajoute au moins une lettre ou un chiffre.";
+  const scope = clean(input.scope);
+  if (!oneOf(facetScope.enumValues, scope)) errors.scope = "Choisis ce que range ce filtre.";
+  const showTypes = scope === "show" ? showType.enumValues.filter((type) => (input.showTypes ?? []).includes(type)) : [];
+  const description = longText(input.description);
+  if (description.length > LIMITS.description) errors.description = `${LIMITS.description} caractères au plus.`;
+  return { values: { name, slug, scope: scope as FacetScope, showTypes, description: description || null }, errors };
 }
 
 // ---------------------------------------------------------------------------------------------------------------

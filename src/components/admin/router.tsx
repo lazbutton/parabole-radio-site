@@ -22,12 +22,13 @@ const APP_PATHS = [
   /^\/admin\/artistes\/?$/,
   /^\/admin\/artistes\/[^/]+\/?$/,
   /^\/admin\/videos\/?$/,
+  /^\/admin\/etiquettes\/?$/,
   /^\/admin\/mot-de-passe\/?$/,
 ];
 export const isAppPath = (pathname: string) => APP_PATHS.some((pattern) => pattern.test(pathname));
 
 /** Les écrans qu'on peut montrer de mémoire en attendant la version à jour : les listes, pas les fiches. */
-const CACHEABLE = new Set<Screen["name"]>(["dashboard", "shows", "artists", "clips"]);
+const CACHEABLE = new Set<Screen["name"]>(["dashboard", "shows", "artists", "clips", "tags"]);
 /** Combien de temps un écran chargé d'avance reste bon à afficher. */
 const AHEAD_MS = 10_000;
 

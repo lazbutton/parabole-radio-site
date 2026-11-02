@@ -6,7 +6,7 @@ import { eq, sql, TransactionRollbackError } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { withViewer, type Tx, type Viewer } from "../src/access.ts";
 import type { Connection, Db } from "../src/db.ts";
-import { member, media, page, show, track } from "../src/schema.ts";
+import { facet, member, media, page, show, tag, tagGroup, tagMember, track } from "../src/schema.ts";
 import { createAccount, exampleDb, pgError, rowsOf } from "./helpers.ts";
 
 let connection: Connection;
@@ -55,7 +55,10 @@ async function visible(viewer: Viewer, tables: string[]): Promise<Record<string,
   });
 }
 
-const CONTENT = ["show", "artist", "event", "page", "tag", "track", "show_artist", "show_tag", "event_artist", "event_photo", "media"];
+const CONTENT = [
+  ...["show", "artist", "event", "page", "tag", "track", "show_artist", "show_tag", "event_artist", "event_photo", "media"],
+  ...["facet", "tag_group", "tag_member", "artist_tag", "event_tag"],
+];
 
 /** Ce que le public doit voir, compté par le propriétaire des tables avec des requêtes indépendantes des règles. */
 async function expectedPublic(): Promise<Record<string, number>> {
@@ -69,7 +72,12 @@ async function expectedPublic(): Promise<Record<string, number>> {
     (select count(*) from show_artist sa join show s on s.id = sa.show_id join artist a on a.id = sa.artist_id where s.status = 'published' and a.status = 'published')::int as show_artist,
     (select count(*) from show_tag st join show s on s.id = st.show_id where s.status = 'published')::int as show_tag,
     (select count(*) from event_artist ea join event e on e.id = ea.event_id join artist a on a.id = ea.artist_id where e.status = 'published' and a.status = 'published')::int as event_artist,
-    (select count(*) from event_photo p join event e on e.id = p.event_id where e.status = 'published')::int as event_photo`);
+    (select count(*) from event_photo p join event e on e.id = p.event_id where e.status = 'published')::int as event_photo,
+    (select count(*) from facet)::int as facet,
+    (select count(*) from tag_group)::int as tag_group,
+    (select count(*) from tag_member)::int as tag_member,
+    (select count(*) from artist_tag ag join artist a on a.id = ag.artist_id where a.status = 'published')::int as artist_tag,
+    (select count(*) from event_tag et join event e on e.id = et.event_id where e.status = 'published')::int as event_tag`);
   return rowsOf<Record<string, number>>(rows)[0]!;
 }
 
@@ -78,7 +86,7 @@ describe("le public (anon)", () => {
     const seen = await visible(PUBLIC, CONTENT);
     const { media: _media, ...rest } = seen;
     expect(rest).toEqual(await expectedPublic());
-    expect(seen).toMatchObject({ show: 8, artist: 7, event: 6, page: 1, track: 15 });
+    expect(seen).toMatchObject({ show: 8, artist: 7, event: 6, page: 1, track: 15, facet: 5, tag_group: 30, tag_member: 327 });
   });
 
   it("ne voit que les fichiers d'un contenu publié", async () => {
@@ -189,6 +197,41 @@ describe("un éditeur", () => {
     const [before] = await db.select({ updatedAt: show.updatedAt }).from(show).where(eq(show.slug, "exemple-matin-calme"));
     const [after] = await thenUndo(editor(), (tx) => tx.update(show).set({ title: "Matin très calme (exemple)" }).where(eq(show.slug, "exemple-matin-calme")).returning({ updatedAt: show.updatedAt }));
     expect(after!.updatedAt.getTime()).toBeGreaterThan(before!.updatedAt.getTime());
+  });
+});
+
+describe("les étiquettes et les filtres", () => {
+  it("sont publics ; le public n'y écrit rien", async () => {
+    const insert = await pgError(withViewer(db, PUBLIC, (tx) => tx.insert(facet).values({ slug: "intrus", name: "Intrus", scope: "show", position: 9 })));
+    expect(insert).toMatchObject({ code: "42501", message: expect.stringContaining("permission denied") });
+    const remove = await pgError(withViewer(db, PUBLIC, (tx) => tx.delete(tagMember)));
+    expect(remove.code).toBe("42501");
+    const sneak = await pgError(withViewer(db, stranger(), (tx) => tx.insert(facet).values({ slug: "intrus", name: "Intrus", scope: "show", position: 9 })));
+    expect(sneak).toMatchObject({ code: "42501", message: expect.stringContaining("row-level security") });
+    const moved = await thenUndo(stranger(), (tx) => tx.update(tagGroup).set({ position: 99 }).returning({ id: tagGroup.tagId }));
+    expect(moved).toHaveLength(0);
+  });
+
+  it("se rangent par l'équipe : un filtre, un groupe, une étiquette dans ce groupe", async () => {
+    const result = await thenUndo(editor(), async (tx) => {
+      const [made] = await tx.insert(facet).values({ slug: "langue", name: "Langue", scope: "show", showTypes: ["podcast"], position: 6 }).returning({ id: facet.id });
+      const [group] = await tx.insert(tag).values({ name: "Langues d'Afrique", slug: "langues-d-afrique" }).returning({ id: tag.id });
+      const [wolof] = await tx.insert(tag).values({ name: "Wolof", slug: "wolof" }).returning({ id: tag.id });
+      await tx.insert(tagGroup).values({ facetId: made!.id, tagId: group!.id, position: 1 });
+      return tx.insert(tagMember).values({ facetId: made!.id, groupId: group!.id, tagId: wolof!.id }).returning();
+    });
+    expect(result).toHaveLength(1);
+  });
+
+  it("gardent leurs places en ordre : un groupe dans son filtre, une étiquette hors d'elle-même", async () => {
+    const [genre] = await db.select({ id: facet.id }).from(facet).where(eq(facet.slug, "genre"));
+    const [club] = await db.select({ id: tag.id }).from(tag).where(eq(tag.slug, "club"));
+    const [caraibes] = await db.select({ id: tag.id }).from(tag).where(eq(tag.slug, "caraibes"));
+    // Caraïbes n'est pas un groupe de Genre : on n'y range rien.
+    const orphan = await pgError(withViewer(db, editor(), (tx) => tx.insert(tagMember).values({ facetId: genre!.id, groupId: caraibes!.id, tagId: club!.id })));
+    expect(orphan.code).toBe("23503");
+    const itself = await pgError(withViewer(db, editor(), (tx) => tx.insert(tagMember).values({ facetId: genre!.id, groupId: club!.id, tagId: club!.id })));
+    expect(itself.code).toBe("23514");
   });
 });
 
