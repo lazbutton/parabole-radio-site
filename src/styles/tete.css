@@ -1,10 +1,10 @@
-/* L'en-tête, sur toutes les pages (TopBar.astro) : la navbar de la maquette du 2 novembre, en deux lignes.
-   La ligne 1 flotte sur l'image, écrite comme les titres télé (tele.css) : des touches comme celles de la ligne du bas
-   (ligne-du-bas.css), une plaque sombre et floue où l'image passe encore, un cadre jaune qui bave en rouge et cyan, du
-   texte jaune aux couleurs qui bavent. La ligne 2, la ligne ON AIR, reprend l'allure de l'ancien bandeau : une bande
-   noire sur toute la largeur, un trait jaune lumineux dessous, et son texte qui défile comme celui d'une chaîne d'info.
-   Ce qui est allumé (la rubrique ouverte, la radio à l'écoute, la source du son) est en bleu sur jaune. Entre les touches
-   de la ligne 1, l'image se voit et se clique comme ailleurs (le zapping, background.ts). */
+/* L'en-tête, sur toutes les pages (TopBar.astro) : la navbar de la maquette du 2 novembre, en deux lignes, sur une
+   plaque noire un peu transparente, celle des pages de télétexte (JUSTE AVANT) : lignes de balayage, l'image floue
+   dessous. Ses touches sont écrites comme les titres télé (tele.css), comme celles de la ligne du bas
+   (ligne-du-bas.css) : un cadre jaune qui bave en rouge et cyan, du texte jaune aux couleurs qui bavent. La ligne 2, la
+   ligne ON AIR, reprend l'allure de l'ancien bandeau : un trait jaune lumineux dessous, et son texte qui défile comme
+   celui d'une chaîne d'info. Ce qui est allumé (la rubrique ouverte, la radio à l'écoute, la source du son) est en bleu
+   sur jaune. Un clic sur la plaque ne zappe pas les clips (background.ts ignore l'en-tête). */
 :root {
   --rang-h: calc(var(--touche-h) + 12px);             /* la ligne 1 : logo, loupe, menu, à la hauteur des touches (socle.css) */
   --onair-h: 40px;                                    /* la ligne ON AIR */
@@ -12,10 +12,18 @@
   --barre-h: calc(var(--rang-h) + var(--onair-h));    /* tout l'en-tête : les panneaux et les rubriques commencent dessous */
 }
 
-.tete { position: fixed; top: 0; left: 0; right: 0; z-index: 30; pointer-events: none; }
+.tete { position: fixed; top: 0; left: 0; right: 0; z-index: 30; }
+/* la plaque : posée dessous en pseudo-élément, pour que les pages de télétexte qui sortent de l'en-tête gardent leur
+   propre flou et leur place à l'écran (un flou sur .tete même deviendrait leur cadre de référence) */
+.tete::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 3px),   /* lignes de balayage */
+    rgba(0,0,0,0.9);
+  -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px);
+}
 /* une page de télétexte ouverte (la loupe, le sommaire, JUSTE AVANT) passe devant les panneaux */
 .tete:has(.teletexte:not([hidden])) { z-index: 45; }
-.tete-logo, .loupe, .menu a, .tete-touche, .lecteur, .teletexte, #adminControlsContainer { pointer-events: auto; }
 
 /* Les touches de l'en-tête : le cadre et la plaque des touches de la ligne du bas */
 .menu a, .tete-touche, .loupe-champ {
@@ -29,8 +37,8 @@
 }
 .tete .icon { filter: drop-shadow(-1.5px 0 rgba(255,0,72,0.6)) drop-shadow(1.5px 0 rgba(0,200,255,0.55)); }
 
-/* ---------- LIGNE 1 : le logo, la loupe, le menu ---------- */
-.top-bar { display: flex; align-items: center; gap: 8px; height: var(--rang-h); padding: 0 var(--marge); }
+/* ---------- LIGNE 1 : le logo, la loupe, le menu ; un pointillé la sépare de la ligne ON AIR ---------- */
+.top-bar { display: flex; align-items: center; gap: 8px; height: var(--rang-h); padding: 0 var(--marge); border-bottom: 1px dashed rgba(255,240,57,0.35); }
 
 /* Le logo : il ramène à l'accueil ; un double-clic ouvre le mode staff. Blanc comme le logo d'une chaîne dans le coin
    de l'image, ses couleurs bavent ; il s'allume au survol. Rond, un peu plus haut que les touches pour paraître aussi
@@ -63,7 +71,11 @@
 }
 .loupe-champ input::placeholder { color: #fff039; opacity: 0.7; }
 .loupe-champ input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
-.loupe-champ:focus-within { outline: 2px solid #ffffff; outline-offset: 3px; }
+/* en train d'écrire : le cadre passe au bleu et s'illumine, sans le contour blanc des autres touches */
+.loupe-champ:focus-within {
+  border-color: #000dff;
+  box-shadow: -2px 0 rgba(255,0,72,0.5), 2px 0 rgba(0,200,255,0.45), 0 0 10px 1px rgba(0,13,255,0.85);
+}
 
 /* Le menu : ÉMISSIONS · RÉSIDENTS · ÉVÉNEMENTS · À PROPOS, à droite. La rubrique ouverte est allumée, et chaque touche
    s'allume au survol, comme celles de la ligne du bas. */
@@ -99,7 +111,6 @@
   position: relative;
   display: flex; align-items: center; gap: 10px;
   height: var(--onair-h); padding: 0 var(--marge);
-  background: #000000;
   border-bottom: 2px solid #fff039;
   box-shadow: 0 2px 10px rgba(255,240,57,0.18);
   color: #fff039;
