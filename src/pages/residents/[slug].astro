@@ -16,6 +16,7 @@ import Base from "../../layouts/Base.astro";
 import { reader } from "../../lib/cms";
 import { renderMarkdown } from "../../lib/markdown";
 import { adresseDe } from "../../lib/residents";
+import { upcomingSlots } from "../../lib/station";
 import { STATION_TIMEZONE } from "../../scripts/settings";
 
 export const prerender = false;
@@ -41,11 +42,14 @@ const jour = new Intl.DateTimeFormat("fr-FR", { timeZone: STATION_TIMEZONE, day:
 /** Le temps d'un show : de sa diffusion à sa fin, quand sa durée est connue. */
 const fin = (show: ShowCard) => show.broadcastAt.getTime() + (show.durationSeconds ?? 0) * 1000;
 const dejaDiffusees = (artiste?.shows ?? []).filter((show) => fin(show) <= maintenant);
-// les débuts de ses prochaines émissions : le navigateur annonce la plus proche, à la minute (artiste.ts)
-const prochaines = (artiste?.shows ?? [])
-  .filter((show) => show.broadcastAt.getTime() > maintenant)
-  .map((show) => show.broadcastAt.toISOString())
-  .sort();
+// les débuts de ses prochaines émissions, ses shows à venir et ses créneaux sur la grille de la station (retrouvé par
+// son nom) : le navigateur annonce la plus proche, à la minute (artiste.ts)
+const prochaines = [
+  ...new Set([
+    ...(artiste?.shows ?? []).filter((show) => show.broadcastAt.getTime() > maintenant).map((show) => show.broadcastAt.toISOString()),
+    ...(artiste ? await upcomingSlots({ name: artiste.name, slug: artiste.slug }) : []).map((debut) => new Date(debut).toISOString()),
+  ]),
+].sort();
 const aVenir = (evenement: EventCard) => (evenement.endsAt ?? evenement.startsAt).getTime() > maintenant;
 const evenements = [
   ...(artiste?.events ?? []).filter(aVenir).sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()),
