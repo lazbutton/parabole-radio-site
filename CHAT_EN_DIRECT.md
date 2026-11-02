@@ -507,18 +507,23 @@ tenir compte des retraits : l'historique passe donc par notre API.
 | Vercel, et `.env` | `PUBLIC_TURNSTILE_SITE_KEY` (publique) et `TURNSTILE_SECRET_KEY` (secrète), facultatives |
 | Supabase | Rien d'obligatoire. Database → Extensions : **pg_cron**, pour la purge de nuit (`cms/README.md`, 9.9). Realtime → Settings : éteindre **Allow public access** ajoute une barrière, si rien d'autre n'utilise de canal public |
 | Cloudflare | Un widget Turnstile pour le domaine du site (et `localhost` pour le développement) |
-| Vercel | La région des fonctions (Settings → Functions). La base est à Londres : si les fonctions tournent à Washington, la région par défaut de Vercel, chaque aller-retour vers la base traverse l'Atlantique. Les mettre à Londres ou à Paris |
+| Vercel | La région des fonctions : Londres (`lhr1`) depuis le 1er novembre, près de la base. À Washington, la région par défaut de Vercel, chaque aller-retour vers la base traverserait l'Atlantique |
 
 ### 6.7 Mettre en ligne
 
-1. **Les migrations** `0009_antenne.sql` et `0010_antenne_acces.sql` sur la base de Supabase :
-   `npm run db:migrate` depuis `cms/`, avec la chaîne Session pooler (`cms/README.md`, 4.4). Elles ne font qu'ajouter :
-   le site d'aujourd'hui ne les voit pas. Sans elles, le bandeau garde ses phrases et la page 888 cherche le signal.
+1. **Les migrations** `0009_antenne.sql` et `0010_antenne_acces.sql` sur la base de Supabase : **passées le
+   2 novembre 2026**, par `npm run db:migrate` depuis `cms/`, avec la chaîne Session pooler (`cms/README.md`, 4.4).
+   Elles ne font qu'ajouter : le site d'avant ne les voit pas. La diffusion y est vérifiée : un client qui n'a que la
+   clé publiable reçoit ce que la base diffuse, et ce qu'il envoie lui-même n'arrive chez personne.
 2. **Turnstile** (conseillé avant d'ouvrir au public) : un widget chez Cloudflare, puis ses deux clés dans Vercel.
-3. **pg_cron**, pour la purge (`cms/README.md`, 9.9).
-4. **La liste de mots de départ**, dans l'écran Antenne libre de l'admin, avant d'ouvrir.
+3. **pg_cron**, pour la purge (`cms/README.md`, 9.9) : il n'est pas allumé sur le projet.
+4. **La liste de mots de départ**, dans l'écran Antenne libre de l'admin, avant d'ouvrir. L'admin de l'aperçu de la
+   branche suffit : les aperçus et la production partagent la même base.
+5. **Fusionner la branche** dans `main` : le site passe sur l'antenne.
 
-Le réglage `CHAT = "radiocult"` de `src/scripts/settings.ts` remet le chat de Radio Cult en secours.
+Les aperçus écrivent dans la base de la production : un message d'essai envoyé depuis un aperçu restera dans
+l'historique de l'antenne en ligne (le vider depuis la régie). Le réglage `CHAT = "radiocult"` de
+`src/scripts/settings.ts` remet le chat de Radio Cult en secours.
 
 ---
 
@@ -684,7 +689,7 @@ Le reste ne coûte rien, ou presque : la base, les fonctions Vercel, Turnstile. 
 
 - Le canal privé, la règle de réception : une règle `TO anon` suffit à un client sans session (6.3) ; un
   `channel.send()` depuis le navigateur n'arrive chez personne.
-- Reste à faire : la région des fonctions Vercel ; le widget Turnstile (6.6).
+- La région des fonctions Vercel : Londres (`lhr1`), près de la base. Reste à faire : le widget Turnstile (6.6).
 
 **Lot 1 — Ouvrir l'antenne** (construit)
 
@@ -694,7 +699,8 @@ Le reste ne coûte rien, ou presque : la base, les fonctions Vercel, Turnstile. 
   `CHAT`, avec Radio Cult en secours.
 - L'écran de la régie : les réglages, « En direct », « À traiter », « Personnes », « Mots ».
 - Les règles, sur la page 888 (la touche rouge).
-- Reste à faire : passer les migrations sur Supabase (6.7) ; la politique de confidentialité (10.2).
+- Les migrations, passées sur Supabase le 2 novembre. Reste à faire : la politique de confidentialité (10.2), puis
+  la fusion (6.7).
 
 **Lot 2 — Le confort de la régie**
 
