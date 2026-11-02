@@ -4,13 +4,20 @@
  * (src/components/admin/router.tsx). Les dates arrivent déjà écrites à l'heure de Paris : le serveur et le
  * navigateur affichent le même texte.
  */
-import type { ArtistForm, ArtistRole, ContentStatus, FieldErrors, ShowForm, ShowType, TagKind, TeamRole } from "@parabole/cms";
+import type { AdminFacet, AdminTagUse, ArtistForm, ArtistRole, ContentStatus, FacetScope, FieldErrors, ShowForm, ShowType, TagFilterMenu, TeamRole } from "@parabole/cms";
 
 export type Viewer = { name: string; email: string; role: TeamRole };
 export type Flash = { kind: "success" | "error" | "info"; title: string; description?: string };
 
-export type Choice = { id: string; name: string; status?: ContentStatus };
-export type TagChoice = { id: string; name: string; kind: TagKind };
+/** Un choix d'une liste (artiste, étiquette) ; `note` : une précision montrée à côté (les places d'une étiquette). */
+export type Choice = { id: string; name: string; status?: ContentStatus; note?: string };
+/** Une étiquette à proposer dans une fiche, avec ses places : le filtre, et le groupe (null : c'est un groupe). */
+export type TagChoice = { id: string; name: string; places: { facetId: string; groupId: string | null }[] };
+/**
+ * Un filtre des fiches de shows ou d'artistes : son nom, les types de shows qu'il range (vide : tous), ses groupes dans
+ * l'ordre et les étiquettes de chacun dans l'ordre alphabétique (des identifiants d'étiquettes).
+ */
+export type FacetChoice = { id: string; name: string; description: string | null; showTypes: ShowType[]; groups: { tagId: string; members: string[] }[] };
 export type MediaView = { key: string; alt: string } | null;
 
 /** Le nombre de contenus publiés et en brouillon. */
@@ -35,7 +42,7 @@ export type DashboardData = {
     when: string;
   }[];
   /** Ce qui reste à compléter, compté comme les listes filtrées où l'on arrive (cms : overview). */
-  missing: { tracklist: number; sound: number; photo: number; bio: number };
+  missing: { tracklist: number; sound: number; photo: number; bio: number; tags: number };
   drafts: { href: string; title: string; kind: "show" | "artist"; since: string }[];
 };
 
@@ -58,7 +65,7 @@ export type ShowRow = {
   fromRadioCult: boolean;
 };
 export type ShowFilters = { q: string; status: string; type: string; tag: string; artist: string; missing: string; order: string };
-export type ShowsListData = { rows: ShowRow[]; total: number; page: number; pages: number; filters: ShowFilters; artists: Choice[]; tags: TagChoice[] };
+export type ShowsListData = { rows: ShowRow[]; total: number; page: number; pages: number; filters: ShowFilters; artists: Choice[]; tags: TagFilterMenu };
 
 /** L'état d'une fiche de show : ce que l'écran montre, et ce que le serveur renvoie après chaque enregistrement. */
 export type ShowSheet = {
@@ -72,12 +79,14 @@ export type ShowSheet = {
   radiocultEventId: string | null;
   artists: Choice[];
   tags: TagChoice[];
+  /** Les filtres des shows, pour montrer où va le show. */
+  facets: FacetChoice[];
 };
 export type ShowEditorData = { sheet: ShowSheet };
 
-export type ArtistRow = { id: string; name: string; role: ArtistRole; status: ContentStatus; shows: number; hasPhoto: boolean; hasBio: boolean };
-export type ArtistFilters = { q: string; role: string; status: string; missing: string };
-export type ArtistsListData = { groups: { letter: string; artists: ArtistRow[] }[]; total: number; filters: ArtistFilters };
+export type ArtistRow = { id: string; name: string; role: ArtistRole; status: ContentStatus; shows: number; hasPhoto: boolean; hasBio: boolean; tags: string[] };
+export type ArtistFilters = { q: string; role: string; status: string; tag: string; missing: string };
+export type ArtistsListData = { groups: { letter: string; artists: ArtistRow[] }[]; total: number; filters: ArtistFilters; tags: TagFilterMenu };
 
 export type ArtistSheet = {
   id: string | null;
@@ -90,6 +99,9 @@ export type ArtistSheet = {
   radiocultArtistId: string | null;
   shows: { id: string; title: string; type: ShowType; status: ContentStatus; date: string }[];
   events: number;
+  /** Les filtres des artistes (Activité…) et leurs étiquettes, à cocher. */
+  facets: FacetChoice[];
+  tags: TagChoice[];
 };
 export type ArtistEditorData = { sheet: ArtistSheet };
 
@@ -116,6 +128,18 @@ export type ClipsData = { clips: ClipRow[]; uploads: boolean; maxBytes: number }
 /** La réponse du serveur à une action de l'écran des vidéos : la liste à jour, ou les erreurs. */
 export type ClipsResponse = { ok: true; data: ClipsData; message?: string } | { ok: false; errors: FieldErrors };
 
+/** Une étiquette de l'écran des étiquettes, et ce qui la porte (brouillons compris). */
+export type TagRow = AdminTagUse;
+/** Un filtre de l'écran des étiquettes : ses groupes dans l'ordre, les étiquettes de chacun dans l'ordre alphabétique. */
+export type FacetView = AdminFacet;
+/** L'onglet des étiquettes sans place. */
+export const UNPLACED = "a-classer";
+/** Les étiquettes et les filtres. `current` : l'onglet montré, un filtre (son adresse) ou les étiquettes à classer. */
+export type TagsData = { facets: FacetView[]; tags: TagRow[]; current: string };
+/** La réponse du serveur à une action de l'écran des étiquettes : le classement à jour, ou les erreurs. */
+export type TagsResponse = { ok: true; data: TagsData; message?: string; description?: string } | { ok: false; errors: FieldErrors };
+export type { FacetScope };
+
 /** Un écran de l'application, tel que le serveur le prépare. */
 export type Screen =
   | { name: "dashboard"; title: string; data: DashboardData }
@@ -124,7 +148,8 @@ export type Screen =
   | { name: "artists"; title: string; data: ArtistsListData }
   | { name: "artist"; title: string; data: ArtistEditorData }
   | { name: "password"; title: string; data: PasswordData }
-  | { name: "clips"; title: string; data: ClipsData };
+  | { name: "clips"; title: string; data: ClipsData }
+  | { name: "tags"; title: string; data: TagsData };
 
 /** Ce que la page passe à l'application : la personne connectée, l'adresse affichée et son écran. */
 export type AppProps = { viewer: Viewer; href: string; screen: Screen };

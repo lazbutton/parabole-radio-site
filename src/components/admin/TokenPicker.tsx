@@ -1,8 +1,9 @@
 /**
- * Choisir des artistes ou des étiquettes, en pastilles dans un seul champ : on tape, la liste propose les noms connus,
- * les flèches et Entrée choisissent ; un nom inconnu se crée à l'enregistrement (« nouveau:… » : un artiste naît en
- * brouillon). Les artistes d'un show gardent leur ordre (« A b2b B ») : on les glisse, ou Alt+← → sur une pastille.
- * Retour arrière dans le champ vide va à la dernière pastille ; un second la retire.
+ * Choisir des artistes ou des étiquettes, en pastilles dans un seul champ : on tape, la liste propose les noms connus
+ * (avec leur précision : les places d'une étiquette), les flèches et Entrée choisissent ; un nom inconnu se crée à
+ * l'enregistrement (« nouveau:… » : un artiste naît en brouillon, une étiquette sans place), sauf quand la création
+ * n'a pas de sens (`allowNew`). Les artistes d'un show gardent leur ordre (« A b2b B ») : on les glisse, ou Alt+← →
+ * sur une pastille. Retour arrière dans le champ vide va à la dernière pastille ; un second la retire.
  *
  * La liste est un Popover de Radix ancré au champ. Celui de Radix Themes ne convient pas : son Popover.Anchor
  * (3.3.0) n'affiche pas ce qu'on met dedans. On prend donc celui de radix-ui, sans portail, pour garder les couleurs
@@ -25,38 +26,48 @@ type Props = {
   options: Choice[];
   onChange(values: string[]): void;
   placeholder: string;
-  /** Le type d'étiquette : il accompagne un nom nouveau (« nouveau:genre:… »). */
-  kind?: string;
   /** L'ordre compte : les pastilles se réordonnent. */
   ordered?: boolean;
+  /** Un nom inconnu peut se créer. */
+  allowNew?: boolean;
   /** Le badge d'un nom nouveau : « nouveau » (un artiste), « nouvelle » (une étiquette). */
   newLabel?: string;
+  /** Ce qu'apprend un nom nouveau, dans la liste : « en brouillon » (un artiste), « à classer » (une étiquette). */
+  newNote?: string;
   error?: string;
 };
 
-export function TokenPicker({ id, label, values, options, onChange, placeholder, kind, ordered = false, newLabel = "nouveau", error }: Props) {
+export function TokenPicker({ id, label, values, options, onChange, placeholder, ordered = false, allowNew = true, newLabel = "nouveau", newNote = "en brouillon", error }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const box = useRef<HTMLDivElement | null>(null);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-  const prefix = `${NEW_PICK}${kind ? `${kind}:` : ""}`;
   const byId = useMemo(() => new Map(options.map((option) => [option.id, option])), [options]);
   const tokens = values.map((value) => {
-    if (value.startsWith(prefix)) return { value, label: value.slice(prefix.length), badge: newLabel, fresh: true };
+    if (value.startsWith(NEW_PICK)) return { value, label: value.slice(NEW_PICK.length), badge: newLabel, fresh: true };
     const option = byId.get(value);
-    return { value, label: option?.name ?? "?", badge: option?.status === "draft" ? "brouillon" : undefined, fresh: false };
+    return { value, label: option?.name ?? "?", badge: option?.status === "draft" ? "brouillon" : undefined, fresh: false, note: option?.note };
   });
   const sortable = useSortable(values, onChange, { axis: "x" });
 
   const typed = query.replace(/\s+/g, " ").trim();
   const chosen = new Set(values);
-  const matches = typed ? options.filter((option) => !chosen.has(option.id) && normalize(option.name).includes(normalize(typed))).slice(0, 8) : [];
+  // Les noms qui commencent par ce qu'on tape d'abord, puis les autres.
+  const rank = (option: Choice) => (normalize(option.name).startsWith(normalize(typed)) ? 0 : 1);
+  const matches = typed
+    ? options
+        .filter((option) => !chosen.has(option.id) && normalize(option.name).includes(normalize(typed)))
+        .map((option, index) => ({ option, index, rank: rank(option) }))
+        .sort((a, b) => a.rank - b.rank || a.index - b.index)
+        .slice(0, 8)
+        .map((match) => match.option)
+    : [];
   const exact = options.some((option) => normalize(option.name) === normalize(typed));
-  const takenNew = values.some((value) => value.startsWith(prefix) && normalize(value.slice(prefix.length)) === normalize(typed));
-  const suggestions: { key: string; label: string; value: string; create?: boolean }[] = [
-    ...matches.map((option) => ({ key: option.id, label: option.name, value: option.id })),
-    ...(typed && !exact && !takenNew ? [{ key: "create", label: typed, value: `${prefix}${typed}`, create: true }] : []),
+  const takenNew = values.some((value) => value.startsWith(NEW_PICK) && normalize(value.slice(NEW_PICK.length)) === normalize(typed));
+  const suggestions: { key: string; label: string; value: string; note?: string; create?: boolean }[] = [
+    ...matches.map((option) => ({ key: option.id, label: option.name, value: option.id, note: option.note })),
+    ...(allowNew && typed && !exact && !takenNew ? [{ key: "create", label: typed, value: `${NEW_PICK}${typed}`, create: true }] : []),
   ];
   const listId = `${id}-suggestions`;
   const showing = open && suggestions.length > 0;
@@ -140,6 +151,7 @@ export function TokenPicker({ id, label, values, options, onChange, placeholder,
               data-dragging={sortable.dragging === index || undefined}
               data-fresh={token.fresh || undefined}
               data-ordered={ordered || undefined}
+              title={token.note}
               tabIndex={-1}
               aria-label={`${token.label}${token.badge ? ` (${token.badge})` : ""}${ordered ? `, ${index + 1} sur ${tokens.length}` : ""}`}
               aria-keyshortcuts={ordered ? "Alt+ArrowLeft Alt+ArrowRight Delete" : "Delete"}
@@ -208,10 +220,13 @@ export function TokenPicker({ id, label, values, options, onChange, placeholder,
             >
               {suggestion.create ? (
                 <>
-                  <PlusIcon aria-hidden /> Créer « {suggestion.label} »<span className="admin-suggestion-note">{newLabel === "nouvelle" ? "nouvelle étiquette" : "en brouillon"}</span>
+                  <PlusIcon aria-hidden /> Créer « {suggestion.label} »<span className="admin-suggestion-note">{newNote}</span>
                 </>
               ) : (
-                suggestion.label
+                <>
+                  <span className="admin-suggestion-label">{suggestion.label}</span>
+                  {suggestion.note && <span className="admin-suggestion-note">{suggestion.note}</span>}
+                </>
               )}
             </div>
           ))}

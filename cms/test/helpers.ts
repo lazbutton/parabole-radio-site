@@ -20,10 +20,10 @@ export const MEDIA_BASE = "https://media.example.test";
 /** Les tests tournent-ils sur PGlite (par défaut) ou sur un serveur Postgres (TEST_DATABASE_URL) ? */
 export const ON_SERVER = Boolean(process.env.TEST_DATABASE_URL);
 
-/** Une base vide et migrée, rien que pour l'appelant. */
-export async function freshDb(): Promise<Connection> {
+/** Une base vide et migrée, rien que pour l'appelant ; `migrationsFolder` : jusqu'où (un test qui part d'une base plus ancienne). */
+export async function freshDb({ migrationsFolder }: { migrationsFolder?: string } = {}): Promise<Connection> {
   const server = process.env.TEST_DATABASE_URL;
-  if (!server) return connect({ dataDir: "memory://" });
+  if (!server) return connect({ dataDir: "memory://", migrationsFolder });
   const name = `cms_test_${randomUUID().replaceAll("-", "").slice(0, 12)}`;
   const admin = postgres(server, { max: 1, onnotice: () => {} });
   await admin.unsafe(`create database ${name}`);
@@ -33,7 +33,7 @@ export async function freshDb(): Promise<Connection> {
   const setup = postgres(url.toString(), { max: 1, onnotice: () => {} });
   await setup.unsafe(LOCAL_SUPABASE);
   await setup.end();
-  const connection = await connect({ url: url.toString() });
+  const connection = await connect({ url: url.toString(), migrationsFolder });
   await connection.migrate();
   return {
     ...connection,

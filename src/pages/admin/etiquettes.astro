@@ -1,0 +1,137 @@
+---
+/**
+ * Les étiquettes et les filtres du site (cms/README.md, « Les étiquettes et les filtres ») : chaque filtre dans un
+ * onglet (Thème, Genre, Géographie, Activité, Catégorie…), ses groupes dans l'ordre et les étiquettes de chacun, plus
+ * l'onglet des étiquettes à classer. En GET, l'écran (HTML ou JSON), l'onglet dans l'adresse (?filtre=genre). En POST,
+ * une action de l'écran (TagsScreen) : le serveur vérifie la saisie, écrit sous le rôle de la personne connectée, et
+ * répond en JSON par le classement à jour, ou les erreurs.
+ */
+import { readFacetForm, readTagForm, readTagNames, type Taxonomy } from "@parabole/cms";
+import type { Screen, TagsResponse } from "../../components/admin/types";
+import Admin from "../../layouts/Admin.astro";
+import { json, tagsData, wantsJson } from "../../lib/admin/views";
+
+export const prerender = false;
+
+const admin = Astro.locals.admin!;
+const TITLE = "Étiquettes";
+
+/** « A, B, C » ; au-delà de six noms, « et 4 autres ». */
+function list(names: string[]): string {
+  const shown = names.slice(0, 6).map((name) => `« ${name} »`);
+  const more = names.length - shown.length;
+  return more > 0 ? `${shown.join(", ")} et ${more} autre${more > 1 ? "s" : ""}` : shown.join(", ");
+}
+
+if (Astro.request.method === "POST") {
+  const data = await Astro.request.formData();
+  const text = (name: string) => String(data.get(name) ?? "");
+  const current = text("filtre") || null;
+  /** Le classement à jour, après une action réussie. */
+  const done = async (message?: string, description?: string, taxonomy?: Taxonomy) =>
+    json({ ok: true, data: tagsData(taxonomy ?? (await admin.taxonomy()), current), message, description } satisfies TagsResponse);
+  const refused = (errors: Record<string, string>, status = 422) => json({ ok: false, errors } satisfies TagsResponse, status);
+  const id = text("id");
+  const place = { facetId: text("facetId"), groupId: text("groupId") || null };
+  const nameIn = (taxonomy: Taxonomy, tagId: string) => taxonomy.tags.find((tag) => tag.id === tagId)?.name ?? "";
+  const placeName = (taxonomy: Taxonomy) => (place.groupId ? `« ${nameIn(taxonomy, place.groupId)} »` : `le filtre « ${taxonomy.facets.find((facet) => facet.id === place.facetId)?.name ?? ""} »`);
+
+  switch (text("intent")) {
+    case "add": {
+      const read = readTagNames(text("names"));
+      if (Object.keys(read.errors).length) return refused(read.errors);
+      const added = await admin.addTags(place, read.names);
+      if (!added.ok) return refused(added.errors);
+      const taxonomy = await admin.taxonomy();
+      const count = added.created.length + added.placed.length;
+      const where = placeName(taxonomy);
+      const title = count
+        ? `${count > 1 ? `${count} étiquettes ajoutées` : `« ${[...added.created, ...added.placed][0]} » ajoutée`} ${place.groupId ? "à" : "dans"} ${where}`
+        : `Déjà dans ${where}`;
+      const description = [
+        added.placed.length ? `Déjà rangées ailleurs, et ici aussi désormais : ${list(added.placed)}.` : "",
+        added.already.length && count ? `Déjà là : ${list(added.already)}.` : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      return done(title, description || undefined, taxonomy);
+    }
+
+    case "rename": {
+      const read = readTagForm({ name: text("name"), slug: text("slug") });
+      if (Object.keys(read.errors).length) return refused(read.errors);
+      const renamed = await admin.renameTag(id, read.values);
+      if (!renamed.ok) return refused(renamed.errors);
+      return done("Étiquette enregistrée");
+    }
+
+    case "place": {
+      const placed = await admin.placeTag(id, place);
+      if (!placed.ok) return refused(placed.errors);
+      const taxonomy = await admin.taxonomy();
+      return done(placed.added ? `« ${nameIn(taxonomy, id)} » rangée ${place.groupId ? "dans" : "au premier niveau de"} ${placeName(taxonomy)}` : `« ${nameIn(taxonomy, id)} » y était déjà`, undefined, taxonomy);
+    }
+
+    case "unplace": {
+      if (!(await admin.unplaceTag(id, place))) return refused({ form: "Cette étiquette n'était déjà plus à cette place." }, 404);
+      const taxonomy = await admin.taxonomy();
+      return done(`« ${nameIn(taxonomy, id)} » retirée de ${placeName(taxonomy)}`, "Elle reste sur ses contenus.", taxonomy);
+    }
+
+    case "move-group": {
+      if (!(await admin.moveGroup(place.facetId, id, text("direction") === "up" ? "up" : "down"))) return refused({ form: "Ce groupe n'est plus dans ce filtre." }, 404);
+      return done();
+    }
+
+    case "merge": {
+      const merged = await admin.mergeTags(id, text("into"));
+      if (!merged.ok) return refused(merged.errors);
+      return done(`« ${merged.from} » fusionnée dans « ${merged.into} »`, `Ses contenus et ses places passent à « ${merged.into} ».`);
+    }
+
+    case "delete": {
+      const removed = await admin.deleteTag(id);
+      if (!removed) return refused({ form: "Cette étiquette n'existe plus : elle a peut-être déjà été supprimée." }, 404);
+      return done(`« ${removed.name} » supprimée`);
+    }
+
+    case "delete-unused": {
+      const count = await admin.deleteUnusedTags();
+      return done(count ? `${count > 1 ? `${count} étiquettes supprimées` : "Une étiquette supprimée"}` : "Rien à supprimer : chaque étiquette à classer sert encore");
+    }
+
+    case "facet-save": {
+      const read = readFacetForm({
+        name: text("name"),
+        slug: text("slug"),
+        scope: text("scope"),
+        showTypes: data.getAll("showTypes").map(String),
+        description: text("description"),
+      });
+      if (Object.keys(read.errors).length) return refused(read.errors);
+      const saved = await admin.saveFacet({ id: id || undefined, values: read.values });
+      if (!saved.ok) return refused(saved.errors);
+      const taxonomy = await admin.taxonomy();
+      const slug = taxonomy.facets.find((facet) => facet.id === saved.id)?.slug ?? null;
+      return json({ ok: true, data: tagsData(taxonomy, slug), message: id ? "Filtre enregistré" : `Filtre « ${read.values.name} » créé` } satisfies TagsResponse);
+    }
+
+    case "facet-move": {
+      if (!(await admin.moveFacet(id, text("direction") === "up" ? "up" : "down"))) return refused({ form: "Ce filtre n'existe plus." }, 404);
+      return done();
+    }
+
+    case "facet-delete": {
+      const removed = await admin.deleteFacet(id);
+      if (!removed) return refused({ form: "Ce filtre n'existe plus : il a peut-être déjà été supprimé." }, 404);
+      return json({ ok: true, data: tagsData(await admin.taxonomy(), null), message: `Filtre « ${removed.name} » supprimé`, description: "Ses étiquettes restent sur leurs contenus." } satisfies TagsResponse);
+    }
+  }
+  return refused({ form: "Action inconnue." }, 400);
+}
+
+const screen: Screen = { name: "tags", title: TITLE, data: tagsData(await admin.taxonomy(), Astro.url.searchParams.get("filtre")) };
+if (wantsJson(Astro.request)) return json(screen);
+---
+
+<Admin screen={screen} />

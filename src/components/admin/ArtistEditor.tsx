@@ -1,13 +1,15 @@
 /**
  * La fiche d'un artiste (cms/README.md, 9.2) : la barre de la fiche en haut (sheet.tsx), puis le nom en grand, le
- * rôle, la bio et les liens (dans l'ordre) ; à côté, la photo, ses shows et les informations. Même enregistrement que
- * la fiche d'un show, sans quitter l'écran.
+ * rôle, ses étiquettes (une ligne par filtre des artistes : Activité — podcast, playlist, DJ), la bio et les liens
+ * (dans l'ordre) ; à côté, la photo, ses shows et les informations. Même enregistrement que la fiche d'un show, sans
+ * quitter l'écran.
  */
 import { LABELS } from "@parabole/cms/labels";
 import type { ArtistForm, FieldErrors } from "@parabole/cms";
-import { ArrowDownIcon, ArrowUpIcon, DotsHorizontalIcon, DragHandleDots2Icon, ExternalLinkIcon, PersonIcon, PlusIcon, TrashIcon } from "@radix-ui/react-icons";
+import { ArrowDownIcon, ArrowUpIcon, BookmarkIcon, DotsHorizontalIcon, DragHandleDots2Icon, ExternalLinkIcon, PersonIcon, PlusIcon, TrashIcon } from "@radix-ui/react-icons";
 import { Badge, Button, DataList, DropdownMenu, Flex, IconButton, SegmentedControl, Text, TextField } from "@radix-ui/themes";
 import { useEffect, useMemo, useState } from "react";
+import { FacetPicker } from "./FacetPicker";
 import { StatusBadge, TypeTile } from "./marks";
 import { forgetRecent, rememberRecent } from "./recents";
 import { useBlocker, useRouter } from "./router";
@@ -26,13 +28,14 @@ const linkRow = (link: Partial<LinkRow> = {}): LinkRow => ({ label: "", url: "",
 const toEditor = (form: ArtistForm): EditorForm => ({ ...form, links: form.links.map((link) => linkRow(link)) });
 /** Un lien rempli ; les vides ne partent pas au serveur. */
 const filled = (link: LinkRow) => Boolean(link.label.trim() || link.url.trim());
-const fingerprint = (form: EditorForm) => JSON.stringify({ ...form, links: form.links.filter(filled).map(({ key: _key, ...link }) => link) });
+const fingerprint = (form: EditorForm) => JSON.stringify({ ...form, tags: [...form.tags].sort(), links: form.links.filter(filled).map(({ key: _key, ...link }) => link) });
 
 function formData(form: EditorForm, intent: Intent, version: string): FormData {
   const data = new FormData();
   data.set("intent", intent);
   data.set("version", version);
   for (const field of ["name", "slug", "role", "bio"] as const) data.set(field, form[field]);
+  for (const tag of form.tags) data.append("tag", tag);
   for (const link of form.links.filter(filled)) {
     data.append("linkLabel", link.label);
     data.append("linkUrl", link.url);
@@ -52,6 +55,8 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
   const [busy, setBusy] = useState<Intent | null>(null);
   const dirty = useMemo(() => fingerprint(form) !== saved, [form, saved]);
   const set = <K extends keyof EditorForm>(field: K, value: EditorForm[K]) => setForm((current) => ({ ...current, [field]: value }));
+  const tagNames = useMemo(() => new Map(sheet.tags.map((tag) => [tag.id, tag.name])), [sheet.tags]);
+  const toggleTag = (id: string) => set("tags", form.tags.includes(id) ? form.tags.filter((value) => value !== id) : [...form.tags, id]);
   const url = sheet.id ? `/admin/artistes/${sheet.id}` : "/admin/artistes/nouveau";
 
   // La fiche rejoint les « ouverts récemment » de la recherche (⌘K), sous son nom enregistré.
@@ -145,6 +150,17 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
                   ))}
                 </SegmentedControl.Root>
               </Property>
+              {sheet.facets.map((facet) => (
+                <Property key={facet.id} label={facet.name} icon={<BookmarkIcon />} error={errors.tags}>
+                  {facet.groups.length ? (
+                    <FacetPicker facet={facet} names={tagNames} elsewhere={() => []} value={form.tags} onToggle={toggleTag} />
+                  ) : (
+                    <Text size="2" color="gray">
+                      Pas encore d'étiquette dans ce filtre : ajoute-les dans Étiquettes.
+                    </Text>
+                  )}
+                </Property>
+              ))}
             </div>
             <Section title="Bio">
               <TextEditor id="bio" label="Bio" value={form.bio} onChange={(value) => set("bio", value)} error={errors.bio} placeholder="Qui est-ce, ce qu'on entend dans ses shows, d'où ça vient…" />

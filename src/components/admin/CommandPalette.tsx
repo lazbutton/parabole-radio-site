@@ -9,6 +9,7 @@
  */
 import { LABELS } from "@parabole/cms/labels";
 import {
+  BookmarkIcon,
   DashboardIcon,
   DiscIcon,
   ExitIcon,
@@ -145,6 +146,7 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange(op
           { key: "shows", label: "Shows", icon: <DiscIcon />, href: "/admin/shows", words: "émissions archives" },
           { key: "drafts", label: "Shows en brouillon", icon: <FileTextIcon />, href: "/admin/shows?status=draft", words: "brouillons" },
           { key: "artists", label: "Artistes", icon: <PersonIcon />, href: "/admin/artistes", words: "résidents invités" },
+          { key: "tags", label: "Étiquettes et filtres", icon: <BookmarkIcon />, href: "/admin/etiquettes", words: "tags genres géographie thèmes catégories classer" },
           { key: "clips", label: "Vidéos de fond", icon: <VideoIcon />, href: "/admin/videos", words: "clips accueil fond chaînes" },
           { key: "password", label: "Changer de mot de passe", icon: <LockClosedIcon />, href: "/admin/mot-de-passe", words: "compte" },
         ],

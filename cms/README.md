@@ -1,6 +1,6 @@
 # CMS de Parabole Radio
 
-Le CMS maison de Parabole Radio. L'équipe y saisit les **shows** (DJ sets, playlists, podcasts) et leur tracklist, les **artistes** (résidents et invités), les **événements** et les **pages** simples. Le site les lit.
+Le CMS maison de Parabole Radio. L'équipe y saisit les **shows** (DJ sets, playlists, podcasts) et leur tracklist, les **artistes** (résidents et invités), les **événements**, les **pages** simples, et les **étiquettes** qui les rangent dans les filtres du site. Le site les lit.
 
 Ce dossier en pose la base :
 
@@ -72,6 +72,14 @@ erDiagram
     artist ||--o{ show_artist : ""
     show ||--o{ show_tag : ""
     tag ||--o{ show_tag : ""
+    artist ||--o{ artist_tag : ""
+    tag ||--o{ artist_tag : ""
+    event ||--o{ event_tag : ""
+    tag ||--o{ event_tag : ""
+    facet ||--o{ tag_group : "groupes"
+    tag ||--o{ tag_group : ""
+    tag_group ||--o{ tag_member : "étiquettes"
+    tag ||--o{ tag_member : ""
     event ||--o{ event_artist : ""
     artist ||--o{ event_artist : ""
     event ||--o{ event_photo : "galerie"
@@ -89,6 +97,7 @@ erDiagram
         enum status "draft, published"
         timestamptz broadcast_at "diffusion"
         int duration_seconds
+        smallint energy "mood, 1 calme à 5 énergique"
         text description "Markdown"
         uuid cover_id FK "image carrée"
         text soundcloud_url
@@ -122,19 +131,44 @@ erDiagram
     }
     tag {
         uuid id PK
-        enum kind "genre, mood, theme"
         text name
-        text slug "unique par type"
+        text slug UK
     }
     show_tag {
         uuid show_id PK
+        uuid tag_id PK
+    }
+    artist_tag {
+        uuid artist_id PK
+        uuid tag_id PK
+    }
+    event_tag {
+        uuid event_id PK
+        uuid tag_id PK
+    }
+    facet {
+        uuid id PK
+        text slug UK
+        text name
+        enum scope "show, artist, event"
+        enum show_types "types de shows, vide : tous"
+        text description
+        int position "1, 2, 3…"
+    }
+    tag_group {
+        uuid facet_id PK
+        uuid tag_id PK "le groupe"
+        int position "1, 2, 3…"
+    }
+    tag_member {
+        uuid facet_id PK
+        uuid group_id PK
         uuid tag_id PK
     }
     event {
         uuid id PK
         text slug UK
         text title
-        enum category "art_ensemble, parabole, special, talk"
         enum status "draft, published"
         timestamptz starts_at
         timestamptz ends_at
@@ -197,13 +231,18 @@ erDiagram
 
 | Table | Ce qu'elle garde | À savoir |
 |---|---|---|
-| `show` | Un épisode archivé ou à venir | Publier exige une date de diffusion. Le son est sur le compte SoundCloud de Parabole : le lecteur joue `soundcloud_track_id` (URN `soundcloud:tracks:<id>`), `soundcloud_url` mène à la piste (crédit exigé par SoundCloud). `radiocult_event_id` relie le show au créneau Radio Cult importé |
+| `show` | Un épisode archivé ou à venir | Publier exige une date de diffusion. `energy` : le mood d'un DJ set ou d'une playlist, de 1 (calme) à 5 (énergique), le curseur des filtres du site. Le son est sur le compte SoundCloud de Parabole : le lecteur joue `soundcloud_track_id` (URN `soundcloud:tracks:<id>`), `soundcloud_url` mène à la piste (crédit exigé par SoundCloud). `radiocult_event_id` relie le show au créneau Radio Cult importé |
 | `track` | La tracklist d'un show | Une ligne par morceau, `position` 1, 2, 3… sans doublon. Le minutage est en secondes depuis le début du show. Le lien Hopper commence forcément par `https://hppr.fr/` |
 | `artist` | Un résident ou un invité | Le rôle est celui de l'artiste (filtres Resident / Guest). `links` : une liste `[{ "label": "Instagram", "url": "…" }]` |
 | `show_artist` | Les artistes d'un show | Dans l'ordre d'affichage (« A b2b B ») |
-| `tag` | Une étiquette de show | Typée : genre, mood ou thème. Un genre et un mood peuvent porter le même nom |
+| `tag` | Une étiquette | Un genre (Amapiano), une région (Caraïbes), un thème (Cinéma), une activité (DJ), une catégorie d'événement (Fête). Une adresse par étiquette, quelle que soit sa place. Sans place dans un filtre, elle est « à classer » |
+| `facet` | Un filtre du site | Thème (podcasts), Genre et Géographie (DJ sets et playlists), Activité (artistes), Catégorie (événements). `scope` : ce qu'il range ; `show_types` : pour les shows, les types concernés (vide : tous) ; `position` : l'ordre de l'admin et du site |
+| `tag_group` | Un groupe d'un filtre | Une étiquette au premier niveau d'un filtre (Club dans Genre), dans l'ordre de `position`. Elle se choisit elle-même sur une fiche et vaut, sur le site, pour tout son groupe |
+| `tag_member` | Une étiquette dans un groupe | Amapiano dans Club. Une étiquette peut avoir plusieurs places (Amapiano est aussi dans Afrique / Moyen-Orient) ; jamais dans son propre groupe. Retirer un groupe de son filtre en retire ses étiquettes |
 | `show_tag` | Les étiquettes d'un show | |
-| `event` | Un événement | Catégorie Art ensemble, Parabole, Special ou Talk. Sans heure de fin, il reste « à venir » jusqu'à minuit, heure de Paris |
+| `artist_tag` | Les étiquettes d'un artiste | Ce qu'il fait : podcast, playlist, DJ |
+| `event_tag` | Les étiquettes d'un événement | Sa catégorie : Live session_Art ensemble, Fête, Rencontre/Talk, DJ set_On air, Événement spécial |
+| `event` | Un événement | Sa catégorie est une étiquette (`event_tag`). Sans heure de fin, il reste « à venir » jusqu'à minuit, heure de Paris |
 | `event_artist` | Les artistes d'un événement | Dans l'ordre d'affichage |
 | `event_photo` | La galerie d'un événement | Dans l'ordre de défilement, avec une légende |
 | `page` | Une page de texte | À propos (`a-propos`), mentions légales… |
@@ -231,6 +270,9 @@ erDiagram
 | `0003_stockage.sql` | à la main | La description de la table `media` : Supabase Storage plutôt que Cloudflare R2 |
 | `0004_fond.sql` | drizzle-kit | La table `background_clip` des vidéos de fond |
 | `0005_fond_acces.sql` | à la main | Ses règles d'accès, ses droits, son déclencheur, et les 15 clips d'origine |
+| `0006_etiquettes.sql` | drizzle-kit | Les filtres (`facet`), les groupes et leurs étiquettes (`tag_group`, `tag_member`), les étiquettes des artistes et des événements, le mood des shows (`show.energy`) |
+| `0007_etiquettes_donnees.sql` | à la main | Leurs règles d'accès, puis le document « Tags et filtres site web » : 5 filtres, 30 groupes, 351 étiquettes. Et la reprise de l'existant : une étiquette par adresse (un genre et un mood « ambient » n'en font plus qu'une), les catégories d'événements en étiquettes |
+| `0008_etiquettes_fin.sql` | drizzle-kit | Retire ce qui ne sert plus : le type d'une étiquette (`tag.kind`), la catégorie d'un événement (`event.category`) |
 
 ---
 
@@ -252,7 +294,7 @@ Le détail des règles :
 - **Les contenus** (`show`, `artist`, `event`, `page`) : le public ne voit que le publié ; l'équipe voit tout.
 - **Les liens** (tracklist, artistes et étiquettes d'un show, artistes et galerie d'un événement) suivent leur contenu. Ils sont visibles quand celui-ci l'est. L'artiste en brouillon d'un show publié reste caché.
 - **Les fichiers** (`media`) : le public ne voit que ceux d'un contenu publié (pochette, photo, visuel, galerie). Les autres restent à l'équipe : ceux d'un brouillon, et ceux qui ne servent pas encore.
-- **Les étiquettes** sont publiques.
+- **Les étiquettes**, les filtres et leurs groupes sont publics. Les étiquettes d'un artiste ou d'un événement suivent leur contenu.
 - **Les vidéos de fond** (`background_clip`) : le public ne voit que celles de la rotation (publiées) ; l'équipe voit et modifie tout.
 - **L'équipe** (`member`) : le public n'y a aucun accès. Les membres se voient entre eux ; seul l'admin ajoute, modifie ou retire un membre. La base refuse de laisser l'équipe sans admin : un admin doit en nommer un autre avant de céder sa place. Cela vaut aussi pour la suppression de son compte dans Supabase Auth. Pour une vraie remise à zéro, l'éditeur SQL peut suspendre le déclencheur le temps de l'opération (`alter table member disable trigger keep_an_admin`, puis `enable`).
 - **Droits des rôles** : Supabase donne d'office tous les droits aux rôles de son API. La migration les réduit : `anon` ne fait que lire, et personne ne vide une table par l'API (`TRUNCATE` échappe à la RLS).
@@ -431,7 +473,9 @@ import { database } from "../lib/cms";
 
 export const prerender = false;
 const cms = createReader(await database(), { mediaBaseUrl: import.meta.env.PUBLIC_MEDIA_URL });
-const { items, total } = await cms.listShows({ type: "dj_set", genre: Astro.url.searchParams.get("genre") ?? undefined, period: "past" });
+const genre = Astro.url.searchParams.get("genre");
+const { items, total } = await cms.listShows({ type: "dj_set", tags: genre ? [genre] : [], period: "past" });
+const menus = await cms.listFacets({ scope: "show", type: "dj_set" }); // Genre, Géographie : les menus des filtres
 ---
 ```
 
@@ -441,18 +485,18 @@ Toutes les lectures se font sous le rôle `anon`, en lecture seule. Elles ne voi
 
 | Fonction | Paramètres | Rend |
 |---|---|---|
-| `listShows(filtres)` | `type`, `genre`, `mood`, `theme` (slugs d'étiquettes), `artist` (slug), `period` (`"past"` : archives, `"upcoming"` : à venir), `limit` (24 par défaut, 100 au plus), `offset`, `now` | `{ items: ShowCard[], total, limit, offset }`, du plus récent au plus ancien (à venir : du plus proche au plus lointain) |
+| `listShows(filtres)` | `type`, `tags` (adresses d'étiquettes, toutes exigées ; une étiquette de groupe vaut pour tout son groupe : `"club"` trouve aussi les shows Amapiano), `energy` (`{ min, max }`, de 1 à 5), `artist` (slug), `period` (`"past"` : archives, `"upcoming"` : à venir), `limit` (24 par défaut, 100 au plus), `offset`, `now` | `{ items: ShowCard[], total, limit, offset }`, du plus récent au plus ancien (à venir : du plus proche au plus lointain) |
 | `getShow(slug)` | | `ShowDetail` : la vignette, plus la description, la piste SoundCloud, le créneau Radio Cult et la tracklist dans l'ordre. Ou `null` |
-| `listTags({ kind, type })` | type d'étiquette, type de show | Les étiquettes portées par au moins un show publié, avec leur nombre de shows : les menus de tri |
-| `listArtists({ role })` | `"resident"` ou `"guest"` | `{ total, groups: [{ letter, artists }] }` : l'index A–Z, à la française (« Éloïse » sous E), « # » pour les chiffres, à la fin |
-| `getArtist(slug)` | | `ArtistDetail` : photo, bio, liens, ses shows, ses événements, les étiquettes de ses shows. Ou `null` |
-| `listEvents(filtres)` | `period` (`"upcoming"` ou `"past"`, obligatoire), `category`, `limit`, `offset`, `now` | `{ items: EventCard[], total, limit, offset }` |
+| `listFacets({ scope, type, all })` | ce que montre la page (`"show"`, `"artist"`, `"event"`), le type de show, `all` : garder les étiquettes sans contenu | Les menus des filtres de la page : `[{ slug, name, groups: [{ slug, name, count, tags: [{ slug, name, count }] }] }]`, filtres et groupes dans l'ordre de l'admin, étiquettes dans l'ordre alphabétique, avec leur nombre de contenus publiés (un groupe compte ceux de toutes ses étiquettes, chacun une fois) |
+| `listArtists({ role, tag })` | `"resident"` ou `"guest"`, adresse d'étiquette (`"dj"`) | `{ total, groups: [{ letter, artists }] }` : l'index A–Z, à la française (« Éloïse » sous E), « # » pour les chiffres, à la fin. Chaque portrait porte ses étiquettes |
+| `getArtist(slug)` | | `ArtistDetail` : photo, bio, liens, ses étiquettes, ses shows, ses événements, les étiquettes de ses shows (`showTags`). Ou `null` |
+| `listEvents(filtres)` | `period` (`"upcoming"` ou `"past"`, obligatoire), `tag` (adresse d'étiquette : `"fete"`), `limit`, `offset`, `now` | `{ items: EventCard[], total, limit, offset }` ; chaque événement porte ses étiquettes, à montrer dessous |
 | `getEvent(slug)` | | `EventDetail` : description, adresse, billetterie, artistes, galerie dans l'ordre. Ou `null` |
 | `getPage(slug)` | | `{ slug, title, body, updatedAt }` (Markdown). Ou `null` |
 | `search(texte, { limit })` | `limit` par type (10 par défaut) | `{ query, shows, artists, events }`, les plus pertinents d'abord |
 | `listBackgroundClips()` | | Les vidéos de fond de la rotation, dans l'ordre de la liste : `[{ src, title, poster }]` |
 
-Une vignette de show (`ShowCard`) porte de quoi remplir les grilles des croquis : titre, type, date, durée, pochette, artistes et étiquettes. Les images arrivent prêtes pour `<img>` :
+Une vignette de show (`ShowCard`) porte de quoi remplir les grilles des croquis : titre, type, date, durée, mood, pochette, artistes et étiquettes. Les images arrivent prêtes pour `<img>` :
 
 ```ts
 type Image = { url: string; width: number | null; height: number | null; alt: string; credit: string | null; srcset: string | null };
@@ -479,7 +523,7 @@ npm test
 npm run typecheck
 ```
 
-122 tests, sur une base PGlite en mémoire : aucun compte, aucun réseau, une dizaine de secondes. `npm test` marche aussi depuis la racine du projet. Ils couvrent :
+152 tests, sur une base PGlite en mémoire : aucun compte, aucun réseau, une quinzaine de secondes. `npm test` marche aussi depuis la racine du projet. Ils couvrent :
 
 - **les migrations** : elles passent sur une base vide, et leur relance ne change rien. Chaque table publique a sa RLS et ses règles. Le schéma Drizzle et la base sont d'accord. drizzle-kit n'a plus rien à générer : une migration oubliée fait échouer le test ;
 - **le seed** : il passe, se rejoue sans doublon, se retire sans toucher au reste, et marque bien tout comme exemple ;
@@ -487,6 +531,7 @@ npm run typecheck
 - **la recherche** : français, accents, débuts de mots, brouillons jamais visibles, saisies piégées ;
 - **les règles d'accès**, sous des rôles simulés comme ceux de Supabase : le public, un compte sans fiche, un éditeur, un admin, le dernier admin, et l'ancienne version de `auth.uid()`.
 - **les vidéos de fond** : les clips d'origine inscrits par la migration, la liste que lit le site, les règles d'accès, puis l'ajout, le titre, la mise de côté, l'ordre, le remplacement du fichier et la suppression ;
+- **les étiquettes et les filtres** : ce que la migration inscrit (filtres, groupes dans l'ordre du document, étiquettes à deux places, noms en minuscules), la reprise d'une base d'avant (rejouée sur une copie arrêtée à `0006`), la saisie des noms (liste collée en capitales), les menus du site et des listes de l'admin, puis l'ajout, le renommage, les places, l'ordre, la fusion et la suppression des étiquettes et des filtres, et leurs règles d'accès ;
 - **l'admin** : la saisie vérifiée champ par champ, la tracklist collée, les minutages, l'heure de Paris aux changements d'heure ; puis, sous le rôle d'un éditeur, la création d'un show avec un artiste et une étiquette nés à la volée, la publication, la tracklist remplacée, l'enregistrement concurrent, la suppression ; et le refus d'un compte hors de l'équipe.
 
 PGlite tourne sous Postgres 18, Supabase sous Postgres 17. Pour vérifier aussi le vrai moteur de Supabase, avec ses rôles et ses droits, Docker suffit :
@@ -528,9 +573,11 @@ Sous `/admin`, dans le projet Astro, rendus côté serveur, en français, pensé
 
 Puis l'interface a été refondue : barre latérale, recherche de partout (⌘K, `/admin/recherche`), mode sombre, filtres en pastilles, fiches au titre en grand avec leurs actions dans une barre, tracklist en feuille de calcul (Entrée, Alt+↑ ↓), et un petit éditeur Tiptap pour les descriptions et les bios, qui enregistre du Markdown (l'aperçu à part a disparu). Le tableau de bord montre les prochaines diffusions et ce qui manque : les shows déjà diffusés sans tracklist ou sans son, les artistes sans photo ou sans bio (`overview()`, et le filtre `missing` des listes, pour que le nombre annoncé soit celui de la liste où l'on arrive).
 
+Puis l'écran **Étiquettes** (`/admin/etiquettes`, rubrique « Contenus », section 9.8) : les filtres du site et leurs étiquettes, tirés du document « Tags et filtres site web » ; la fiche d'un show propose ces étiquettes avec leur place et le mood (de calme à énergique), celle d'un artiste son activité (podcast, playlist, DJ).
+
 Ensuite, l'écran **Vidéos de fond** (`/admin/videos`, rubrique « Site ») : les clips du fond du site dans l'ordre de leur liste, avec leur image, leur titre (modifiable sur place) et leur numéro de chaîne ; mettre de côté ou remettre dans la rotation, monter et descendre, voir, remplacer, supprimer, et ajouter une vidéo, qui part directement du navigateur vers Vercel Blob (9.7).
 
-Pas encore : le reste du tableau de bord (imports Radio Cult à relire, prochains événements, textes alternatifs), les événements, les étiquettes, les pages, la médiathèque, l'équipe, les imports Radio Cult, l'envoi des images (9.3), « Retrouver la piste » SoundCloud, « Trouver les liens Hopper », l'aperçu sur le site et l'invalidation du cache.
+Pas encore : le reste du tableau de bord (imports Radio Cult à relire, prochains événements, textes alternatifs), les événements (leurs étiquettes de catégorie sont prêtes dans la base), les pages, la médiathèque, l'équipe, les imports Radio Cult, l'envoi des images (9.3), « Retrouver la piste » SoundCloud, « Trouver les liens Hopper », l'aperçu sur le site et l'invalidation du cache.
 
 ### 9.1 Connexion et session
 
@@ -548,11 +595,11 @@ Pas encore : le reste du tableau de bord (imports Radio Cult à relire, prochain
 | Écran | Liste | Fiche (champs) |
 |---|---|---|
 | **Tableau de bord** | Brouillons récents, imports Radio Cult à relire, prochains événements, contenus sans texte alternatif | — |
-| **Shows** | Filtres statut, type, étiquette, artiste ; recherche ; tri par date | Titre*, slug (tiré du titre, modifiable), type*, statut, date et heure de diffusion (heure de Paris), durée, description (Markdown, écrite dans un petit éditeur visuel), pochette carrée (envoi et recadrage 1:1), artistes (choix multiple ordonné ; un nouvel artiste naît en brouillon), étiquettes par type (création à la volée), piste SoundCloud (adresse, puis « Retrouver la piste » : l'API de SoundCloud, `/resolve`, côté serveur, remplit l'identifiant), créneau Radio Cult (lecture seule) |
+| **Shows** | Filtres statut, type, étiquette, artiste ; recherche ; tri par date | Titre*, slug (tiré du titre, modifiable), type*, statut, date et heure de diffusion (heure de Paris), durée, description (Markdown, écrite dans un petit éditeur visuel), pochette carrée (envoi et recadrage 1:1), artistes (choix multiple ordonné ; un nouvel artiste naît en brouillon), étiquettes filtre par filtre, à la souris (section 9.8 ; une étiquette hors des filtres se tape dans « Autres »), mood de 1 à 5, piste SoundCloud (adresse, puis « Retrouver la piste » : l'API de SoundCloud, `/resolve`, côté serveur, remplit l'identifiant), créneau Radio Cult (lecture seule) |
 | **Tracklist** (dans la fiche du show) | — | Tableau éditable : artiste, titre, minutage (`m:ss` ou `h:mm:ss`), lien Hopper ; réordonner par glisser ; coller une tracklist en texte (« 12:30 Artiste – Titre » par ligne) ; « Trouver les liens Hopper » : `POST https://hppr.fr/api/resolve` pour chaque morceau, avec la clé partenaire. Le lien n'est gardé que si Hopper répond 200 : un lien faux est pire qu'un lien absent. L'enregistrement remplace toute la tracklist dans une transaction |
 | **Artistes** | Index A–Z, filtres résident / invité, statut | Nom*, slug, rôle*, bio (Markdown), photo carrée, liens (libellé + adresse, ordonnés), statut, identifiant Radio Cult (rempli par l'import) ; ses shows |
 | **Événements** | À venir / passés, catégorie, statut | Titre*, slug, catégorie*, statut, début*, fin, lieu, adresse, description, visuel, billetterie, artistes ordonnés ; galerie : envoi de plusieurs photos, ordre par glisser, légende et texte alternatif pour chacune |
-| **Étiquettes** | Par type, avec leur nombre de shows | Type*, nom*, slug ; fusionner deux étiquettes (les shows de l'une passent à l'autre) |
+| **Étiquettes** ✓ | Un onglet par filtre (Thème, Genre, Géographie, Activité, Catégorie…) et « À classer » ; les groupes dans l'ordre, leurs étiquettes en pastilles avec leur nombre de contenus ; la recherche dans tous les filtres | Nom, adresse ; ses places (en ajouter, en retirer) ; fusionner avec une autre ; supprimer. Ajouter une étiquette ou une liste collée à un groupe ; ajouter, ordonner, retirer les groupes ; créer, modifier, ordonner, supprimer un filtre (section 9.8) |
 | **Pages** | Titre, statut, date de modification | Titre*, slug*, corps (Markdown avec aperçu), statut |
 | **Médiathèque** | Grille des fichiers, ceux sans texte alternatif en tête | Texte alternatif, crédit, où le fichier sert ; supprimer seulement s'il ne sert plus (et dans le Storage aussi) |
 | **Équipe** (admin seulement) | Nom, adresse, rôle, dernière connexion | Ajouter : adresse, nom, rôle. Le serveur crée le compte avec la clé secrète (`supabase.auth.admin.createUser({ email, password, email_confirm: true })`, mot de passe tiré au hasard et montré une seule fois à l'admin), puis écrit la fiche `member` sous le rôle de l'admin. Plus tard, avec les e-mails : `inviteUserByEmail` à la place. Poser un nouveau mot de passe, changer un rôle, retirer un membre (la base garde toujours un admin) |
@@ -647,3 +694,51 @@ Les clips qui passent au hasard derrière toutes les pages du site. Leur liste e
 **Les limites de la formule Hobby** (tarifs de Vercel, septembre 2026) : 1 Go de fichiers, 10 Go de trafic Blob par mois, 10 000 opérations simples (lectures hors cache) et 2 000 avancées (envois, listes). Elles valent pour tout le compte Vercel : le magasin `lennygotchi-media`, d'un autre projet, les partage. Chaque lecture d'une vidéo compte dans le trafic, cache ou pas : une vidéo de 4 Mo vue 2 500 fois fait 10 Go. Au-delà, Vercel Blob s'arrête jusqu'à 30 jours : seules les vidéos envoyées ne se chargent plus, le fond passe aux suivantes, le site et l'admin continuent. D'où les conseils de l'écran (640 px de large, moins de 10 Mo), et la formule Pro si le site grandit. L'usage se suit dans Vercel, Storage, `parabole-fond`.
 
 **En local**, l'envoi a besoin du jeton : `vercel env pull` l'écrit dans `.env.local`, avec d'autres réglages, à ne jamais versionner. Les envois faits en local vont dans le vrai magasin : supprimer ensuite la vidéo d'essai depuis l'admin, ce qui efface ses fichiers.
+
+### 9.8 Les étiquettes et les filtres
+
+Le document « Tags et filtres site web » (novembre 2026) dit comment le site range ses contenus. La migration `0007_etiquettes_donnees.sql` l'a inscrit dans la base ; la suite se fait dans l'admin, à `/admin/etiquettes`.
+
+**Le modèle.** Une **étiquette** (`tag`) n'existe qu'une fois. Un **filtre** (`facet`) la range, pour un genre de contenu : les shows (d'un ou plusieurs types), les artistes ou les événements. Dans un filtre, des **groupes** (`tag_group`) : ce sont des étiquettes au premier niveau (Club, Caraïbes, Culture), qui se choisissent elles-mêmes sur une fiche (« Jazz », sans plus de précision) et valent, sur le site, pour toutes leurs étiquettes. Dans un groupe, des **étiquettes** (`tag_member`), dans l'ordre alphabétique. Une étiquette peut avoir plusieurs places : Amapiano est dans Genre › Club et dans Géographie › Afrique / Moyen-Orient ; un show Amapiano se trouve par les deux. Deux niveaux, pas plus : un groupe ne contient pas de groupes.
+
+**Ce que la migration a inscrit**, d'après le document :
+
+| Filtre | Range | Groupes | Étiquettes dans les groupes |
+|---|---|---|---|
+| Thème | les podcasts | Culture, Société, Musique | 17 |
+| Genre | les DJ sets et les playlists | 14, de Classique à Talk, poésie, soundtracks | 82 |
+| Géographie | les DJ sets et les playlists | Caraïbes, Amérique latine / Brésil, Afrique / Moyen-Orient, Asie, Europe | 228 |
+| Activité | les artistes | Podcast, Playlist, DJ | — |
+| Catégorie | les événements | Live session_Art ensemble, Fête, Rencontre/Talk, DJ set_On air, Événement spécial | — |
+
+La lecture du document, pour s'y retrouver :
+
+- dans les listes de genres, un passage en gras est un groupe, et les noms qui suivent sont ses étiquettes (« **HIP-HOP, R'N'B,** DRILL, RNB, RAP, TRAP » : le groupe « Hip-hop, R'n'B » et quatre étiquettes) ;
+- une étiquette qui porte le nom de son groupe (SOUL dans SOUL, CLUB dans CLUB) n'est pas recopiée dedans : le groupe se choisit lui-même ;
+- les noms passent des capitales du document aux minuscules, sigles et noms propres gardés (« UK funky », « K-pop », « Folk du Rajasthan ») ;
+- le mood (« calme — énergique ») n'est pas une étiquette : c'est `show.energy`, de 1 à 5 ;
+- les résidents et les invités restent le rôle d'un artiste ; leur sous-filtre (podcast, playlist, DJ) est le filtre Activité ;
+- la partie « POUBELLE » et « À propos » n'ont rien donné.
+
+Les étiquettes saisies avant la migration restent, avec leurs shows : celle qui porte une adresse du document y prend sa place et son nom ; les autres passent « à classer ». Les catégories d'événements deviennent des étiquettes : Art ensemble → Live session_Art ensemble, Parabole → Fête, Special → Événement spécial, Talk → Rencontre/Talk.
+
+**Quand le document évolue**, tout se fait dans l'écran Étiquettes, sans migration :
+
+- **ajouter** : dans le groupe, le champ « Ajouter… » prend un nom, ou une liste copiée du document (« AFRO HOUSE, AFROBEATS, AMAPIANO » ; une liste sur plusieurs lignes aussi) : les noms en capitales passent en minuscules, une étiquette déjà connue (même adresse, ou même nom sans accents ni majuscules) gagne une place au lieu d'être recréée ;
+- **ranger ailleurs, retirer** : la fiche d'une étiquette (un clic sur sa pastille) liste ses places ; « Ranger aussi dans… » en ajoute une. Retirer une étiquette de toutes ses places la laisse sur ses contenus, « à classer » ;
+- **renommer** : le nom et l'adresse. L'adresse sert aux liens des filtres du site : la changer casse ceux déjà partagés ;
+- **fusionner** deux doublons (« Wassalou » et « Wassoulou ») : les contenus et les places de l'une passent à l'autre ;
+- **supprimer** une étiquette, ou d'un coup celles à classer qui ne servent à rien ;
+- **les groupes** : en ajouter (« Nouveau groupe… », au bas du filtre), les monter, les descendre, les retirer du filtre ;
+- **les filtres** : en créer (« Nouveau filtre » : son nom, ce qu'il range, pour quels types de shows), les modifier, les ordonner, les supprimer. Ce qu'un filtre range ne change plus après sa création.
+
+**Dans les fiches**, les étiquettes se choisissent à la souris, sans rien savoir par cœur : un bloc par filtre (`src/components/admin/FacetPicker.tsx`), ceux du type du show seulement (Genre et Géographie pour un DJ set ou une playlist, Thème pour un podcast).
+
+- Un filtre sans sous-groupes (Activité) montre ses étiquettes en pastilles ; un petit filtre (Thème) montre chaque groupe sur sa ligne, suivi de ses étiquettes.
+- Un grand filtre (Genre, Géographie) montre ses groupes ; un clic sur un groupe ouvre ses étiquettes en dessous, avec « Tout « Club » » pour choisir le groupe lui-même. Ce qui est choisi reste visible en haut, à retirer d'un clic, et une recherche trouve une étiquette dans le filtre (Entrée la coche).
+- Une pastille choisie se colore ; un groupe montre combien de ses étiquettes sont choisies. Une étiquette à deux places (Amapiano) se coche dans les deux filtres à la fois.
+- Une étiquette rangée seulement dans un filtre d'un autre type (un genre sur un podcast) est signalée, à retirer d'un clic. « Autres » prend une étiquette qui n'est dans aucun filtre : un nom inconnu crée une étiquette à classer.
+- Le mood se règle de 1 à 5 pour un DJ set ou une playlist (un podcast n'en garde pas). La fiche d'un artiste montre ses filtres de la même façon (Activité : Podcast, Playlist, DJ). Les listes des shows et des artistes ont un filtre « Étiquette » (« Activité » pour les artistes) rangé comme les filtres du site ; choisir un groupe garde aussi les contenus de ses étiquettes. Le tableau de bord compte les étiquettes à classer.
+
+**Sur le site**, les pages liront `listFacets()` pour leurs menus (section 7) et `listShows({ tags, energy })`, `listArtists({ tag })`, `listEvents({ tag })` pour leurs listes. Les pages Show, Résidents et Événements ne sont pas encore construites.
+

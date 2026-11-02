@@ -11,12 +11,29 @@
  */
 import { asMember, type Tx } from "../access.ts";
 import type { Db } from "../db.ts";
-import { deleteArtist, getArtist, listArtists, saveArtist, type AdminArtistFilters, type ArtistSave } from "./artists.ts";
+import type { FacetScope } from "../schema.ts";
+import { artistChoices, deleteArtist, getArtist, listArtists, saveArtist, type AdminArtistFilters, type ArtistSave } from "./artists.ts";
 import { addClip, deleteClip, getClip, listClips, moveClip, replaceClipFile, updateClip, type ClipAdd, type ClipChange } from "./clips.ts";
 import type { NotSaved } from "./common.ts";
-import type { ClipFile } from "./input.ts";
+import type { ClipFile, FacetValues } from "./input.ts";
 import { fieldErrorsFrom } from "./errors.ts";
 import { deleteShow, getShow, listShows, saveShow, showChoices, type AdminShowFilters, type ShowSave } from "./shows.ts";
+import {
+  addTags,
+  deleteFacet,
+  deleteTag,
+  deleteUnusedTags,
+  mergeTags,
+  moveFacet,
+  moveGroup,
+  placeTag,
+  renameTag,
+  saveFacet,
+  tagFilter,
+  taxonomy,
+  unplaceTag,
+  type TagPlace,
+} from "./tags.ts";
 import { getMember, overview } from "./team.ts";
 
 /** Un refus de la base qui tient à la saisie devient des erreurs par champ ; le reste remonte tel quel. */
@@ -55,6 +72,34 @@ export function createAdmin(db: Db, userId: string) {
     saveArtist: (save: ArtistSave) => saving(() => as((tx) => saveArtist(tx, save))),
     /** Supprime un artiste. Rend son nom, ou null s'il n'existait plus. */
     deleteArtist: (id: string) => as((tx) => deleteArtist(tx, id)),
+    /** Les filtres des artistes et leurs étiquettes, à proposer dans la fiche d'un artiste. */
+    artistChoices: () => as((tx) => artistChoices(tx)),
+    /** Le menu « Étiquette » d'une liste (shows, artistes) ; `used` : seulement ce qui sert. */
+    tagFilter: (scope: FacetScope, options?: { used?: boolean }) => as((tx) => tagFilter(tx, scope, options)),
+    /** Tout le classement des étiquettes : les filtres, leurs groupes, les étiquettes, ce qui les porte. */
+    taxonomy: () => as((tx) => taxonomy(tx)),
+    /** Ajoute une étiquette, ou une liste, à une place : un nom connu reprend son étiquette, un nom nouveau en crée une. */
+    addTags: (place: TagPlace, names: string[]) => saving(() => as((tx) => addTags(tx, place, names))),
+    /** Renomme une étiquette, ou change son adresse. */
+    renameTag: (id: string, values: { name: string; slug: string }) => saving(() => as((tx) => renameTag(tx, id, values))),
+    /** Range une étiquette à une place de plus. */
+    placeTag: (id: string, place: TagPlace) => saving(() => as((tx) => placeTag(tx, id, place))),
+    /** Retire une étiquette d'une place, sans la supprimer. Faux si elle n'y était plus. */
+    unplaceTag: (id: string, place: TagPlace) => as((tx) => unplaceTag(tx, id, place)),
+    /** Monte ou descend un groupe dans son filtre. Faux s'il n'y est plus. */
+    moveGroup: (facetId: string, id: string, direction: "up" | "down") => as((tx) => moveGroup(tx, facetId, id, direction)),
+    /** Fusionne une étiquette dans une autre, qui reprend ses contenus et ses places. */
+    mergeTags: (fromId: string, intoId: string) => saving(() => as((tx) => mergeTags(tx, fromId, intoId))),
+    /** Supprime une étiquette. Rend son nom, ou null si elle n'existait plus. */
+    deleteTag: (id: string) => as((tx) => deleteTag(tx, id)),
+    /** Supprime les étiquettes à classer qui ne servent à rien. Rend leur nombre. */
+    deleteUnusedTags: () => as((tx) => deleteUnusedTags(tx)),
+    /** Crée un filtre, ou le modifie. */
+    saveFacet: (save: { id?: string; values: FacetValues }) => saving(() => as((tx) => saveFacet(tx, save))),
+    /** Monte ou descend un filtre. Faux s'il n'existe plus. */
+    moveFacet: (id: string, direction: "up" | "down") => as((tx) => moveFacet(tx, id, direction)),
+    /** Supprime un filtre et ses places ; ses étiquettes restent. Rend son nom, ou null. */
+    deleteFacet: (id: string) => as((tx) => deleteFacet(tx, id)),
     /** Les vidéos de fond, dans l'ordre de la liste, celles mises de côté comprises. */
     listClips: () => as((tx) => listClips(tx)),
     /** Une vidéo de fond, ou null. */
@@ -76,6 +121,7 @@ export type Admin = ReturnType<typeof createAdmin>;
 
 export type { AdminArtist, AdminArtistFilters, AdminArtistIndex, AdminArtistRow, ArtistSave } from "./artists.ts";
 export type { AdminClip, ClipAdd, ClipChange, ClipFiles } from "./clips.ts";
+export type { AdminFacet, AdminFacetChoice, AdminTagChoice, AdminTagUse, TagFilterMenu, TagFilterOption, TagPlace, TagsAdded, Taxonomy } from "./tags.ts";
 export type { NotSaved, Saved } from "./common.ts";
 export {
   CLIP_TYPES,
@@ -88,12 +134,18 @@ export {
   readArtistForm,
   readClipFile,
   readClipTitle,
+  readFacetForm,
   readShowForm,
+  readTagForm,
+  readTagNames,
+  tidyTagName,
   type ArtistForm,
   type ArtistValues,
   type ClipFile,
   type ClipFileForm,
   type ClipType,
+  type FacetForm,
+  type FacetValues,
   type FieldErrors,
   type ShowForm,
   type ShowValues,

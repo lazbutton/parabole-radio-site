@@ -59,7 +59,8 @@ Pour une nouvelle page :
 
 ## L'admin (`/admin`)
 
-L'espace de l'équipe : les shows et leur tracklist, les artistes, les vidéos de fond. C'est une application React (Radix Themes), hors de
+L'espace de l'équipe : les shows et leur tracklist, les artistes, les étiquettes et les filtres du site (`/admin/etiquettes`, `cms/README.md`
+section 9.8), les vidéos de fond. C'est une application React (Radix Themes), hors de
 la coque (ni bandeau, ni vidéo), qui marche au téléphone comme à l'ordinateur, en clair comme en sombre ; seule
 l'entrée (connexion, refus, panne) garde le style du site. Le cahier des charges et l'avancement sont dans
 `cms/README.md`, section 9.

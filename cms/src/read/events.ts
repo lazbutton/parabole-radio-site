@@ -1,17 +1,18 @@
 /**
- * Les événements pour le site : à venir et passés, par catégorie (Art ensemble, Parabole, Special, Talk), et la
- * page d'un événement avec sa galerie.
+ * Les événements pour le site : à venir et passés, par catégorie (les étiquettes du filtre Catégorie : Fête,
+ * Rencontre/Talk…), et la page d'un événement avec sa galerie.
  */
 import { and, asc, desc, eq, sql, type SQL } from "drizzle-orm";
 import type { Tx } from "../access.ts";
-import { artist, event, eventArtist, eventCategory, eventPhoto, media, type EventCategory } from "../schema.ts";
+import { artist, event, eventArtist, eventPhoto, eventTag, media, tag } from "../schema.ts";
 import { isSlug } from "../slug.ts";
-import { emptyPage, mediaJson, oneOf, outer, paging, startOfParisDay, toImage, type ArtistRef, type Image, type MediaRow, type Paged } from "./common.ts";
+import { coveredTags, emptyPage, mediaJson, oneOf, outer, paging, startOfParisDay, toImage, type ArtistRef, type Image, type MediaRow, type Paged, type TagRef } from "./common.ts";
 
 export type EventCard = {
   slug: string;
   title: string;
-  category: EventCategory;
+  /** Ses étiquettes (sa catégorie), à montrer sous l'événement. */
+  tags: TagRef[];
   startsAt: Date;
   endsAt: Date | null;
   venue: string | null;
@@ -33,7 +34,8 @@ export type EventDetail = EventCard & {
 export type EventFilters = {
   /** À venir : pas encore fini. Passé : fini. */
   period: "upcoming" | "past";
-  category?: EventCategory;
+  /** L'adresse d'une étiquette (« fete ») : celle-ci, ou une étiquette de son groupe. */
+  tag?: string;
   /** L'instant de référence (maintenant par défaut). */
   now?: Date;
   limit?: number;
@@ -45,11 +47,16 @@ const eventArtists = sql<ArtistRef[]>`coalesce((
     from ${eventArtist} ea join ${artist} a on a.id = ea.artist_id
     where ea.event_id = ${outer(event.id)} and a.status = 'published'), '[]'::json)`;
 
+const eventTags = sql<TagRef[]>`coalesce((
+    select json_agg(json_build_object('slug', t.slug, 'name', t.name) order by t.name)
+    from ${eventTag} et join ${tag} t on t.id = et.tag_id
+    where et.event_id = ${outer(event.id)}), '[]'::json)`;
+
 /** Les colonnes d'une vignette, pour toute requête sur « event » (listes, page d'artiste, recherche). */
 export const eventCardFields = {
   slug: event.slug,
   title: event.title,
-  category: event.category,
+  tags: eventTags,
   startsAt: event.startsAt,
   endsAt: event.endsAt,
   venue: event.venue,
@@ -75,12 +82,12 @@ export function eventIsUpcoming(now: Date): SQL {
 export async function listEvents(tx: Tx, base: string, filters: EventFilters): Promise<Paged<EventCard>> {
   const page = paging(filters);
   if (!oneOf(["upcoming", "past"] as const, filters.period)) return emptyPage(page);
-  if (filters.category !== undefined && !oneOf(eventCategory.enumValues, filters.category)) return emptyPage(page);
+  if (filters.tag !== undefined && !isSlug(filters.tag)) return emptyPage(page);
   const upcoming = eventIsUpcoming(filters.now ?? new Date());
   const where = and(
     eq(event.status, "published"),
     filters.period === "upcoming" ? upcoming : sql`not ${upcoming}`,
-    filters.category ? eq(event.category, filters.category) : undefined,
+    filters.tag ? sql`exists (select 1 from ${eventTag} et where et.event_id = ${outer(event.id)} and et.tag_id in ${coveredTags(filters.tag)})` : undefined,
   );
   const order = filters.period === "upcoming" ? asc(event.startsAt) : desc(event.startsAt);
   const rows = await tx.select(eventCardFields).from(event).where(where).orderBy(order, asc(event.title)).limit(page.limit).offset(page.offset);

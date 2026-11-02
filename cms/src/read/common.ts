@@ -3,7 +3,7 @@
  */
 import { getTableName, sql, type SQL } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
-import { media, type ArtistRole, type MediaVariant, type TagKind } from "../schema.ts";
+import { media, tag, tagMember, type ArtistRole, type MediaVariant } from "../schema.ts";
 
 // ---------------------------------------------------------------------------------------------------------------
 // Images
@@ -50,8 +50,19 @@ export const mediaJson = (id: AnyPgColumn) =>
 
 /** Un artiste cité par un show ou un événement : de quoi l'afficher et faire un lien vers sa page. */
 export type ArtistRef = { slug: string; name: string; role: ArtistRole };
-/** Une étiquette de show. */
-export type TagRef = { kind: TagKind; slug: string; name: string };
+/** Une étiquette posée sur un show, un artiste ou un événement : de quoi l'afficher et faire un lien vers son filtre. */
+export type TagRef = { slug: string; name: string };
+
+/**
+ * Les étiquettes que couvre une adresse d'étiquette : elle-même et, si c'est un groupe, les étiquettes du groupe.
+ * Filtrer sur « club » trouve les shows Club comme les shows Amapiano. Une adresse inconnue ne couvre rien.
+ */
+export const coveredTags = (slug: string): SQL =>
+  sql`(select t.id from ${tag} t where t.slug = ${slug}
+    union select m.tag_id from ${tagMember} m join ${tag} g on g.id = m.group_id where g.slug = ${slug})`;
+
+/** La même chose à partir de l'identifiant de l'étiquette (les filtres de l'admin). */
+export const coveredTagIds = (id: string): SQL => sql`(select ${id}::uuid union select m.tag_id from ${tagMember} m where m.group_id = ${id})`;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Listes

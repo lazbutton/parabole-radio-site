@@ -1,23 +1,36 @@
 /**
- * Les artistes dans l'admin : l'index A–Z (brouillons compris), la fiche à modifier avec ses shows, l'enregistrement,
- * la suppression. Sous le rôle de la personne connectée (src/admin/index.ts).
+ * Les artistes dans l'admin : l'index A–Z (brouillons compris), la fiche à modifier avec ses shows et ses étiquettes,
+ * l'enregistrement, la suppression. Sous le rôle de la personne connectée (src/admin/index.ts).
  */
-import { and, desc, eq, ne, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql, type SQL } from "drizzle-orm";
 import type { Tx } from "../access.ts";
 import { indexLetter } from "../read/artists.ts";
-import { frenchOrder, oneOf, outer } from "../read/common.ts";
+import { coveredTagIds, frenchOrder, oneOf, outer } from "../read/common.ts";
 import { escapeLike, prefixQuery } from "../read/search.ts";
-import { artist, artistRole, contentStatus, eventArtist, media, SEARCH_CONFIG, show, showArtist, type ArtistLink, type ArtistRole, type ContentStatus, type ShowType } from "../schema.ts";
+import { artist, artistRole, artistTag, contentStatus, eventArtist, media, SEARCH_CONFIG, show, showArtist, tag, type ArtistLink, type ArtistRole, type ContentStatus, type ShowType } from "../schema.ts";
 import { freeSlug, versionOf, type NotSaved, type Saved } from "./common.ts";
 import { isUuid, type ArtistValues } from "./input.ts";
+import { tagChoices, type AdminFacetChoice, type AdminTagChoice } from "./tags.ts";
 
-export type AdminArtistRow = { id: string; slug: string; name: string; role: ArtistRole; status: ContentStatus; shows: number; hasPhoto: boolean; hasBio: boolean; updatedAt: Date };
+export type AdminArtistRow = {
+  id: string;
+  slug: string;
+  name: string;
+  role: ArtistRole;
+  status: ContentStatus;
+  shows: number;
+  hasPhoto: boolean;
+  hasBio: boolean;
+  updatedAt: Date;
+  /** Les noms de ses étiquettes (ce qu'il fait), dans l'ordre alphabétique. */
+  tags: string[];
+};
 
 /** L'index A–Z de l'admin : une lettre par groupe, « # » à la fin. */
 export type AdminArtistIndex = { total: number; groups: { letter: string; artists: AdminArtistRow[] }[] };
 
-/** Les filtres de l'index ; `missing` : ce qui manque à la fiche, « photo » ou « bio ». */
-export type AdminArtistFilters = { q?: string; role?: string; status?: string; missing?: string };
+/** Les filtres de l'index ; `tag` : l'identifiant d'une étiquette ; `missing` : ce qui manque, « photo » ou « bio ». */
+export type AdminArtistFilters = { q?: string; role?: string; status?: string; tag?: string; missing?: string };
 
 /** Une fiche sans photo : le tableau de bord les compte, l'index les filtre. */
 export const lacksPhoto = () => sql`${artist.photoId} is null`;
@@ -41,6 +54,7 @@ export async function listArtists(tx: Tx, filters: AdminArtistFilters = {}): Pro
   if (filters.q) conditions.push(matching(filters.q));
   if (filters.role && oneOf(artistRole.enumValues, filters.role)) conditions.push(eq(artist.role, filters.role));
   if (filters.status && oneOf(contentStatus.enumValues, filters.status)) conditions.push(eq(artist.status, filters.status));
+  if (isUuid(filters.tag)) conditions.push(sql`exists (select 1 from ${artistTag} ag where ag.artist_id = ${outer(artist.id)} and ag.tag_id in ${coveredTagIds(filters.tag)})`);
   if (filters.missing === "photo") conditions.push(lacksPhoto());
   else if (filters.missing === "bio") conditions.push(lacksBio());
   const rows = await tx
@@ -54,6 +68,8 @@ export async function listArtists(tx: Tx, filters: AdminArtistFilters = {}): Pro
       hasPhoto: sql<boolean>`${artist.photoId} is not null`,
       hasBio: sql<boolean>`not ${lacksBio()}`,
       updatedAt: artist.updatedAt,
+      tags: sql<string[]>`coalesce((select json_agg(t.name order by t.name) from ${artistTag} ag join ${tag} t on t.id = ag.tag_id
+        where ag.artist_id = ${outer(artist.id)}), '[]'::json)`,
     })
     .from(artist)
     .where(and(...conditions));
@@ -83,6 +99,8 @@ export type AdminArtist = {
   /** Jeton de version (src/admin/common.ts), à renvoyer avec la fiche. */
   version: string;
   photo: { key: string; alt: string } | null;
+  /** Ses étiquettes (ce qu'il fait : podcast, playlist, DJ), dans l'ordre alphabétique. */
+  tags: { id: string; name: string }[];
   /** Ses shows, brouillons compris, du plus récent au plus ancien. */
   shows: { id: string; title: string; type: ShowType; status: ContentStatus; broadcastAt: Date | null }[];
   /** Le nombre de ses événements. */
@@ -120,7 +138,24 @@ export async function getArtist(tx: Tx, id: string): Promise<AdminArtist | null>
     .innerJoin(show, eq(show.id, showArtist.showId))
     .where(eq(showArtist.artistId, id))
     .orderBy(sql`${show.broadcastAt} desc nulls first`, desc(show.updatedAt));
-  return { ...fields, photo: photo ?? null, shows };
+  const tags = (
+    await tx
+      .select({ id: tag.id, name: tag.name })
+      .from(artistTag)
+      .innerJoin(tag, eq(tag.id, artistTag.tagId))
+      .where(eq(artistTag.artistId, id))
+  ).sort((a, b) => frenchOrder.compare(a.name, b.name));
+  return { ...fields, photo: photo ?? null, tags, shows };
+}
+
+/** Les filtres des artistes et leurs étiquettes, à proposer dans la fiche d'un artiste. */
+export const artistChoices = (tx: Tx): Promise<{ facets: AdminFacetChoice[]; tags: AdminTagChoice[] }> => tagChoices(tx, "artist");
+
+/** Remplace les étiquettes d'un artiste ; celles qui n'existent plus sont ignorées. */
+async function setArtistTags(tx: Tx, artistId: string, ids: string[]) {
+  const existing = ids.length ? (await tx.select({ id: tag.id }).from(tag).where(inArray(tag.id, ids))).map((row) => row.id) : [];
+  await tx.delete(artistTag).where(eq(artistTag.artistId, artistId));
+  if (existing.length) await tx.insert(artistTag).values(existing.map((tagId) => ({ artistId, tagId })));
 }
 
 export type ArtistSave = {
@@ -160,9 +195,11 @@ export async function saveArtist(tx: Tx, { id, version, values, status }: Artist
   const fields = { slug, name: values.name, role: values.role, bio: values.bio, links: values.links, ...(status ? { status } : {}) };
   if (id) {
     await tx.update(artist).set(fields).where(eq(artist.id, id));
+    await setArtistTags(tx, id, values.tags);
     return { ok: true, id, slug, newArtists: [], newTags: [] };
   }
   const [created] = await tx.insert(artist).values(fields).returning({ id: artist.id });
+  await setArtistTags(tx, created!.id, values.tags);
   return { ok: true, id: created!.id, slug, newArtists: [], newTags: [] };
 }
 

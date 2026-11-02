@@ -20,8 +20,11 @@ export type Connection = {
   db: Db;
   /** « supabase » : une base Postgres par son adresse ; « pglite » : la base locale. */
   kind: "supabase" | "pglite";
-  /** Applique les migrations en attente (drizzle/), une seule fois chacune. Déjà fait à l'ouverture pour PGlite. */
-  migrate: () => Promise<void>;
+  /**
+   * Applique les migrations en attente, une seule fois chacune : celles du dossier de l'ouverture (drizzle/, par
+   * défaut), ou d'un autre. Déjà fait à l'ouverture pour PGlite.
+   */
+  migrate: (folder?: string) => Promise<void>;
   close: () => Promise<void>;
 };
 
@@ -30,6 +33,8 @@ export type ConnectOptions = {
   url?: string;
   /** Dossier de PGlite, ou « memory:// ». Par défaut PGLITE_DIR, sinon cms/.pglite. */
   dataDir?: string;
+  /** Le dossier des migrations : drizzle/, sauf pour un test qui part d'une base plus ancienne. */
+  migrationsFolder?: string;
 };
 
 // Chemins calculés, et non new URL("…", import.meta.url) : Vite prendrait ce motif pour un fichier à empaqueter.
@@ -69,16 +74,16 @@ export function normalizeDatabaseUrl(url: string): string {
   throw new Error("DATABASE_URL illisible : attendu postgresql://utilisateur:mot-de-passe@hôte:port/base (cms/README.md).");
 }
 
-export async function connect({ url = process.env.DATABASE_URL, dataDir = process.env.PGLITE_DIR || LOCAL_DIR }: ConnectOptions = {}): Promise<Connection> {
+export async function connect({ url = process.env.DATABASE_URL, dataDir = process.env.PGLITE_DIR || LOCAL_DIR, migrationsFolder = MIGRATIONS_FOLDER }: ConnectOptions = {}): Promise<Connection> {
   if (url) {
     url = normalizeDatabaseUrl(url);
     // sslmode dans l'adresse l'emporte toujours.
     const ssl = privateHost(url) || /sslmode=/.test(url) ? undefined : "require";
     const client = postgres(url, { prepare: false, max: 5, idle_timeout: 20, ssl, onnotice: () => {}, connection: { application_name: "parabole-cms" } });
     const db = drizzlePostgres(client, { schema });
-    const migrate = async () => {
+    const migrate = async (folder = migrationsFolder) => {
       const { migrate: run } = await import("drizzle-orm/postgres-js/migrator");
-      await run(db, { migrationsFolder: MIGRATIONS_FOLDER });
+      await run(db, { migrationsFolder: folder });
     };
     return { db: db as unknown as Db, kind: "supabase", migrate, close: () => client.end() };
   }
@@ -96,7 +101,7 @@ export async function connect({ url = process.env.DATABASE_URL, dataDir = proces
   const client = new PGlite(dataDir, { extensions: { unaccent } });
   await client.exec(LOCAL_SUPABASE);
   const db = drizzlePglite(client, { schema });
-  const migrate = () => run(db, { migrationsFolder: MIGRATIONS_FOLDER });
+  const migrate = (folder = migrationsFolder) => run(db, { migrationsFolder: folder });
   await migrate();
   return { db: db as unknown as Db, kind: "pglite", migrate, close: () => client.close() };
 }

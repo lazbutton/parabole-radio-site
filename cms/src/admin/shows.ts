@@ -5,12 +5,13 @@
  */
 import { and, asc, desc, eq, inArray, ne, or, sql, type SQL } from "drizzle-orm";
 import type { Tx } from "../access.ts";
-import { frenchOrder, oneOf, outer, paging, type Paged } from "../read/common.ts";
+import { coveredTagIds, frenchOrder, oneOf, outer, paging, type Paged } from "../read/common.ts";
 import { escapeLike, prefixQuery } from "../read/search.ts";
-import { artist, contentStatus, media, SEARCH_CONFIG, show, showArtist, showTag, showType, tag, track, type ContentStatus, type ShowType, type TagKind } from "../schema.ts";
+import { artist, contentStatus, media, SEARCH_CONFIG, show, showArtist, showTag, showType, tag, track, type ContentStatus, type ShowType } from "../schema.ts";
 import { slugify } from "../slug.ts";
 import { freeSlug, versionOf, type NotSaved, type Saved } from "./common.ts";
 import { isUuid, type ArtistPick, type ShowValues, type TagPick } from "./input.ts";
+import { tagChoices, type AdminFacetChoice, type AdminTagChoice } from "./tags.ts";
 
 // ---------------------------------------------------------------------------------------------------------------
 // La liste
@@ -39,7 +40,7 @@ export type AdminShowFilters = {
   q?: string;
   status?: string;
   type?: string;
-  /** Identifiant d'une étiquette. */
+  /** Identifiant d'une étiquette : celle-ci, ou une étiquette de son groupe. */
   tag?: string;
   /** Identifiant d'un artiste. */
   artist?: string;
@@ -89,7 +90,7 @@ export async function listShows(tx: Tx, filters: AdminShowFilters = {}): Promise
   if (filters.q) conditions.push(matching(filters.q));
   if (filters.status && oneOf(contentStatus.enumValues, filters.status)) conditions.push(eq(show.status, filters.status));
   if (filters.type && oneOf(showType.enumValues, filters.type)) conditions.push(eq(show.type, filters.type));
-  if (isUuid(filters.tag)) conditions.push(sql`exists (select 1 from ${showTag} st where st.show_id = ${outer(show.id)} and st.tag_id = ${filters.tag})`);
+  if (isUuid(filters.tag)) conditions.push(sql`exists (select 1 from ${showTag} st where st.show_id = ${outer(show.id)} and st.tag_id in ${coveredTagIds(filters.tag)})`);
   if (isUuid(filters.artist)) conditions.push(sql`exists (select 1 from ${showArtist} sa where sa.show_id = ${outer(show.id)} and sa.artist_id = ${filters.artist})`);
   if (filters.missing === "tracklist") conditions.push(lacksTracklist(filters.now ?? new Date()));
   else if (filters.missing === "sound") conditions.push(lacksSound(filters.now ?? new Date()));
@@ -124,7 +125,7 @@ export async function listShows(tx: Tx, filters: AdminShowFilters = {}): Promise
 // ---------------------------------------------------------------------------------------------------------------
 
 export type AdminShowArtist = { id: string; name: string; status: ContentStatus };
-export type AdminTag = { id: string; kind: TagKind; name: string };
+export type AdminTag = { id: string; name: string };
 
 export type AdminShow = {
   id: string;
@@ -134,6 +135,7 @@ export type AdminShow = {
   status: ContentStatus;
   broadcastAt: Date | null;
   durationSeconds: number | null;
+  energy: number | null;
   description: string | null;
   soundcloudUrl: string | null;
   soundcloudTrackId: string | null;
@@ -160,6 +162,7 @@ export async function getShow(tx: Tx, id: string): Promise<AdminShow | null> {
       status: show.status,
       broadcastAt: show.broadcastAt,
       durationSeconds: show.durationSeconds,
+      energy: show.energy,
       description: show.description,
       soundcloudUrl: show.soundcloudUrl,
       soundcloudTrackId: show.soundcloudTrackId,
@@ -181,12 +184,13 @@ export async function getShow(tx: Tx, id: string): Promise<AdminShow | null> {
     .innerJoin(artist, eq(artist.id, showArtist.artistId))
     .where(eq(showArtist.showId, id))
     .orderBy(asc(showArtist.position), asc(artist.name));
-  const tags = await tx
-    .select({ id: tag.id, kind: tag.kind, name: tag.name })
-    .from(showTag)
-    .innerJoin(tag, eq(tag.id, showTag.tagId))
-    .where(eq(showTag.showId, id))
-    .orderBy(asc(tag.kind), asc(tag.name));
+  const tags = (
+    await tx
+      .select({ id: tag.id, name: tag.name })
+      .from(showTag)
+      .innerJoin(tag, eq(tag.id, showTag.tagId))
+      .where(eq(showTag.showId, id))
+  ).sort((a, b) => frenchOrder.compare(a.name, b.name));
   const tracks = await tx
     .select({ artist: track.artist, title: track.title, startSeconds: track.startSeconds, hopperUrl: track.hopperUrl })
     .from(track)
@@ -195,11 +199,15 @@ export async function getShow(tx: Tx, id: string): Promise<AdminShow | null> {
   return { ...fields, cover: cover ?? null, artists, tags, tracks };
 }
 
-/** Les artistes et les étiquettes à proposer dans la fiche d'un show, dans l'ordre alphabétique français. */
-export async function showChoices(tx: Tx): Promise<{ artists: AdminShowArtist[]; tags: AdminTag[] }> {
+/**
+ * Ce que propose la fiche d'un show : les artistes, dans l'ordre alphabétique français ; les étiquettes des filtres des
+ * shows, dans l'ordre de ces filtres, avec leurs places, puis celles à classer ; et ces filtres, pour montrer où ira le
+ * show.
+ */
+export async function showChoices(tx: Tx): Promise<{ artists: AdminShowArtist[]; tags: AdminTagChoice[]; facets: AdminFacetChoice[] }> {
   const artists = await tx.select({ id: artist.id, name: artist.name, status: artist.status }).from(artist);
-  const tags = await tx.select({ id: tag.id, kind: tag.kind, name: tag.name }).from(tag);
-  return { artists: artists.sort((a, b) => frenchOrder.compare(a.name, b.name)), tags: tags.sort((a, b) => frenchOrder.compare(a.name, b.name)) };
+  const { tags, facets } = await tagChoices(tx, "show", { unplaced: true });
+  return { artists: artists.sort((a, b) => frenchOrder.compare(a.name, b.name)), tags, facets };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -233,7 +241,7 @@ async function resolveArtists(tx: Tx, picks: ArtistPick[]): Promise<{ ids: strin
   return { ids, created };
 }
 
-/** Les étiquettes choisies : une étiquette nouvelle retrouve celle du même type, du même nom ou de la même adresse, ou naît. */
+/** Les étiquettes choisies : une étiquette nouvelle retrouve celle du même nom ou de la même adresse, ou naît, sans place. */
 async function resolveTags(tx: Tx, picks: TagPick[]): Promise<{ ids: string[]; created: string[] }> {
   const chosen = picks.flatMap((pick) => ("id" in pick ? [pick.id] : []));
   const existing = new Set(chosen.length ? (await tx.select({ id: tag.id }).from(tag).where(inArray(tag.id, chosen))).map((row) => row.id) : []);
@@ -247,11 +255,12 @@ async function resolveTags(tx: Tx, picks: TagPick[]): Promise<{ ids: string[]; c
       const [same] = await tx
         .select({ id: tag.id })
         .from(tag)
-        .where(and(eq(tag.kind, pick.kind), or(eq(tag.slug, slug), sameName(tag.name, pick.name))))
+        .where(or(eq(tag.slug, slug), sameName(tag.name, pick.name)))
+        .orderBy(sql`${tag.slug} = ${slug} desc`)
         .limit(1);
       id = same?.id;
       if (!id) {
-        const [born] = await tx.insert(tag).values({ kind: pick.kind, name: pick.name, slug }).returning({ id: tag.id });
+        const [born] = await tx.insert(tag).values({ name: pick.name, slug }).returning({ id: tag.id });
         id = born!.id;
         created.push(pick.name);
       }
@@ -308,6 +317,7 @@ export async function saveShow(tx: Tx, { id, version, values, status }: ShowSave
     type: values.type,
     broadcastAt: values.broadcastAt,
     durationSeconds: values.durationSeconds,
+    energy: values.energy,
     description: values.description,
     soundcloudUrl: values.soundcloudUrl,
     soundcloudTrackId: values.soundcloudTrackId,
