@@ -1,0 +1,78 @@
+---
+/**
+ * Les liens d'un artiste, dans l'encart Description de sa page : les logos « à l'ancienne » déjà dessinés pour le site
+ * (le sprite d'Icons.astro : ceux des réseaux de la ligne du bas, ceux des plateformes de l'accueil), Mixcloud et RA en
+ * lettres comme YouTube et Beatport sur l'accueil (tele.css), les autres en texte. Reconnus à l'adresse, pas au libellé
+ * tapé dans l'admin. Seules les adresses http(s) passent ; tout s'ouvre dans un nouvel onglet.
+ */
+import type { ArtistLink } from "@parabole/cms";
+
+interface Props {
+  liens: ArtistLink[];
+  nom: string;
+}
+const { liens, nom } = Astro.props;
+
+type Plateforme = { nom: string; icone?: string; logo?: { id: string; largeur: number }; mot?: string };
+const PLATEFORMES: [RegExp, Plateforme][] = [
+  [/(^|\.)instagram\.com$/, { nom: "Instagram", icone: "icon-instagram" }],
+  [/(^|\.)(youtube\.com|youtu\.be)$/, { nom: "YouTube", icone: "icon-youtube" }],
+  [/(^|\.)soundcloud\.com$/, { nom: "SoundCloud", logo: { id: "logo-soundcloud", largeur: 33 } }],
+  [/(^|\.)bandcamp\.com$/, { nom: "Bandcamp", logo: { id: "logo-bandcamp", largeur: 30 } }],
+  [/(^|\.)spotify\.com$/, { nom: "Spotify", logo: { id: "logo-spotify", largeur: 24 } }],
+  [/(^|\.)deezer\.com$/, { nom: "Deezer", logo: { id: "logo-deezer", largeur: 24 } }],
+  [/(^|\.)discogs\.com$/, { nom: "Discogs", logo: { id: "logo-discogs", largeur: 24 } }],
+  [/(^|\.)tidal\.com$/, { nom: "Tidal", logo: { id: "logo-tidal", largeur: 24 } }],
+  [/(^|\.)music\.apple\.com$/, { nom: "Apple Music", logo: { id: "logo-itunes", largeur: 24 } }],
+  [/(^|\.)mixcloud\.com$/, { nom: "Mixcloud", mot: "mixcloud" }],
+  [/(^|\.)(ra\.co|residentadvisor\.net)$/, { nom: "Resident Advisor", mot: "<b>RA</b>" }],
+];
+const vus = liens.flatMap((lien) => {
+  try {
+    const adresse = new URL(lien.url);
+    if (adresse.protocol !== "https:" && adresse.protocol !== "http:") return [];
+    const hote = adresse.hostname.replace(/^www\./, "");
+    const plateforme = PLATEFORMES.find(([motif]) => motif.test(hote))?.[1];
+    return [{ url: adresse.href, label: lien.label || hote, plateforme }];
+  } catch (e) {
+    return [];
+  }
+});
+---
+
+{
+  vus.length > 0 && (
+    <ul class="liens">
+      {vus.map(({ url, label, plateforme }) => (
+        <li>
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={plateforme?.nom ?? label}
+            aria-label={`${plateforme?.nom ?? label} de ${nom} (nouvel onglet)`}
+          >
+            {plateforme?.icone ? (
+              <svg class="icon" aria-hidden="true">
+                <use href={`#${plateforme.icone}`} />
+              </svg>
+            ) : plateforme?.logo ? (
+              <svg
+                class="logo"
+                viewBox={`0 0 ${plateforme.logo.largeur} 24`}
+                style={`--r:${(plateforme.logo.largeur / 24).toFixed(3)}`}
+                aria-hidden="true"
+              >
+                <use href={`#${plateforme.logo.id}`} />
+              </svg>
+            ) : plateforme?.mot ? (
+              <span class="logo-mot" aria-hidden="true" set:html={plateforme.mot} />
+            ) : (
+              <span class="liens-texte">{label} ↗</span>
+            )}
+          </a>
+        </li>
+      ))}
+    </ul>
+  )
+}

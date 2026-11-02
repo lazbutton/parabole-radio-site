@@ -18,7 +18,7 @@ import { getEvent, listEvents, type EventFilters } from "./events.ts";
 import { listFacets, type FacetFilters } from "./facets.ts";
 import { getPage } from "./pages.ts";
 import { search } from "./search.ts";
-import { getShow, listShows, type ShowFilters } from "./shows.ts";
+import { getShow, listAirings, listShows, type ShowFilters } from "./shows.ts";
 
 export type ReaderOptions = {
   /** L'adresse publique du seau des fichiers (PUBLIC_MEDIA_URL) : « https://<ref>.supabase.co/storage/v1/object/public/media ». */
@@ -31,6 +31,8 @@ export function createReader(db: Db, { mediaBaseUrl }: ReaderOptions) {
     listShows: (filters: ShowFilters = {}) => asPublic(db, (tx) => listShows(tx, mediaBaseUrl, filters)),
     /** Un show avec sa tracklist et ses artistes, ou null. */
     getShow: (slug: string) => asPublic(db, (tx) => getShow(tx, mediaBaseUrl, slug)),
+    /** Les diffusions (shows publiés de durée connue) qui croisent un intervalle, avec les slugs de leurs artistes. */
+    listAirings: (range: { from: Date; to: Date }) => asPublic(db, (tx) => listAirings(tx, range)),
     /** Les filtres d'une page (shows d'un type, artistes, événements), avec le nombre de contenus de chaque étiquette. */
     listFacets: (filters: FacetFilters) => asPublic(db, (tx) => listFacets(tx, filters)),
     /** Les artistes publiés, résidents ou invités, par activité, en index A–Z. */
@@ -52,11 +54,11 @@ export function createReader(db: Db, { mediaBaseUrl }: ReaderOptions) {
 
 export type Reader = ReturnType<typeof createReader>;
 
-export type { ArtistCard, ArtistDetail, ArtistFilters, ArtistIndex } from "./artists.ts";
+export type { ArtistCard, ArtistDetail, ArtistFilters, ArtistIndex, ArtistNeighbor } from "./artists.ts";
 export type { ClipCard } from "./clips.ts";
 export type { ArtistRef, Image, Paged, TagRef } from "./common.ts";
 export type { EventCard, EventDetail, EventFilters, EventPhoto } from "./events.ts";
 export type { FacetFilters, FacetGroup, FacetMenu, FacetTag } from "./facets.ts";
 export type { PageContent } from "./pages.ts";
 export type { SearchResults } from "./search.ts";
-export type { ShowCard, ShowDetail, ShowFilters, ShowTrack } from "./shows.ts";
+export type { Airing, ShowCard, ShowDetail, ShowFilters, ShowTrack } from "./shows.ts";

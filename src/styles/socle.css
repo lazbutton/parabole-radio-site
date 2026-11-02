@@ -58,6 +58,21 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12p
   display: none;
 }
 .overlay-canvas { position: absolute; }
+/* pas de globe sur la rubrique Résidents : il tombait sous l'index et les portraits, ou sur la photo d'un artiste */
+html[data-page="residents"] .logo-overlay { display: none; }
+
+/* Le mode photo du fond (background.ts) : la page d'un artiste prend l'antenne. Sa photo, entière, à pleine hauteur
+   sous l'en-tête (en haut sur un écran en hauteur), et la même, floutée et assombrie, qui remplit l'écran autour, comme
+   une vidéo verticale à la télé. Un dégradé sombre en bas à gauche détache le nom. Sans photo, la mire. */
+.fond-photo { position: absolute; inset: 0; overflow: hidden; background: #000000; opacity: 0; visibility: hidden; }
+html.fond-en-photo .fond-photo { opacity: 1; visibility: visible; }
+.fond-photo img { position: absolute; display: block; }
+.fond-photo-flou { inset: -60px; width: calc(100% + 120px); height: calc(100% + 120px); object-fit: cover; filter: blur(38px) brightness(0.42) saturate(1.15); }
+.fond-photo-nette { left: 0; right: 0; top: var(--barre-h); bottom: 0; width: 100%; height: calc(100% - var(--barre-h)); object-fit: contain; object-position: center bottom; }
+.fond-photo::after { content: ''; position: absolute; inset: 0; background: linear-gradient(20deg, rgba(0,0,0,0.72), rgba(0,0,0,0.25) 45%, rgba(0,0,0,0) 70%); }
+.fond-photo.mire { background: linear-gradient(90deg, #fff039 0 14.3%, #ffffff 0 28.6%, #000dff 0 42.9%, #000000 0 57.1%, #fff039 0 71.4%, #000dff 0 85.7%, #ffffff 0); }
+.fond-photo.mire img { display: none; }
+@media (orientation: portrait) { .fond-photo-nette { object-position: center top; } }
 /* Le globe : le logo animé, en haut à gauche, sous l'en-tête. Son image a de grandes marges transparentes : elle est
    décalée pour que le globe lui-même s'aligne sur la marge de l'écran et sur le haut de la place libre (--haut). */
 .logo-overlay {

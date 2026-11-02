@@ -1,0 +1,18 @@
+---
+/**
+ * Le carton « Interruption momentanée de l'image », une des quatre touches télé retenues pour le site : ce qu'une page
+ * montre quand la base ne répond pas. Le direct, lui, continue : le son et l'en-tête sont dans la coque.
+ */
+interface Props {
+  /** Ce qui manque, en une phrase. */
+  quoi?: string;
+}
+const { quoi = "Cette page ne peut pas s'afficher pour le moment." } = Astro.props;
+---
+
+<div class="interruption" role="status">
+  <div class="interruption-mire" aria-hidden="true"></div>
+  <p class="interruption-titre">Interruption momentanée de l'image</p>
+  <p>{quoi} Veuillez nous excuser. Le direct, lui, continue.</p>
+  <a class="interruption-touche" href={Astro.url.pathname + Astro.url.search}>Réessayer</a>
+</div>

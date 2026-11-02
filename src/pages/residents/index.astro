@@ -1,0 +1,213 @@
+---
+/**
+ * Résidents : les résidents et les invités de la radio, de A à Z, posés sur la vidéo (la maquette du 2 novembre).
+ * En haut, la rangée qui reste collée au défilement : RÉSIDENTS / INVITÉS, puis l'activité (le filtre Activité de
+ * l'admin) ; à gauche, l'index A–Z ; puis la grille des portraits. La page est rendue à la demande, déjà filtrée
+ * d'après son adresse (?role=invites, &activite=dj, ou ?q=… venu de la loupe) : elle marche sans script, avec des
+ * liens. src/scripts/residents.ts filtre ensuite sur place, sans recharger, allume la lettre qu'on parcourt et les
+ * pastilles « À l'antenne ». Gardée une minute par le cache de Vercel, comme /api/fond.
+ */
+import type { ArtistCard, ArtistRole, FacetGroup } from "@parabole/cms";
+import Interruption from "../../components/Interruption.astro";
+import Portrait from "../../components/residents/Portrait.astro";
+import Base from "../../layouts/Base.astro";
+import { reader } from "../../lib/cms";
+import { adresseDe, correspond, lireEtat, normaliser } from "../../lib/residents";
+
+export const prerender = false;
+
+const HEURE = 3_600_000;
+const LETTRES = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ", "#"];
+/** L'ancre d'une lettre de l'index (« # » n'en fait pas une bonne). */
+const ancre = (lettre: string) => `lettre-${lettre === "#" ? "0" : lettre}`;
+/** Une carte de la grille : sa lettre dans l'index, son nom et ses étiquettes tels que le filtre les compare. */
+type Carte = ArtistCard & { lettre: string; nom: string; etiquettes: string[] };
+
+const etat = lireEtat(Astro.url.searchParams);
+let cartes: Carte[] | null = null;
+let activites: FacetGroup[] = [];
+let diffusions: { debut: string; fin: string; artistes: string[] }[] = [];
+try {
+  const cms = await reader();
+  const maintenant = Date.now();
+  // les diffusions de la journée autour : le navigateur en déduit qui est à l'antenne, à la minute
+  const [index, filtres, passages] = await Promise.all([
+    cms.listArtists(),
+    cms.listFacets({ scope: "artist" }),
+    cms.listAirings({ from: new Date(maintenant - 12 * HEURE), to: new Date(maintenant + 36 * HEURE) }),
+  ]);
+  cartes = index.groups.flatMap(({ letter, artists }) =>
+    artists.map((artiste) => ({ ...artiste, lettre: letter, nom: normaliser(artiste.name), etiquettes: artiste.tags.map((tag) => tag.slug) })),
+  );
+  activites = (filtres.find((filtre) => filtre.slug === "activite") ?? filtres[0])?.groups ?? [];
+  diffusions = passages.map((passage) => ({ debut: passage.startsAt.toISOString(), fin: passage.endsAt.toISOString(), artistes: passage.artists }));
+} catch (erreur) {
+  console.error("residents : la base ne répond pas", erreur);
+}
+if (cartes) {
+  Astro.response.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
+  Astro.response.headers.set("Vercel-CDN-Cache-Control", "max-age=60, stale-while-revalidate=600");
+} else {
+  Astro.response.status = 503;
+  Astro.response.headers.set("Cache-Control", "no-store");
+}
+
+// Une activité inconnue (une vieille adresse) ne filtre rien. Une activité vaut pour les étiquettes de son groupe.
+if (!activites.some((groupe) => groupe.slug === etat.activite)) etat.activite = "";
+const couvre = (slug: string): string[] => {
+  const groupe = activites.find((g) => g.slug === slug);
+  return groupe ? [groupe.slug, ...groupe.tags.map((tag) => tag.slug)] : [];
+};
+const tout = cartes ?? [];
+const visible = (carte: Carte) => correspond(carte, etat, couvre(etat.activite));
+const dansLeRole = (role: ArtistRole) => tout.filter((carte) => carte.role === role);
+const ROLES: { role: ArtistRole; mot: string }[] = [
+  { role: "resident", mot: "Résidents" },
+  { role: "guest", mot: "Invités" },
+];
+// les lettres et les repères de la liste qu'on parcourt (sans recherche : celle du rôle choisi)
+const vues = tout.filter(visible);
+const lettresVues = new Set(etat.q ? [] : vues.map((carte) => carte.lettre));
+const reperes = new Set<string>();
+for (const role of ["resident", "guest"] as ArtistRole[]) {
+  let avant = "";
+  for (const carte of vues.filter((c) => c.role === role)) {
+    if (carte.lettre !== avant) reperes.add(carte.slug);
+    avant = carte.lettre;
+  }
+}
+const premiereLettre = LETTRES.find((lettre) => lettresVues.has(lettre));
+const nommer = (n: number, un: string, plusieurs: string) => `${n} ${n > 1 ? plusieurs : un}`;
+const annonce = etat.q
+  ? nommer(vues.length, `artiste pour « ${etat.q} »`, `artistes pour « ${etat.q} »`)
+  : nommer(vues.length, etat.role === "guest" ? "invité" : "résident", etat.role === "guest" ? "invités" : "résidents");
+---
+
+<Base page="residents" title="Résidents" description="Les résidents et les invités de Parabole Radio, de A à Z : DJ, podcasts et playlists.">
+  <div
+    class="residents"
+    data-residents
+    data-recherche={etat.q ? "" : undefined}
+    data-diffusions={JSON.stringify(diffusions)}
+  >
+    <h1 class="sr-only">Résidents et invités de Parabole Radio</h1>
+    {
+      !cartes ? (
+        <Interruption quoi="Les résidents ne peuvent pas s'afficher pour le moment." />
+      ) : cartes.length === 0 ? (
+        <div class="residents-vide">
+          <div class="bientot">
+            <p class="bientot-titre">Les résidents arrivent</p>
+            <p>Les portraits des résidents et des invités de Parabole s'afficheront ici, de A à Z.</p>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div class="regie">
+            <nav class="regie-roles" aria-label="Résidents ou invités">
+              {ROLES.map(({ role, mot }) => (
+                <a
+                  class="regie-touche"
+                  href={adresseDe({ role, activite: "", q: "" })}
+                  data-role={role}
+                  aria-current={!etat.q && etat.role === role ? "true" : undefined}
+                >
+                  {mot}
+                  <span class="regie-nombre">{dansLeRole(role).length}</span>
+                </a>
+              ))}
+            </nav>
+            {activites.length > 0 && (
+              <nav class="regie-activites" aria-label="Activité" hidden={!!etat.q}>
+                <a class="regie-puce" href={adresseDe({ ...etat, activite: "" })} data-activite="" aria-current={!etat.activite ? "true" : undefined}>
+                  Tout
+                </a>
+                {activites.map((groupe) => {
+                  const n = dansLeRole(etat.role).filter((carte) => carte.etiquettes.some((e) => couvre(groupe.slug).includes(e))).length;
+                  return (
+                    <a
+                      class="regie-puce"
+                      href={adresseDe({ ...etat, activite: groupe.slug })}
+                      data-activite={groupe.slug}
+                      data-couvre={couvre(groupe.slug).join(" ")}
+                      aria-current={etat.activite === groupe.slug ? "true" : undefined}
+                      aria-disabled={n === 0 ? "true" : undefined}
+                      tabindex={n === 0 ? -1 : undefined}
+                    >
+                      {groupe.name}
+                      <span class="regie-nombre">{n}</span>
+                    </a>
+                  );
+                })}
+              </nav>
+            )}
+            <p class="regie-recherche" hidden={!etat.q}>
+              <span class="regie-recherche-mot">« <span data-recherche-mot>{etat.q}</span> »</span>
+              <a class="regie-effacer" href="/residents" data-effacer aria-label="Effacer la recherche et revoir toute la grille">&times;</a>
+            </p>
+          </div>
+
+          <div class="residents-corps">
+            <nav class="index-az" aria-label="Index alphabétique" hidden={!!etat.q}>
+              <ol>
+                {LETTRES.map((lettre) => (
+                  <li>
+                    <a
+                      href={`#${ancre(lettre)}`}
+                      data-lettre={lettre}
+                      aria-disabled={lettresVues.has(lettre) ? undefined : "true"}
+                      tabindex={lettre === premiereLettre ? 0 : -1}
+                    >
+                      {lettre}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </nav>
+            <div class="residents-listes">
+              {ROLES.map(({ role, mot }) => (
+                <section
+                  class="residents-liste"
+                  data-liste={role}
+                  aria-labelledby={`titre-${role}`}
+                  hidden={etat.q ? !vues.some((carte) => carte.role === role) : etat.role !== role}
+                >
+                  <h2 id={`titre-${role}`} class="residents-groupe">
+                    {mot}
+                  </h2>
+                  <ul class="grille">
+                    {dansLeRole(role).map((carte, i) => (
+                      <li
+                        data-slug={carte.slug}
+                        data-lettre={carte.lettre}
+                        data-nom={carte.nom}
+                        data-etiquettes={carte.etiquettes.join(" ")}
+                        data-repere={reperes.has(carte.slug) ? "" : undefined}
+                        id={!etat.q && reperes.has(carte.slug) && carte.role === etat.role ? ancre(carte.lettre) : undefined}
+                        hidden={!visible(carte)}
+                      >
+                        <Portrait artiste={carte} tot={i < 10} />
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+              <div class="residents-aucun" hidden={vues.length > 0}>
+                <p class="residents-aucun-titre">Pas de signal</p>
+                <p data-aucun-texte>
+                  {etat.q ? `Personne ne répond à « ${etat.q} » parmi les résidents et les invités.` : "Personne ici pour l'instant."}
+                </p>
+                <a class="regie-touche" href="/residents" data-tout-revoir>
+                  Tout revoir
+                </a>
+              </div>
+            </div>
+          </div>
+          <p class="sr-only" aria-live="polite" data-annonce>
+            {annonce}
+          </p>
+        </>
+      )
+    }
+  </div>
+</Base>

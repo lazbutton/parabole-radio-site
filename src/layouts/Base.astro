@@ -25,17 +25,21 @@ import "../styles/panneaux.css";
 import "../styles/antenne.css";
 import "../styles/staff.css";
 import "../styles/pages.css";
+import "../styles/residents.css";
 
 interface Props {
   page: Page;
   /** Le nom de la rubrique, pour l'onglet : « À propos — Parabole Radio ». Sans lui, le titre de l'accueil. */
   title?: string;
   description?: string;
+  /** L'image de partage d'une page (la photo d'un artiste) : adresse complète. Avec elle, l'aperçu prend sa description. */
+  image?: string;
 }
 const {
   page,
   title,
   description = "Parabole Radio — Union de la Jeunesse Internationale community radio. Live stream from Paris.",
+  image,
 } = Astro.props;
 const documentTitle = title ? `${title} — Parabole Radio` : "Parabole Radio — Live Community Radio • Paris";
 const url = new URL(Astro.url.pathname, Astro.site);
@@ -61,12 +65,16 @@ const url = new URL(Astro.url.pathname, Astro.site);
       href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>"
     />
 
-    <!-- Aperçu de partage. L'image (1200 × 630) reste à faire : og:image viendra avec elle. -->
+    <!-- Aperçu de partage. L'image du site (1200 × 630) reste à faire ; une page peut donner la sienne (image). -->
     <meta property="og:type" content="website" />
     <meta property="og:title" content={documentTitle} />
-    <meta property="og:description" content="Union de la Jeunesse Internationale community radio. Live stream from Paris. Ça va péter !!!" />
+    <meta
+      property="og:description"
+      content={image ? description : "Union de la Jeunesse Internationale community radio. Live stream from Paris. Ça va péter !!!"}
+    />
     <meta property="og:url" content={url} />
-    <meta name="twitter:card" content="summary" />
+    {image && <meta property="og:image" content={image} />}
+    <meta name="twitter:card" content={image ? "summary_large_image" : "summary"} />
 
     <!-- Monument Grotesk sert à tout le texte : les deux graisses tout de suite -->
     <link rel="preload" href="/PARABOLE%20RADIO/FONTS/MonumentGrotesk-Regular.woff2" as="font" type="font/woff2" crossorigin />

@@ -10,6 +10,8 @@ import "./teletexte"; // l'heure des pages de télétexte de l'en-tête
 import "./juste-avant"; // JUSTE AVANT : le morceau d'avant, dans la ligne ON AIR
 import "./recherche"; // la loupe : chercher dans tout le site
 import "./sommaire"; // le sommaire en télétexte, le menu des téléphones
+import "./residents"; // la grille des résidents : filtres sur place, index A–Z, à l'antenne
+import "./artiste"; // la page d'un artiste : bio, prochaine émission, rangées, zapping
 import "./beat"; // BEAT : le pouls de la musique
 import "./globe"; // GLOBE : le logo audioréactif
 import "./contributors"; // le bouton contributeurs

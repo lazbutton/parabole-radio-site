@@ -2,7 +2,7 @@
  * Les shows pour le site : la liste filtrée (type, étiquettes, mood, artiste, période), un show avec sa tracklist et
  * ses artistes. Les menus des filtres sont dans facets.ts.
  */
-import { and, asc, desc, eq, gt, gte, lte, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, isNotNull, lt, lte, sql, type SQL } from "drizzle-orm";
 import type { Tx } from "../access.ts";
 import { ENERGY } from "../labels.ts";
 import { artist, show, showArtist, showTag, showType, tag, track, type ShowType } from "../schema.ts";
@@ -147,6 +147,40 @@ export async function listShows(tx: Tx, base: string, filters: ShowFilters = {})
   const rows = await tx.select(showCardFields).from(show).where(where).orderBy(order, asc(show.title)).limit(page.limit).offset(page.offset);
   const [count] = await tx.select({ total: sql<number>`count(*)`.mapWith(Number) }).from(show).where(where);
   return { items: rows.map((row) => toShowCard(base, row)), total: count?.total ?? 0, ...page };
+}
+
+/**
+ * Une diffusion : un show publié de durée connue, le temps qu'il passe à l'antenne, et les slugs de ses artistes
+ * publiés. De quoi dire, dans le navigateur, qui est à l'antenne en ce moment (la grille des résidents).
+ */
+export type Airing = { slug: string; title: string; startsAt: Date; endsAt: Date; artists: string[] };
+
+const showArtistSlugs = sql<string[]>`coalesce((
+    select json_agg(a.slug order by sa.position, a.name)
+    from ${showArtist} sa join ${artist} a on a.id = sa.artist_id
+    where sa.show_id = ${outer(show.id)} and a.status = 'published'), '[]'::json)`;
+
+/** Les diffusions qui croisent l'intervalle [from, to], de la plus tôt à la plus tard. Un intervalle à l'envers : rien. */
+export async function listAirings(tx: Tx, { from, to }: { from: Date; to: Date }): Promise<Airing[]> {
+  const valid = (date: unknown): date is Date => date instanceof Date && !Number.isNaN(date.getTime());
+  if (!valid(from) || !valid(to) || from > to) return [];
+  const rows = await tx
+    .select({ slug: show.slug, title: show.title, startsAt: show.broadcastAt, durationSeconds: show.durationSeconds, artists: showArtistSlugs })
+    .from(show)
+    .where(
+      and(
+        eq(show.status, "published"),
+        isNotNull(show.durationSeconds),
+        lt(show.broadcastAt, to),
+        sql`${show.broadcastAt} + make_interval(secs => ${show.durationSeconds}) > ${from.toISOString()}::timestamptz`,
+      ),
+    )
+    .orderBy(asc(show.broadcastAt), asc(show.title));
+  return rows.map(({ slug, title, startsAt, durationSeconds, artists }) => {
+    // Un show publié a toujours une date (contrainte show_published_has_date) ; la durée est filtrée plus haut.
+    const start = startsAt as Date;
+    return { slug, title, startsAt: start, endsAt: new Date(start.getTime() + (durationSeconds as number) * 1000), artists };
+  });
 }
 
 /** Un show publié, avec sa tracklist dans l'ordre et ses artistes. Null s'il n'existe pas ou n'est pas publié. */

@@ -34,4 +34,25 @@
   <symbol id="logo-soundcloud" viewBox="0 0 33 24"><path d="M0.5 14.5h1.2v4.5h-1.2zM2.4 12.5h1.2v6.5h-1.2zM4.3 13h1.2v6h-1.2zM6.2 10.5h1.2v8.5h-1.2zM8.1 10h1.2v9h-1.2zM10 8h1.2v11h-1.2z"/><circle cx="19.6" cy="12.6" r="6.4"/><circle cx="28.4" cy="15" r="4"/><path d="M12.6 12.6h15.8v6.4h-15.8z"/></symbol>
   <symbol id="logo-bandcamp" viewBox="0 0 30 24"><path d="M0 18.5L7.6 5.5H30L22.4 18.5z"/></symbol>
   <symbol id="logo-discogs" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 1a11 11 0 1 0 0 22a11 11 0 1 0 0 -22z M12 3.2a8.8 8.8 0 1 0 0 17.6a8.8 8.8 0 1 0 0 -17.6z M12 4a8 8 0 1 0 0 16a8 8 0 1 0 0 -16z M12 5.6a6.4 6.4 0 1 0 0 12.8a6.4 6.4 0 1 0 0 -12.8z M12 6.4a5.6 5.6 0 1 0 0 11.2a5.6 5.6 0 1 0 0 -11.2z M12 10.8a1.2 1.2 0 1 0 0 2.4a1.2 1.2 0 1 0 0 -2.4z"/></symbol>
+  <!-- The yellow and blue duotone of the Résidents portraits (residents.css): the photo in grey levels, its mid-tones
+       lifted (dark stills would otherwise turn all blue) and a little more contrast, then its shadows in the site's
+       blue (#000dff) and its lights in its yellow (#fff039) -->
+  <filter id="bichromie" color-interpolation-filters="sRGB">
+    <feColorMatrix type="matrix" values="0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0 0 0 1 0" />
+    <feComponentTransfer>
+      <feFuncR type="gamma" amplitude="1" exponent="0.7" offset="0" />
+      <feFuncG type="gamma" amplitude="1" exponent="0.7" offset="0" />
+      <feFuncB type="gamma" amplitude="1" exponent="0.7" offset="0" />
+    </feComponentTransfer>
+    <feComponentTransfer>
+      <feFuncR type="linear" slope="1.2" intercept="-0.1" />
+      <feFuncG type="linear" slope="1.2" intercept="-0.1" />
+      <feFuncB type="linear" slope="1.2" intercept="-0.1" />
+    </feComponentTransfer>
+    <feComponentTransfer>
+      <feFuncR type="table" tableValues="0 1" />
+      <feFuncG type="table" tableValues="0.051 0.941" />
+      <feFuncB type="table" tableValues="1 0.224" />
+    </feComponentTransfer>
+  </filter>
 </svg>

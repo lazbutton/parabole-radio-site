@@ -240,12 +240,55 @@ describe("artistes", () => {
     expect(await cms.getArtist("exemple-ana-brouillon")).toBeNull();
   });
 
+  it("donne les voisins d'un artiste dans l'index de son rôle, en boucle comme les chaînes", async () => {
+    // Les résidents : Bastien, Collectif, Éloïse ; après Éloïse, on revient à Bastien.
+    const eloise = await cms.getArtist("exemple-eloise-vachon");
+    expect(eloise!.neighbors?.previous.slug).toBe("exemple-collectif-goutte-d-or");
+    expect(eloise!.neighbors?.next.slug).toBe("exemple-bastien-ocre");
+    expect(eloise!.neighbors?.next.photo?.url).toBe(`${MEDIA_BASE}/exemples/portrait-bastien-ocre.webp`);
+    // Les invités, dans l'ordre de la grille : Elle & Lui, Yaya, Zélie, puis 404 Crew sous #, sans Ana (brouillon).
+    const crew = await cms.getArtist("exemple-404-crew");
+    expect(crew!.neighbors?.previous.slug).toBe("exemple-zelie-marteau");
+    expect(crew!.neighbors?.next.slug).toBe("exemple-elle-et-lui");
+  });
+
   it("met chaque nom sous sa lettre", () => {
     expect(indexLetter("Éloïse")).toBe("E");
     expect(indexLetter("« Zélie »")).toBe("Z");
     expect(indexLetter("œil")).toBe("O");
     expect(indexLetter("404 Crew")).toBe("#");
     expect(indexLetter("")).toBe("#");
+  });
+});
+
+describe("diffusions", () => {
+  const HOUR = 3_600_000;
+  const at = (hours: number) => new Date(NOW.getTime() + hours * HOUR);
+
+  it("donne les shows publiés de durée connue qui passent dans l'intervalle, avec leurs artistes publiés", async () => {
+    // Le dimanche house d'Éloïse, il y a trois jours, deux heures durant : une minute en son milieu le trouve.
+    const pendant = await cms.listAirings({ from: at(-71), to: at(-71 + 1 / 60) });
+    expect(slugs(pendant)).toEqual(["exemple-dimanche-house-a-la-chapelle"]);
+    expect(pendant[0]!.artists).toEqual(["exemple-eloise-vachon"]);
+    expect(pendant[0]!.startsAt).toEqual(at(-72));
+    expect(pendant[0]!.endsAt).toEqual(at(-70));
+    // Juste après sa fin, plus rien.
+    expect(await cms.listAirings({ from: at(-70 + 1 / 3600), to: at(-69) })).toEqual([]);
+    // La carte blanche : Yaya, sans Ana, en brouillon.
+    expect((await cms.listAirings({ from: at(-48), to: at(-47.5) })).map((airing) => [airing.slug, airing.artists])).toEqual([
+      ["exemple-carte-blanche", ["exemple-yaya-kossi"]],
+    ]);
+  });
+
+  it("laisse de côté les brouillons, et rend la session à venir quand l'intervalle l'atteint", async () => {
+    // Le set en brouillon passait hier.
+    expect(await cms.listAirings({ from: at(-24), to: at(-23.5) })).toEqual([]);
+    expect(slugs(await cms.listAirings({ from: NOW, to: at(5 * 24) }))).toEqual(["exemple-session-a-venir"]);
+  });
+
+  it("ne rend rien pour un intervalle à l'envers ou une date invalide", async () => {
+    expect(await cms.listAirings({ from: NOW, to: at(-1) })).toEqual([]);
+    expect(await cms.listAirings({ from: new Date("pas une date"), to: NOW })).toEqual([]);
   });
 });
 

@@ -32,6 +32,11 @@ async function fetchClips(): Promise<Clip[] | null> {
 /** L'image d'attente : celle que donne la liste, sinon le .jpg posé à côté d'un clip d'origine. */
 const posterOf = (clip: Clip) => clip.poster ?? (/\.mp4$/.test(clip.src) ? clip.src.replace(/\.mp4$/, ".jpg") : "");
 
+/** Le fond montre-t-il la photo d'un artiste (le mode photo, plus bas) ? Les clips se font alors discrets. */
+let enPhoto = false;
+/** On écoute le son des vidéos (RADIO / VIDÉO sur VIDÉO, audio.ts) : la vidéo continue, même cachée. */
+const sonDesVideos = () => document.getElementById("soundToggle")?.dataset.mode === "video";
+
 (async function initBgPlaylist() {
   const v = document.getElementById("backgroundVideo") as HTMLVideoElement | null;
   const root = document.documentElement;
@@ -83,19 +88,21 @@ const posterOf = (clip: Clip) => clip.poster ?? (/\.mp4$/.test(clip.src) ? clip.
       clip = playlist[n],
       from = performance.now();
     current = clip.src;
-    showChannel(n);
-    if (!still) neige.allumer();
+    // derrière la photo d'un artiste, le clip change sans neige ni numéro, et ne joue que si on écoute son son
+    if (!enPhoto) showChannel(n);
+    if (!still && !enPhoto) neige.allumer();
     v!.poster = posterOf(clip);
     v!.src = clip.src;
+    v!.autoplay = !enPhoto || sonDesVideos(); // sinon l'attribut autoplay la relancerait au chargement
     v!.load();
-    v!.play().catch(() => {});
+    if (v!.autoplay) v!.play().catch(() => {});
     return new Promise<void>((resolve) => {
       const ready = () => {
         v!.removeEventListener("playing", ready);
         v!.removeEventListener("error", ready);
         clearTimeout(timer);
         setTimeout(() => {
-          if (id === zap) {
+          if (id === zap && !enPhoto) {
             neige.eteindre();
             // l'image revient en roulant, un peu trop claire, comme un poste qui accroche la chaîne
             if (!still)
@@ -141,6 +148,7 @@ const posterOf = (clip: Clip) => clip.poster ?? (/\.mp4$/.test(clip.src) ? clip.
   document.addEventListener("click", (e) => {
     const target = e.target as Element;
     if (
+      enPhoto || // la photo d'un artiste ne se zappe pas
       e.button !== 0 ||
       target.closest?.("a, button, input, select, textarea, label, iframe, .popup, .float-item, .tete, .overlay-controls, .feuille, .direct")
     )
@@ -149,3 +157,77 @@ const posterOf = (clip: Clip) => clip.poster ?? (/\.mp4$/.test(clip.src) ? clip.
     zapTo(pickRandom());
   });
 })();
+
+// ---------- LE MODE PHOTO : la page d'un artiste prend l'antenne ----------
+// Une page qui porte data-fond-photo (la page d'un artiste, src/pages/residents/[slug].astro) remplace la vidéo par sa
+// photo, comme on change de chaîne : la neige tombe, la photo arrive (entière, la même floutée autour ; sans photo, la
+// mire, Background.astro et socle.css), puis la neige s'en va. La vidéo se met en pause, sauf si on écoute son son. En
+// quittant la page, la neige, puis la vidéo reprend. Avec « réduire les animations », sans neige. Regardé au chargement,
+// puis après chaque navigation.
+type Photo = { src?: string; srcset?: string | null; flou?: string; mire?: boolean };
+let photoMontree = "",
+  demandePhoto = 0;
+const calmePhoto = () => !!window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+async function mettreLaPhoto(photo: Photo) {
+  const fond = document.getElementById("fondPhoto");
+  if (!fond) return;
+  const cle = photo.mire || !photo.src ? "mire" : photo.src;
+  if (enPhoto && cle === photoMontree) return;
+  const id = ++demandePhoto;
+  const still = calmePhoto();
+  if (!still) neige.allumer();
+  const nette = fond.querySelector<HTMLImageElement>(".fond-photo-nette")!;
+  const flou = fond.querySelector<HTMLImageElement>(".fond-photo-flou")!;
+  if (cle !== "mire") {
+    if (photo.srcset) {
+      nette.srcset = photo.srcset;
+      nette.sizes = "100vw";
+    } else nette.removeAttribute("srcset");
+    nette.src = cle;
+    flou.src = photo.flou || cle;
+    // la photo arrive quand elle est prête (1,5 s au plus) : la neige couvre l'attente
+    await Promise.race([nette.decode().catch(() => {}), new Promise((resolve) => setTimeout(resolve, 1500))]);
+    if (id !== demandePhoto) return;
+  }
+  fond.classList.toggle("mire", cle === "mire");
+  enPhoto = true;
+  photoMontree = cle;
+  document.documentElement.classList.add("fond-en-photo");
+  const v = document.getElementById("backgroundVideo") as HTMLVideoElement | null;
+  if (v && !sonDesVideos()) {
+    v.autoplay = false;
+    v.pause();
+  }
+  setTimeout(() => id === demandePhoto && neige.eteindre(), still ? 0 : 260);
+}
+
+function retirerLaPhoto() {
+  if (!enPhoto) return;
+  const id = ++demandePhoto;
+  const still = calmePhoto();
+  enPhoto = false;
+  photoMontree = "";
+  if (!still) neige.allumer();
+  document.documentElement.classList.remove("fond-en-photo");
+  const v = document.getElementById("backgroundVideo") as HTMLVideoElement | null;
+  if (v) {
+    v.autoplay = true;
+    v.play().catch(() => {});
+  }
+  setTimeout(() => id === demandePhoto && neige.eteindre(), still ? 0 : 320);
+}
+
+function regarderLaPage() {
+  const source = document.querySelector<HTMLElement>("[data-fond-photo]");
+  if (!source) return retirerLaPhoto();
+  let photo: Photo = { mire: true };
+  try {
+    photo = JSON.parse(source.dataset.fondPhoto || "{}");
+  } catch (e) {
+    /* la mire */
+  }
+  mettreLaPhoto(photo);
+}
+document.addEventListener("astro:after-swap", regarderLaPage);
+regarderLaPage();
