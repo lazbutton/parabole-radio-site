@@ -9,6 +9,8 @@
  */
 export { asMember, asPublic, withViewer, type Tx, type Viewer } from "./access.ts";
 export * from "./admin/index.ts";
+export { createAntenne, type Antenne, type EtatAntenne, type Envoi, type Issue, type MessageAntenne, type Moi } from "./chat/index.ts";
+export { COULEURS as CHAT_COLORS, estCouleur } from "./chat/forme.ts";
 export { connect, type ConnectOptions, type Connection, type Db } from "./db.ts";
 export { LABELS } from "./labels.ts";
 export { mediaUrl, startOfParisDay } from "./read/common.ts";

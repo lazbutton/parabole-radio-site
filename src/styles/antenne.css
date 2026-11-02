@@ -1,0 +1,288 @@
+/* L'antenne libre, le chat du site (src/scripts/antenne.ts, CHAT_EN_DIRECT.md), écrite comme le reste de la coque : les
+   messages défilent dans le bandeau entre les phrases de Parabole (tete.css) ; on écrit dans le bandeau même ; la page
+   888, un panneau de la famille de PROGRAMMATION (panneaux.css), donne toute la conversation, en télétexte. */
+
+/* ---------- LE BANDEAU : la piste, ses messages, et la case au bout ---------- */
+.bandeau-defile { flex: 1 1 auto; min-width: 0; height: 100%; display: flex; align-items: center; overflow: hidden; }
+/* le script fait défiler la piste lui-même, à la vitesse de l'animation d'origine, pour y glisser les messages */
+.bandeau--antenne .bandeau-piste { position: relative; animation: none; will-change: transform; }
+.bandeau-msg { text-transform: uppercase; cursor: pointer; }
+.bandeau-msg .antenne-pseudo { color: var(--c, #ffffff); }
+.bandeau-fleche { margin: 0 0.45em; color: #fff039; }
+/* la régie : la case PARABOLE à la place du pseudo, en bleu sur jaune comme une touche allumée */
+.antenne-regie {
+  display: inline-block; padding: 0.24em 0.42em 0.18em;
+  background: #fff039; color: #000dff; text-shadow: none; letter-spacing: 0.08em; text-transform: uppercase;
+  box-shadow: -1.5px 0 rgba(255,0,72,0.6), 1.5px 0 rgba(0,200,255,0.55);
+}
+.bandeau-msg .antenne-regie { font-size: 0.74em; }
+.antenne-texte mark { background: none; color: #fff039; }
+/* brouillé par la régie : le message garde sa place, couvert de bruit, comme une image cryptée */
+.bandeau-msg.brouille { cursor: default; }
+.bandeau-msg.brouille > :not(.bandeau-carre) {
+  color: transparent; text-shadow: none; box-shadow: none;
+  background:
+    repeating-linear-gradient(0deg, rgba(0,0,0,0.55) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.75) 0 2px, rgba(255,255,255,0.12) 2px 5px, rgba(255,255,255,0.5) 5px 6px, transparent 6px 9px);
+  animation: antenneBrouille 0.2s steps(3) infinite;
+}
+@keyframes antenneBrouille { 33% { background-position: 0 1px, 4px 0; } 66% { background-position: 0 -1px, -3px 0; } }
+
+/* La case au bout du bandeau : elle ouvre l'antenne (l'écriture et la page 888), puis la referme. Le bandeau passe
+   dessous en s'effaçant. */
+.bandeau-case {
+  position: relative; z-index: 1;
+  flex: 0 0 auto; align-self: stretch;
+  display: flex; align-items: center; gap: 8px; padding: 0 var(--marge) 0 16px;
+  background: #000000; color: #fff039;
+  border: 0; border-left: 2px solid #fff039; border-radius: 0;
+  box-shadow: -16px 0 14px #000000;
+  font: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.12em; line-height: 1; text-transform: uppercase; white-space: nowrap;
+  text-shadow: -1.5px 0 rgba(255,0,72,0.55), 1.5px 0 rgba(0,200,255,0.5);
+  cursor: pointer; transition: background 0.15s, color 0.15s;
+}
+.bandeau-case .icon { width: 15px; height: 15px; filter: drop-shadow(-1.5px 0 rgba(255,0,72,0.6)) drop-shadow(1.5px 0 rgba(0,200,255,0.55)); }
+.bandeau-case:hover, .bandeau.ecrit .bandeau-case { background: #fff039; color: #000dff; text-shadow: none; }
+.bandeau-case:hover .icon, .bandeau.ecrit .bandeau-case .icon { filter: none; }
+.bandeau-case:focus-visible { outline: 2px solid #ffffff; outline-offset: -5px; }
+.case-court, .case-croix { display: none; }
+.bandeau.ecrit .case-croix { display: inline; }
+
+/* ---------- ÉCRIRE DANS LE BANDEAU : le pseudo, puis le message, puis ENVOI ---------- */
+.bandeau-ecriture { position: relative; flex: 1 1 auto; min-width: 0; height: 100%; display: flex; align-items: center; gap: 12px; padding: 0 14px 0 var(--marge); }
+.bandeau-ecriture[hidden] { display: none; }
+.bandeau.ecrit .bandeau-defile { display: none; }
+.bandeau-ecriture label { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ecriture-message { flex: 1 1 auto; }
+.ecriture-label, .ecriture-compteur {
+  color: #fff039; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; line-height: 1; text-transform: uppercase; white-space: nowrap;
+  text-shadow: -1.5px 0 rgba(255,0,72,0.55), 1.5px 0 rgba(0,200,255,0.5);
+}
+.ecriture-compteur { font-variant-numeric: tabular-nums; }
+.ecriture-compteur:empty { display: none; }
+.bandeau-ecriture input {
+  min-width: 0; height: 28px; padding: 0 6px;
+  background: rgba(255,255,255,0.06); color: #ffffff; caret-color: #fff039;
+  border: 0; border-bottom: 2px solid rgba(255,240,57,0.5); border-radius: 0; outline: none;
+  font: inherit; font-size: 16px; font-weight: 700; letter-spacing: 0.03em;   /* 16 px : le téléphone ne zoome pas */
+}
+.bandeau-ecriture input:focus { background: rgba(255,240,57,0.09); border-bottom-color: #fff039; }
+.bandeau-ecriture input::placeholder { color: rgba(255,255,255,0.42); font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+#antennePseudo { width: 9.5em; color: var(--c, #ffffff); }
+#antenneMessage { flex: 1 1 auto; width: 100%; }
+/* ENVOI (le nom de la touche du Minitel) et OK : des touches comme celles de la coque */
+.ecriture-touche {
+  flex: 0 0 auto; height: 28px; padding: 0 14px;
+  background: rgba(0,0,0,0.38); color: #fff039;
+  border: 2px solid #fff039; border-radius: 0;
+  box-shadow: -2px 0 rgba(255,0,72,0.5), 2px 0 rgba(0,200,255,0.45);
+  font: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; line-height: 1; text-transform: uppercase;
+  text-shadow: -1.5px 0 rgba(255,0,72,0.55), 1.5px 0 rgba(0,200,255,0.5);
+  cursor: pointer; transition: background 0.15s, color 0.15s;
+}
+.ecriture-touche:hover:not(:disabled) { background: #fff039; color: #000dff; text-shadow: none; }
+.ecriture-touche:disabled { opacity: 0.4; cursor: default; }
+.ecriture-touche:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+.ecriture-envoi { min-width: 74px; font-variant-numeric: tabular-nums; }
+/* sur téléphone : le pseudo devient une étiquette, qu'on touche pour en changer */
+.ecriture-ok, .ecriture-etiquette { display: none; }
+.ecriture-etiquette {
+  flex: 0 0 auto; max-width: 36%; height: 28px; padding: 0 2px;
+  background: none; border: 0; border-bottom: 2px dashed rgba(255,240,57,0.5); border-radius: 0;
+  color: var(--c, #ffffff); font: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
+}
+/* après l'envoi, deux secondes : le message passe à l'antenne, dans le bandeau même. Le champ, dessous, garde la main. */
+.ecriture-flash {
+  position: absolute; inset: 0; z-index: 1;
+  display: none; align-items: center; padding: 0 14px 0 var(--marge);
+  background: #000000; color: #ffffff; overflow: hidden; white-space: nowrap; pointer-events: none;
+  font-size: 19px; font-weight: 700; letter-spacing: 0.12em; line-height: 1; text-transform: uppercase;
+  text-shadow: -1.5px 0 rgba(255,0,72,0.55), 1.5px 0 rgba(0,200,255,0.5), 0 2px 5px rgba(0,0,0,0.6);
+}
+.bandeau-ecriture.flash .ecriture-flash { display: flex; animation: allumageCligne 0.42s linear both; }
+.ecriture-flash .antenne-pseudo { color: var(--c, #ffffff); }
+.ecriture-flash .antenne-regie { font-size: 0.74em; }
+.flash-quoi { display: inline-flex; align-items: center; gap: 8px; margin-right: 18px; color: #fff039; font-size: 0.66em; letter-spacing: 0.14em; }
+.flash-quoi::before { content: ''; width: 8px; height: 8px; background: #fff039; animation: playerBlink 1.2s steps(2) infinite; }
+
+/* ---------- LA PAGE 888 : toute la conversation, en télétexte ----------
+   Un panneau comme les autres (panneaux.css), sur toute la hauteur libre : à gauche de PROGRAMMATION sur grand écran,
+   à sa place sur un écran moyen, sur toute la place libre sur téléphone. */
+.popup-antenne { top: var(--haut); flex-direction: column; overflow: hidden; }
+.popup-antenne.open { display: flex; }
+@media (min-width: 821px) and (max-width: 1099.98px) { body:has(.popup-antenne.open) .popup-schedule { display: none !important; } }
+
+/* la ligne du haut : le numéro de la page, son nom, l'antenne en direct ou en différé, l'horloge à la seconde */
+.antenne-tete { flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 14px 14px 12px; border-bottom: 1px dashed rgba(255,240,57,0.45); }
+.antenne-numero {
+  padding: 4px 6px 3px; background: #fff039; color: #000dff;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em; line-height: 1; text-shadow: none;
+  box-shadow: -1.5px 0 rgba(255,0,72,0.6), 1.5px 0 rgba(0,200,255,0.55);
+}
+.antenne-numero, .antenne-etat, .antenne-horloge { flex-shrink: 0; }
+.antenne-titre {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  color: #fff039; font-size: 19px; font-weight: 700; letter-spacing: 0.04em; line-height: 1.1; white-space: nowrap; filter: blur(0.35px);
+  text-shadow: -2px 0 rgba(255,0,72,0.6), 2px 0 rgba(0,200,255,0.55), 0 0 12px rgba(255,240,57,0.4), 0 2px 6px rgba(0,0,0,0.55);
+}
+.antenne-etat { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 9px; font-weight: 700; letter-spacing: 0.14em; line-height: 1; white-space: nowrap; }
+.antenne-etat::before { content: ''; width: 6px; height: 6px; background: #fff039; animation: playerBlink 1.2s steps(2) infinite; }
+.popup-antenne[data-etat="differe"] .antenne-etat { color: #fff039; }
+.popup-antenne:is([data-etat="ferme"], [data-etat="signal"]) .antenne-etat::before { background: #777777; animation: none; }
+.antenne-horloge { color: #fff039; font-size: 15px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.popup-antenne[data-etat="signal"] .antenne-horloge { display: none; }   /* l'heure du télétexte vient du signal */
+
+/* les avis de la régie : en haut, quelques secondes */
+.antenne-avis { flex-shrink: 0; display: grid; }
+.antenne-avis:empty { display: none; }
+.antenne-avis p {
+  display: flex; align-items: baseline; gap: 8px; padding: 8px 14px;
+  background: rgba(255,240,57,0.12); border-bottom: 1px dashed rgba(255,240,57,0.35);
+  color: #fff039; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; line-height: 1.45;
+  animation: allumageCligne 0.42s linear both;
+}
+.antenne-avis p::before { content: '▸'; }
+.antenne-avis button {
+  margin-left: auto; padding: 0; background: none; border: 0; color: #ffffff;
+  font: inherit; letter-spacing: inherit; text-transform: inherit; text-shadow: inherit; text-decoration: underline; cursor: pointer;
+}
+
+/* le fil : la plus récente en haut ; chaque message y tombe du bandeau */
+.antenne-fil {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; list-style: none; padding: 6px 0 22px;
+  scrollbar-width: thin; scrollbar-color: #fff039 transparent;
+  -webkit-mask: linear-gradient(#000 calc(100% - 26px), transparent); mask: linear-gradient(#000 calc(100% - 26px), transparent);
+}
+/* vide : la mire des panneaux, et l'antenne qui attend */
+.antenne-fil:empty::before {
+  content: "L'antenne est à vous\A Passe le premier message"; white-space: pre-line;
+  display: block; padding: 66px 16px 30px; text-align: center;
+  color: #fff039; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; line-height: 1.6;
+  background: linear-gradient(90deg, #fff039 0 14.3%, #ffffff 0 28.6%, #000dff 0 42.9%, #000000 0 57.1%, #fff039 0 71.4%, #000dff 0 85.7%, #ffffff 0) no-repeat center 24px / 168px 30px;
+}
+.fil-msg { display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 8px; padding: 7px 14px 7px 12px; animation: filArrive 0.35s ease-out both; }
+.fil-msg[hidden] { display: none; }
+@keyframes filArrive { from { opacity: 0; transform: translateY(-8px); } }
+.fil-msg time { padding-top: 3px; color: #fff039; font-size: 10px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; opacity: 0.85; }
+.fil-corps { min-width: 0; color: #ffffff; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.fil-corps .antenne-pseudo { margin-right: 8px; color: var(--c, #ffffff); font-size: 12px; letter-spacing: 0.06em; }
+.fil-corps .antenne-regie { margin-right: 8px; font-size: 10px; }
+/* le texte tel qu'il a été écrit : pas de capitales forcées */
+.fil-corps .antenne-texte { text-transform: none; letter-spacing: 0.01em; text-shadow: -1px 0 rgba(255,0,72,0.45), 1px 0 rgba(0,200,255,0.4), 0 1px 3px rgba(0,0,0,0.6); }
+.antenne-texte .antenne-mention { color: #fff039; }
+.antenne-texte a { color: #fff039; text-decoration: underline; text-underline-offset: 2px; }
+.fil-statut { margin-left: 8px; color: rgba(255,255,255,0.6); font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; white-space: nowrap; }
+.fil-statut:empty { display: none; }
+.fil-msg:is(.envoi, .attente, .differe) .fil-corps { opacity: 0.6; }
+.fil-msg.mention { background: linear-gradient(90deg, rgba(255,240,57,0.16), rgba(255,240,57,0) 85%); box-shadow: inset 3px 0 0 #fff039; }
+.fil-msg.brouille .antenne-texte {
+  display: inline-block; padding: 1px 0;
+  color: rgba(255,255,255,0.8); font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  animation: antenneTremble 0.12s steps(2) infinite;
+}
+@keyframes antenneTremble { 50% { transform: translateX(1.5px) skewX(-6deg); } }
+/* au survol (ou d'un appui, sur téléphone) : signaler, répondre, masquer */
+.fil-actions { grid-column: 2; display: none; gap: 14px; margin-top: 5px; }
+.fil-msg:is(:hover, :focus-within, .actions) .fil-actions { display: flex; }
+.fil-actions button {
+  padding: 0; background: none; border: 0; color: #fff039;
+  font: inherit; font-size: 9px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; text-shadow: inherit;
+  cursor: pointer; opacity: 0.85;
+}
+.fil-actions button:hover { opacity: 1; text-decoration: underline; }
+.fil-actions button:disabled { opacity: 0.5; cursor: default; text-decoration: none; }
+
+/* les vues qui prennent la place du fil : les règles, le pseudo, le carton, la perte du signal */
+.antenne-vue { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 18px 16px; scrollbar-width: thin; scrollbar-color: #fff039 transparent; }
+.antenne-vue[hidden] { display: none; }
+.popup-antenne.vue-ouverte :is(.antenne-fil, .antenne-avis) { display: none; }
+.antenne-vue h3 { margin-bottom: 12px; color: #fff039; font-size: 14px; letter-spacing: 0.1em; }
+.antenne-regles { display: grid; gap: 10px; margin-bottom: 18px; padding-left: 20px; color: #ffffff; font-size: 11px; line-height: 1.5; letter-spacing: 0.03em; text-transform: none; }
+.antenne-regles li::marker { color: #fff039; font-weight: 700; }
+.antenne-moi { color: var(--c, #ffffff); font-size: 22px; font-weight: 700; letter-spacing: 0.04em; line-height: 1.1; overflow-wrap: anywhere; }
+.antenne-aide { margin-top: 16px; font-size: 9px; letter-spacing: 0.14em; opacity: 0.75; }
+.antenne-nuancier { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 20px; }
+.antenne-nuancier button {
+  width: 30px; height: 30px; padding: 0; background: var(--c); border: 2px solid transparent; border-radius: 0; cursor: pointer;
+  box-shadow: -1.5px 0 rgba(255,0,72,0.6), 1.5px 0 rgba(0,200,255,0.55);
+}
+.antenne-nuancier button[aria-pressed="true"] { border-color: #ffffff; outline: 2px solid #000000; outline-offset: -5px; }
+.antenne-nuancier button:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+.vue-touche {
+  display: inline-flex; align-items: center; height: 28px; margin: 0 8px 8px 0; padding: 0 12px;
+  background: rgba(0,0,0,0.38); color: #fff039; border: 2px solid #fff039; border-radius: 0;
+  box-shadow: -2px 0 rgba(255,0,72,0.5), 2px 0 rgba(0,200,255,0.45);
+  font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; text-shadow: inherit; cursor: pointer;
+}
+.vue-touche:hover { background: #fff039; color: #000dff; text-shadow: none; }
+/* le carton « interruption momentanée » : l'antenne fermée par la régie */
+.antenne-carton {
+  display: grid; justify-items: center; gap: 10px; margin: 24px 0; padding: 36px 18px 30px;
+  background: #000dff; border: 2px solid #fff039; text-align: center;
+  box-shadow: -2px 0 rgba(255,0,72,0.5), 2px 0 rgba(0,200,255,0.45);
+}
+.antenne-carton strong { color: #ffffff; font-size: 22px; letter-spacing: 0.06em; line-height: 1.15; text-shadow: -2px 0 rgba(255,0,72,0.6), 2px 0 rgba(0,200,255,0.55), 0 2px 6px rgba(0,0,0,0.55); }
+.antenne-carton span { color: #fff039; font-size: 11px; letter-spacing: 0.16em; }
+.antenne-carton small { color: #ffffff; font-size: 9px; letter-spacing: 0.12em; opacity: 0.8; }
+/* la neige d'un téléviseur : la perte du signal, le vidage */
+.antenne-neige { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; image-rendering: pixelated; opacity: 0.85; pointer-events: none; }
+.popup-antenne > .antenne-neige { z-index: 5; }
+.antenne-signal {
+  position: relative; z-index: 1; width: max-content; max-width: 100%; margin: 38% auto 0; padding: 8px 12px;
+  background: #000000; color: #fff039; font-size: 13px; font-weight: 700; letter-spacing: 0.14em;
+  animation: playerBlink 1.2s steps(2) infinite;
+}
+
+/* les quatre touches de couleur du télétexte */
+.antenne-touches { flex-shrink: 0; display: flex; justify-content: space-between; gap: 6px; padding: 10px 14px 11px; border-top: 1px dashed rgba(255,240,57,0.45); }
+.antenne-touche {
+  display: flex; align-items: center; gap: 7px; padding: 4px 0;
+  background: none; border: 0; color: #ffffff;
+  font: inherit; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; line-height: 1; text-transform: uppercase; text-shadow: inherit; white-space: nowrap;
+  cursor: pointer;
+}
+.antenne-touche::before { content: ''; width: 12px; height: 12px; background: var(--t); box-shadow: -1.5px 0 rgba(255,0,72,0.6), 1.5px 0 rgba(0,200,255,0.55); }
+.antenne-touche:hover, .antenne-touche[aria-pressed="true"]:not([data-touche="bandeau"]) { color: var(--t); }
+.antenne-touche:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+[data-touche="regles"] { --t: #ff4848; }
+[data-touche="pseudo"] { --t: #3dff6e; }
+[data-touche="bandeau"] { --t: #fff039; }
+[data-touche="fermer"] { --t: #3df2ff; }
+
+/* Turnstile, au premier message d'un pseudo : invisible le plus souvent, sa case s'affiche ici s'il faut cliquer */
+.antenne-turnstile { flex-shrink: 0; display: flex; justify-content: center; padding: 10px 14px 0; }
+.antenne-turnstile:empty { display: none; }
+
+/* ---------- ÉCRANS PLUS ÉTROITS ---------- */
+@media (max-width: 820px) {
+  .bandeau-case { gap: 6px; padding: 0 var(--marge) 0 11px; font-size: 11px; letter-spacing: 0.1em; }
+  .case-long { display: none; }
+  .case-court { display: inline; }
+  .bandeau-ecriture { gap: 8px; padding: 0 10px 0 var(--marge); }
+  .ecriture-label, .ecriture-compteur { font-size: 10px; letter-spacing: 0.1em; }
+  .bandeau-ecriture input, .ecriture-touche, .ecriture-etiquette { height: 24px; }
+  .ecriture-touche { padding: 0 10px; font-size: 11px; }
+  .ecriture-envoi { min-width: 62px; }
+  .ecriture-flash { padding: 0 10px 0 var(--marge); font-size: 15px; }
+  /* en deux temps : d'abord le pseudo, puis le message, le pseudo devenu une étiquette */
+  .ecriture-message .ecriture-label { display: none; }
+  .bandeau-ecriture[data-etape="pseudo"] :is(.ecriture-message, .ecriture-compteur, .ecriture-envoi) { display: none; }
+  .bandeau-ecriture[data-etape="pseudo"] .ecriture-pseudo { flex: 1 1 auto; }
+  .bandeau-ecriture[data-etape="pseudo"] #antennePseudo { flex: 1 1 auto; width: 100%; }
+  .bandeau-ecriture[data-etape="pseudo"] .ecriture-ok { display: block; }
+  .bandeau-ecriture[data-etape="message"] .ecriture-pseudo { display: none; }
+  .bandeau-ecriture[data-etape="message"] .ecriture-etiquette { display: block; }
+  /* la page 888 sur toute la place libre, comme une rubrique */
+  .popup-antenne { left: var(--marge); width: auto; }
+}
+@media (max-width: 420px) {
+  .antenne-horloge, .ecriture-compteur { display: none; }
+  .antenne-titre { font-size: 17px; }
+  .antenne-touche { gap: 5px; font-size: 9px; }
+  .antenne-touche::before { width: 10px; height: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fil-msg, .antenne-avis p, .bandeau-ecriture.flash .ecriture-flash, .antenne-signal, .antenne-etat::before, .flash-quoi::before,
+  .fil-msg.brouille .antenne-texte, .bandeau-msg.brouille > :not(.bandeau-carre) { animation: none; }
+}

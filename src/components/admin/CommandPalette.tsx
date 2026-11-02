@@ -9,6 +9,7 @@
  */
 import { LABELS } from "@parabole/cms/labels";
 import {
+  ChatBubbleIcon,
   DashboardIcon,
   DiscIcon,
   ExitIcon,
@@ -146,6 +147,7 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange(op
           { key: "drafts", label: "Shows en brouillon", icon: <FileTextIcon />, href: "/admin/shows?status=draft", words: "brouillons" },
           { key: "artists", label: "Artistes", icon: <PersonIcon />, href: "/admin/artistes", words: "résidents invités" },
           { key: "clips", label: "Vidéos de fond", icon: <VideoIcon />, href: "/admin/videos", words: "clips accueil fond chaînes" },
+          { key: "antenne", label: "Antenne libre", icon: <ChatBubbleIcon />, href: "/admin/antenne", words: "chat régie modération messages bandeau 888 bannir exclure" },
           { key: "password", label: "Changer de mot de passe", icon: <LockClosedIcon />, href: "/admin/mot-de-passe", words: "compte" },
         ],
       },

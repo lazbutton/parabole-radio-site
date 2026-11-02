@@ -6,6 +6,7 @@
 import { AlertDialog, Button, Flex, Theme } from "@radix-ui/themes";
 import { useEffect, useState } from "react";
 import { AdminShell } from "./AdminShell";
+import { AntenneScreen } from "./AntenneScreen";
 import { AppearanceProvider } from "./appearance";
 import { ArtistEditor } from "./ArtistEditor";
 import { ArtistsList } from "./ArtistsList";
@@ -66,6 +67,8 @@ function CurrentScreen({ viewer }: { viewer: Viewer }) {
       return <PasswordScreen key={visit} viewer={viewer} {...screen.data} />;
     case "clips":
       return <ClipsScreen {...screen.data} />;
+    case "antenne":
+      return <AntenneScreen {...screen.data} />;
   }
 }
 

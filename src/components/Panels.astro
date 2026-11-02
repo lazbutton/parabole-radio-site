@@ -4,6 +4,8 @@
  * comme sur la maquette, puis HISTORIQUE et CHAT, juste au-dessus de la ligne du bas. Ce sont des fenêtres : on les déplace
  * par leur barre de titre, et elles gardent leur place d'une visite à l'autre (src/scripts/panels.ts).
  * Ils ne sont jamais remplacés à la navigation : le cadre du chat, créé au premier clic, ne se recharge pas.
+ * La page 888 de l'antenne libre (src/scripts/antenne.ts) est un panneau de plus : toute la conversation, la plus récente
+ * en haut, qui s'ouvre depuis la case au bout du bandeau. Elle ne se déplace pas.
  */
 ---
 
@@ -26,4 +28,22 @@
   <div id="chatHead" class="popup-head">Chat<span class="popup-meta" aria-hidden="true">en direct · radio cult</span></div>
   <button id="chatClose" class="popup-close" type="button" aria-label="Fermer le chat">&times;</button>
   <div id="chatBody" class="popup-chat"></div>
+</div>
+<div id="antennePage" class="popup popup-antenne" role="dialog" aria-labelledby="antenneTitre">
+  <div class="antenne-tete">
+    <span class="antenne-numero" aria-hidden="true">P888</span>
+    <span id="antenneTitre" class="antenne-titre">Antenne libre</span>
+    <span id="antenneEtat" class="antenne-etat">En direct</span>
+    <span id="antenneHorloge" class="antenne-horloge" aria-hidden="true"></span>
+  </div>
+  <div id="antenneAvis" class="antenne-avis" aria-live="polite"></div>
+  <ol id="antenneFil" class="antenne-fil" role="log" aria-label="Les messages, du plus récent au plus ancien"></ol>
+  <div id="antenneVue" class="antenne-vue" hidden></div>
+  <!-- Les quatre touches de couleur du télétexte -->
+  <div class="antenne-touches">
+    <button class="antenne-touche" type="button" data-touche="regles" aria-pressed="false">Règles</button>
+    <button class="antenne-touche" type="button" data-touche="pseudo" aria-pressed="false">Pseudo</button>
+    <button class="antenne-touche" type="button" data-touche="bandeau" aria-pressed="true">Bandeau : oui</button>
+    <button class="antenne-touche" type="button" data-touche="fermer">Fermer</button>
+  </div>
 </div>

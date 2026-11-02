@@ -43,6 +43,20 @@
       "when": 1793547139174,
       "tag": "0005_fond_acces",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793620433509,
+      "tag": "0006_antenne",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793620438762,
+      "tag": "0007_antenne_acces",
+      "breakpoints": true
     }
   ]
 }

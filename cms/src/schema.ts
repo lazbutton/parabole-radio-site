@@ -17,7 +17,7 @@
  *   - colonne « search » : le vecteur de la recherche plein texte, calculé par Postgres, jamais écrit à la main.
  */
 import { relations, sql, type SQL } from "drizzle-orm";
-import { bigint, check, customType, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, unique, uuid, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { bigint, boolean, check, customType, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, unique, uuid, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { authUsers } from "drizzle-orm/supabase";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -30,6 +30,12 @@ export const tagKind = pgEnum("tag_kind", ["genre", "mood", "theme"]);
 export const artistRole = pgEnum("artist_role", ["resident", "guest"]);
 export const eventCategory = pgEnum("event_category", ["art_ensemble", "parabole", "special", "talk"]);
 export const teamRole = pgEnum("team_role", ["admin", "editor"]);
+/** L'antenne libre : les sept couleurs du télétexte, le sort d'un message, qui l'a décidé, ce que fait un mot interdit. */
+export const chatColor = pgEnum("chat_color", ["red", "green", "yellow", "blue", "magenta", "cyan", "white"]);
+export const chatStatus = pgEnum("chat_status", ["visible", "held", "refused", "removed"]);
+export const chatDecider = pgEnum("chat_decider", ["rules", "team", "reports"]);
+export const chatTermAction = pgEnum("chat_term_action", ["refuse", "hold", "mask"]);
+export const chatLinks = pgEnum("chat_links", ["none", "music", "all"]);
 
 export type ContentStatus = (typeof contentStatus.enumValues)[number];
 export type ShowType = (typeof showType.enumValues)[number];
@@ -37,6 +43,11 @@ export type TagKind = (typeof tagKind.enumValues)[number];
 export type ArtistRole = (typeof artistRole.enumValues)[number];
 export type EventCategory = (typeof eventCategory.enumValues)[number];
 export type TeamRole = (typeof teamRole.enumValues)[number];
+export type ChatColor = (typeof chatColor.enumValues)[number];
+export type ChatStatus = (typeof chatStatus.enumValues)[number];
+export type ChatDecider = (typeof chatDecider.enumValues)[number];
+export type ChatTermAction = (typeof chatTermAction.enumValues)[number];
+export type ChatLinks = (typeof chatLinks.enumValues)[number];
 
 // ---------------------------------------------------------------------------------------------------------------
 // Briques communes
@@ -415,6 +426,158 @@ export const member = pgTable(
 ).enableRLS();
 
 // ---------------------------------------------------------------------------------------------------------------
+// L'antenne libre : le chat du site (CHAT_EN_DIRECT.md)
+// ---------------------------------------------------------------------------------------------------------------
+// Le public n'a aucun droit sur ces tables, pas même en lecture : le serveur y écrit en propriétaire, après la
+// modération, et la base diffuse elle-même ce qui passe à l'antenne (0007_antenne_acces.sql). L'équipe, la régie, les
+// lit et les modère sous son rôle.
+
+/**
+ * Quelqu'un qui a passé un message à l'antenne : un pseudo, tenu par une session anonyme de notre serveur (un cookie,
+ * dont la base ne garde que l'empreinte). Ni compte, ni e-mail.
+ */
+export const chatAuthor = pgTable(
+  "chat_author",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** L'empreinte (SHA-256) du jeton de son cookie. */
+    tokenHash: text("token_hash").notNull().unique(),
+    pseudo: text("pseudo").notNull(),
+    /** La forme comparée du pseudo, sans majuscules, accents ni lettres trompeuses : deux pseudos ne se ressemblent pas. */
+    pseudoKey: text("pseudo_key").notNull().unique(),
+    color: chatColor("color").notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Exclu jusqu'à cette heure : il lit, il n'écrit plus. */
+    mutedUntil: timestamp("muted_until", { withTimezone: true }),
+    bannedAt: timestamp("banned_at", { withTimezone: true }),
+    bannedReason: text("banned_reason"),
+    /** Le membre de l'équipe qui a banni. */
+    bannedBy: uuid("banned_by"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [check("chat_author_pseudo", sql`char_length(${t.pseudo}) between 3 and 20`)],
+).enableRLS();
+
+/**
+ * Un message, quelle que soit son issue : passé à l'antenne (visible), en attente de la régie (held), refusé (refused)
+ * ou retiré, brouillé par la régie (removed). Ceux de la régie portent le membre à la place de l'auteur.
+ */
+export const chatMessage = pgTable(
+  "chat_message",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    authorId: uuid("author_id").references(() => chatAuthor.id, { onDelete: "set null" }),
+    memberId: uuid("member_id").references(() => member.userId, { onDelete: "set null" }),
+    /** Le pseudo et la couleur au moment de l'envoi. */
+    pseudo: text("pseudo").notNull(),
+    color: chatColor("color").notNull(),
+    body: text("body").notNull(),
+    status: chatStatus("status").notNull(),
+    /** Le passage à l'antenne : l'envoi, plus le différé. Avant, personne ne le voit, sauf son auteur. */
+    onAirAt: timestamp("on_air_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Pourquoi il ne passe pas, ou plus : la raison lue par son auteur. */
+    reason: text("reason"),
+    decidedBy: chatDecider("decided_by").notNull().default("rules"),
+    removedAt: timestamp("removed_at", { withTimezone: true }),
+    removedBy: uuid("removed_by"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check("chat_message_body", sql`char_length(${t.body}) between 1 and 160`),
+    index("chat_message_status_on_air").on(t.status, t.onAirAt),
+    index("chat_message_author_created").on(t.authorId, t.createdAt),
+  ],
+).enableRLS();
+
+/** Un signalement : un auditeur signale un message, une fois. */
+export const chatReport = pgTable(
+  "chat_report",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => chatMessage.id, { onDelete: "cascade" }),
+    reporterId: uuid("reporter_id")
+      .notNull()
+      .references(() => chatAuthor.id, { onDelete: "cascade" }),
+    reason: text("reason").notNull(),
+    /** Vu par la régie (le message gardé ou retiré). */
+    handledAt: timestamp("handled_at", { withTimezone: true }),
+    handledBy: uuid("handled_by"),
+    createdAt: createdAt(),
+  },
+  (t) => [unique("chat_report_once").on(t.messageId, t.reporterId)],
+).enableRLS();
+
+/**
+ * La liste de mots de la régie : un mot ou une expression, et ce qu'il fait d'un message (refusé, en attente, masqué).
+ * Comparé en mot entier, ou partout (anywhere) pour les injures qu'on soude à d'autres mots.
+ */
+export const chatTerm = pgTable(
+  "chat_term",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    term: text("term").notNull().unique(),
+    action: chatTermAction("action").notNull().default("refuse"),
+    anywhere: boolean("anywhere").notNull().default(false),
+    note: text("note").notNull().default(""),
+    createdBy: uuid("created_by"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [check("chat_term_length", sql`char_length(${t.term}) between 2 and 60`)],
+).enableRLS();
+
+/** Le journal de l'antenne : chaque décision, des règles, des signalements ou de la régie (le membre). */
+export const chatAction = pgTable(
+  "chat_action",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    actor: chatDecider("actor").notNull(),
+    memberId: uuid("member_id"),
+    /** refuse, hold, mask, remove, publish, reject, mute, ban, lift, clear, settings, term, rename, report, mute_auto. */
+    action: text("action").notNull(),
+    messageId: uuid("message_id"),
+    authorId: uuid("author_id"),
+    details: jsonb("details").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: createdAt(),
+  },
+  (t) => [index("chat_action_created").on(t.createdAt), index("chat_action_author").on(t.authorId, t.createdAt)],
+).enableRLS();
+
+/** Les réglages de l'antenne, sur une seule ligne, posée par la migration. */
+export const chatSettings = pgTable(
+  "chat_settings",
+  {
+    id: boolean("id").primaryKey().default(true),
+    open: boolean("open").notNull().default(true),
+    /** Le mode lent : un message toutes les N secondes par personne (0, 3, 5, 10, 30 ou 60). */
+    slowSeconds: integer("slow_seconds").notNull().default(0),
+    /** Le différé : N secondes entre l'envoi et le passage à l'antenne (0, 5, 10 ou 30). */
+    delaySeconds: integer("delay_seconds").notNull().default(0),
+    /** Le mode prudent : les deux premiers messages d'un nouveau pseudo attendent la régie. */
+    careful: boolean("careful").notNull().default(false),
+    /** Les messages défilent-ils dans le bandeau ? Sinon, seulement sur la page 888. */
+    ticker: boolean("ticker").notNull().default(true),
+    links: chatLinks("links").notNull().default("music"),
+    /** À partir de combien de signalements un message est brouillé en attendant la régie. */
+    reportThreshold: integer("report_threshold").notNull().default(3),
+    /** Le dernier vidage : l'historique repart de là. */
+    clearedAt: timestamp("cleared_at", { withTimezone: true }),
+    updatedBy: uuid("updated_by"),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check("chat_settings_single", sql`${t.id}`),
+    check("chat_settings_slow", sql`${t.slowSeconds} in (0, 3, 5, 10, 30, 60)`),
+    check("chat_settings_delay", sql`${t.delaySeconds} in (0, 5, 10, 30)`),
+    check("chat_settings_threshold", sql`${t.reportThreshold} between 1 and 20`),
+  ],
+).enableRLS();
+
+// ---------------------------------------------------------------------------------------------------------------
 // Relations (requêtes imbriquées de Drizzle : db.query.show.findFirst({ with: { tracks: true } }))
 // ---------------------------------------------------------------------------------------------------------------
 
@@ -485,3 +648,7 @@ export type BackgroundClip = typeof backgroundClip.$inferSelect;
 export type NewBackgroundClip = typeof backgroundClip.$inferInsert;
 export type Member = typeof member.$inferSelect;
 export type NewMember = typeof member.$inferInsert;
+export type ChatAuthor = typeof chatAuthor.$inferSelect;
+export type ChatMessage = typeof chatMessage.$inferSelect;
+export type ChatTerm = typeof chatTerm.$inferSelect;
+export type ChatSettings = typeof chatSettings.$inferSelect;

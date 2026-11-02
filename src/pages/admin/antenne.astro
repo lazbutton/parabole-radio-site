@@ -1,0 +1,107 @@
+---
+/**
+ * L'antenne libre, l'écran de la régie (CHAT_EN_DIRECT.md, section 5) : les réglages, les messages, ce qui attend la
+ * régie, les exclusions et les bannissements, la liste de mots. En GET, l'écran (HTML ou JSON ; l'écran le redemande
+ * toutes les 2 secondes tant qu'il est visible) ; en POST, une action de l'écran (AntenneScreen), et une réponse en
+ * JSON : l'écran à jour, ou les erreurs.
+ *
+ * Tout s'écrit sous le rôle de la personne connectée (createAdmin) : les règles de la base réservent l'antenne à
+ * l'équipe, et chaque décision va au journal à son nom. La base diffuse elle-même ce qui change chez les auditeurs.
+ */
+import { MUTE_CHOICES, type ChatSettingsChange } from "@parabole/cms";
+import type { Screen } from "../../components/admin/types";
+import Admin from "../../layouts/Admin.astro";
+import { antenneData, json, wantsJson } from "../../lib/admin/views";
+
+export const prerender = false;
+
+const admin = Astro.locals.admin!;
+const TITLE = "Antenne libre";
+
+if (Astro.request.method === "POST") {
+  const data = await Astro.request.formData();
+  const text = (name: string) => String(data.get(name) ?? "");
+  const id = text("id");
+  const author = text("author");
+  /** L'écran à jour, après une action réussie. */
+  const done = async (message?: string) => json({ ok: true, data: antenneData(await admin.antenne()), message });
+  const refused = (errors: Record<string, string>, status = 422) => json({ ok: false, errors }, status);
+  const gone = () => refused({ form: "Ce message n'est plus là : la régie l'a peut-être déjà traité." }, 404);
+
+  switch (text("intent")) {
+    case "reglages": {
+      // Seuls les réglages envoyés changent ; les choix permis sont vérifiés encore par le CMS, puis par la base.
+      const change: ChatSettingsChange = {};
+      const flag = (name: string) => (data.has(name) ? text(name) === "true" : undefined);
+      const number = (name: string) => (data.has(name) ? Number(text(name)) : undefined);
+      change.open = flag("open");
+      change.careful = flag("careful");
+      change.ticker = flag("ticker");
+      change.slowSeconds = number("slowSeconds");
+      change.delaySeconds = number("delaySeconds");
+      change.reportThreshold = number("reportThreshold");
+      if (data.has("links")) change.links = text("links") as ChatSettingsChange["links"];
+      for (const key of Object.keys(change) as (keyof ChatSettingsChange)[]) if (change[key] === undefined) delete change[key];
+      const saved = await admin.saveChatSettings(change);
+      if (!saved.ok) return refused(saved.errors);
+      if (change.open !== undefined) return done(change.open ? "Antenne ouverte" : "Antenne fermée : le carton « interruption momentanée » est à l'écran");
+      return done("Réglage enregistré");
+    }
+
+    case "supprimer":
+      return (await admin.removeChatMessage(id)) ? done("Message brouillé par la régie") : gone();
+
+    case "publier":
+      return (await admin.publishChatMessage(id)) ? done("Message passé à l'antenne") : gone();
+
+    case "rejeter":
+      return (await admin.rejectChatMessage(id)) ? done("Message rejeté") : gone();
+
+    case "garder":
+      return (await admin.keepChatMessage(id)) ? done("Message gardé à l'antenne") : gone();
+
+    case "exclure": {
+      const minutes = Number(text("minutes"));
+      if (!(MUTE_CHOICES as readonly number[]).includes(minutes)) return refused({ form: "Choisis une durée : 1 min, 10 min, 1 h ou 24 h." }, 400);
+      if (!(await admin.muteChatAuthor(author, minutes))) return refused({ form: "Ce pseudo n'existe plus." }, 404);
+      return done(`${text("pseudo") || "Ce pseudo"} ne peut plus écrire pendant ${minutes >= 60 ? `${minutes / 60} h` : `${minutes} min`}`);
+    }
+
+    case "bannir":
+      if (!(await admin.banChatAuthor(author, text("reason")))) return refused({ form: "Ce pseudo n'existe plus." }, 404);
+      return done(`${text("pseudo") || "Ce pseudo"} est banni de l'antenne`);
+
+    case "lever":
+      if (!(await admin.liftChatAuthor(author))) return refused({ form: "Ce pseudo n'existe plus." }, 404);
+      return done(`${text("pseudo") || "Ce pseudo"} peut écrire à nouveau`);
+
+    case "vider":
+      await admin.clearChat();
+      return done("Antenne vidée");
+
+    case "ecrire": {
+      const posted = await admin.postAsTeam(text("text"));
+      if (!posted.ok) return refused(posted.errors);
+      return done("Message de la régie passé à l'antenne");
+    }
+
+    case "mot-ajouter": {
+      const added = await admin.addChatTerm({ term: text("term"), action: text("action"), anywhere: text("anywhere") === "true", note: text("note") });
+      if (!added.ok) return refused(added.errors);
+      return done("Mot ajouté à la liste");
+    }
+
+    case "mot-retirer": {
+      const removed = await admin.removeChatTerm(id);
+      if (removed === null) return refused({ form: "Ce mot n'est plus dans la liste." }, 404);
+      return done(`« ${removed} » retiré de la liste`);
+    }
+  }
+  return refused({ form: "Action inconnue." }, 400);
+}
+
+const screen: Screen = { name: "antenne", title: TITLE, data: antenneData(await admin.antenne()) };
+if (wantsJson(Astro.request)) return json(screen);
+---
+
+<Admin screen={screen} />

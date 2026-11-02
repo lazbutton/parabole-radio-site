@@ -5,6 +5,7 @@
  * l'indicateur de chargement. La connexion, elle, garde le design du site (src/layouts/AdminGate.astro).
  */
 import {
+  ChatBubbleIcon,
   CheckIcon,
   DesktopIcon,
   DiscIcon,
@@ -43,7 +44,13 @@ const GROUPS: { label: string; sections: Section[] }[] = [
       { href: "/admin/artistes", label: "Artistes", icon: PersonIcon, screens: ["artists", "artist"] },
     ],
   },
-  { label: "Site", sections: [{ href: "/admin/videos", label: "Vidéos de fond", icon: VideoIcon, screens: ["clips"] }] },
+  {
+    label: "Site",
+    sections: [
+      { href: "/admin/videos", label: "Vidéos de fond", icon: VideoIcon, screens: ["clips"] },
+      { href: "/admin/antenne", label: "Antenne libre", icon: ChatBubbleIcon, screens: ["antenne"] },
+    ],
+  },
 ];
 const SECTIONS = [HOME, ...GROUPS.flatMap((group) => group.sections)];
 
