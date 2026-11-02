@@ -424,7 +424,7 @@ Le modèle est dans `cms/.env.example`. Les variables `PUBLIC_*` peuvent aller d
 | `PUBLIC_MEDIA_URL` | Vercel, `.env` | Adresse publique du seau `media` : `https://<ref>.supabase.co/storage/v1/object/public/media`. Les envois passent par `SUPABASE_SECRET_KEY` |
 | `BLOB_READ_WRITE_TOKEN` | Vercel (posé en reliant le magasin Blob au projet) ; `.env` pour essayer l'envoi en local | Le jeton du magasin Vercel Blob `parabole-fond`, celui des vidéos de fond (section 9.7). Serveur seulement : il signe les envois du navigateur et efface les fichiers devenus inutiles. Sans lui, l'admin gère la liste des vidéos mais n'en envoie aucune |
 | `CRON_SECRET` | Vercel | Une longue chaîne aléatoire : protège l'import quotidien Radio Cult |
-| `PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | Vercel, `.env` | Le widget Turnstile (Cloudflare) de l'antenne libre : la vérification anti-robots au premier message d'un pseudo (section 9.9). Facultatifs : sans eux, l'antenne marche sans cette vérification |
+| `PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | Vercel, `.env` | Le widget Turnstile (Cloudflare) de l'antenne libre : la vérification anti-robots au premier message d'un pseudo (section 9.9). En Production seulement : le widget ne connaît que les adresses de la production, `localhost` et `127.0.0.1`. Facultatifs : sans eux (les aperçus, le développement), l'antenne marche sans cette vérification |
 | `PGLITE_DIR` | `.env`, facultatif | Autre dossier pour la base locale (par défaut `cms/.pglite`) |
 
 Sur Vercel, sans `DATABASE_URL`, `connect()` s'arrête avec un message clair : il n'y a pas de disque durable pour PGlite.
