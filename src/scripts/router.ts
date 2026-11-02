@@ -42,16 +42,16 @@ document.addEventListener("astro:before-swap", (event) => {
   };
 });
 
-// Après le remplacement : la rubrique ouverte dans le menu, puis ce qui dépend de la page (PROGRAMMATION épinglé sur
-// l'accueil, place des panneaux, texte « NOW PLAYING » de l'accueil).
+// Après le remplacement : la rubrique ouverte dans le menu et dans le sommaire des téléphones, puis ce qui dépend de la
+// page (PROGRAMMATION épinglé sur l'accueil, place des panneaux, texte « NOW PLAYING » de l'accueil).
 document.addEventListener("astro:after-swap", () => {
   const page = document.documentElement.dataset.page;
-  document.querySelectorAll<HTMLAnchorElement>(".menu a").forEach((a) => {
+  document.querySelectorAll<HTMLAnchorElement>(".menu a, .sommaire-liste a").forEach((a) => {
     if (a.dataset.page === page) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
   });
   pageChanged();
-  refreshNowPlaying();
+  refreshNowPlaying(); // la ligne ON AIR aussi : les phrases sur l'accueil, ce qui passe ailleurs
 });
 
 // Le logo ramène à l'accueil ; déjà sur l'accueil, il ne recharge rien (et un double-clic y ouvre le mode staff).

@@ -1,5 +1,7 @@
-/* La ligne du bas (réseaux sociaux, contributeurs, touches des panneaux, BottomBar.astro), sur toutes les pages. Elle ne
-   quitte jamais la page : la navigation ne remplace que <main id="page">. Le son est en haut, dans l'en-tête (tete.css). */
+/* La ligne du bas (réseaux sociaux, contributeurs, touches des panneaux, BottomBar.astro), sur l'accueil seulement :
+   ailleurs, elle laisse toute la hauteur à la rubrique, et HISTORIQUE s'ouvre depuis JUSTE AVANT, dans l'en-tête. Elle
+   reste dans la coque (la navigation ne remplace que <main id="page">). Le son est en haut, dans l'en-tête (tete.css). */
+html:not([data-page="accueil"]) #floatLayer { display: none; }
 
 /* ---------- LA LIGNE DU BAS, écrite comme les titres télé (tele.css) ----------
    Les réseaux sociaux, le lien contributeurs et les touches des panneaux : un cadre jaune qui bave en rouge et cyan,

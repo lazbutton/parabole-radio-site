@@ -23,20 +23,20 @@ programmation, l'historique et les liens Hopper marchent comme en ligne. Une mod
 Le son ne doit jamais se couper quand on change de page. Le site est donc fait d'une **coque**, posée une fois, et
 d'un **contenu**, le seul qui change :
 
-- la coque (`src/layouts/Base.astro`) : la vidéo de fond (et la neige du zapping) et le globe, l'en-tête (le bandeau
-  qui défile, où passent aussi les messages de l'antenne libre, puis le logo, le menu tout contre lui et le son : ce qui
-  passe et ÉCOUTER hors de l'accueil, le volume, la touche RADIO / VIDÉO), la ligne du bas (réseaux, contributeurs,
-  touches des panneaux), les panneaux PROGRAMMATION et HISTORIQUE, la page 888 de l'antenne libre, et le mode staff ;
+- la coque (`src/layouts/Base.astro`) : la vidéo de fond (et la neige du zapping) et le globe, l'en-tête (la navbar de
+  la maquette du 2 novembre : le logo, la loupe et le menu sur une ligne, puis la ligne ON AIR : la touche d'écoute, ce
+  qui passe qui défile, JUSTE AVANT, le volume, la touche RADIO / VIDÉO), la ligne du bas, sur l'accueil seulement
+  (réseaux, contributeurs, touches des panneaux), les panneaux PROGRAMMATION et HISTORIQUE, la page 888 de l'antenne libre, et le mode staff ;
 - le contenu : `<main id="page">`, rempli par chaque page de `src/pages/`.
 
 Le `ClientRouter` d'Astro charge les pages sans recharger l'onglet. Une fonction de remplacement maison
 (`src/scripts/router.ts`) ne remplace que le titre, les styles, `<html data-page>` et `<main id="page">` : le son, la
-vidéo, le bandeau et l'antenne libre ne sont jamais déplacés ni recréés.
+vidéo et l'en-tête ne sont jamais déplacés ni recréés.
 
 Pour une nouvelle page :
 
 - elle utilise `Base` et met tout son contenu dans le gabarit (`<Base page="…">…</Base>`) ;
-- son contenu défile dans sa zone, entre l'en-tête et la ligne du bas (`.feuille`, voir `src/styles/pages.css`) ;
+- son contenu défile dans sa zone, entre l'en-tête et le bas de l'écran (`.feuille`, voir `src/styles/pages.css`) ;
 - elle se range sur la grille de `src/styles/socle.css` : une marge au bord de l'écran (`--marge`), un écart entre deux
   blocs (`--ecart`), une hauteur de touche (`--touche-h`), la place libre entre `--haut` et `--bas` ;
 - elle n'a pas de `<script>` à elle : un script de la coque se branche sur l'événement `astro:after-swap` (voir
@@ -47,11 +47,11 @@ Pour une nouvelle page :
 | Chemin | Rôle |
 |---|---|
 | `src/scripts/settings.ts` | **Les réglages** : mot de passe staff, lien et textes du bouton contributeurs, adresses de l'API, chat, Hopper, liste de secours des clips |
-| `src/scripts/` | Les modules de la coque : `audio` (flux, volume, Web Audio), `beat`, `globe`, `background` (playlist et zapping), `neige` (la neige entre deux clips), `panels` (panneaux et fenêtres), `schedule`, `history`, `hopper` (le lien « Retrouver » d'HISTORIQUE et les logos des plateformes sur l'accueil), `nowplaying`, `contributors`, `staff`, `router`, et `antenne` (l'antenne libre : le bandeau, l'écriture, la page 888 ; sa source, `antenne-supabase`) |
+| `src/scripts/` | Les modules de la coque : `audio` (flux, volume, Web Audio), `beat`, `globe`, `background` (playlist et zapping), `neige` (la neige entre deux clips), `panels` (panneaux et fenêtres), `schedule`, `history`, `hopper` (le lien « Retrouver » d'HISTORIQUE et les logos des plateformes), `nowplaying` (ce qui passe : la ligne ON AIR et l'accueil), `juste-avant` (le morceau d'avant, dans la ligne ON AIR), `recherche` (la loupe), `sommaire` (le menu des téléphones), `teletexte` (l'heure des pages de télétexte), `contributors`, `staff`, `router`, et `antenne` (l'antenne libre, éteinte à l'écran pour l'instant ; sa source, `antenne-supabase`) |
 | `CHAT_EN_DIRECT.md` | **L'antenne libre**, le chat du site : le cahier des charges, et comment elle marche |
 | `src/components/` | Les morceaux de la coque (`TopBar`, l'en-tête, `BottomBar`, `Panels`, `Background`, `Staff`, `Icons`) et des pages (`Sheet`, `ComingSoon`) |
 | `src/styles/` | Les styles, globaux : une bonne part du balisage est écrite par les scripts ; `tele.css` pour l'univers télé (neige, chaîne affichée, allumage), `tete.css` pour l'en-tête, `ligne-du-bas.css` pour la ligne du bas |
-| `src/pages/` | Accueil, `about`, `show`, `residents`, `event`, 404, et l'API (`api/`) |
+| `src/pages/` | Accueil, `emissions`, `residents`, `evenements`, `a-propos` (les anciennes adresses `/show`, `/event`, `/about` y redirigent, `astro.config.mjs`), 404, et l'API (`api/`, dont `recherche`, la loupe) |
 | `src/lib/station/` | **L'adaptateur de la station** : Radio Cult aujourd'hui |
 | `src/lib/menu.ts` | Les rubriques du menu |
 | `cms/` | **Le CMS** : modèle de données, base Supabase, lectures du site, écritures de l'admin (son `README.md`) |
@@ -129,14 +129,16 @@ réponse porte `platforms`, la route s'en sert directement.
 
 ## Les panneaux
 
-PROGRAMMATION est toujours ouvert sur l'accueil, sur ordinateur ; ailleurs, et sur téléphone, il s'ouvre par sa
-touche. HISTORIQUE s'ouvre au-dessus de la ligne du bas. Sur ordinateur, on le déplace par sa barre de titre :
-sa place est gardée dans le navigateur, d'une page et d'une visite à l'autre ; un double-clic sur la barre le
-remet en place.
+La ligne du bas (réseaux, contributeurs, touches des panneaux) n'est que sur l'accueil. PROGRAMMATION y est toujours
+ouvert sur ordinateur ; sur téléphone, il s'ouvre par sa touche. HISTORIQUE s'ouvre au-dessus de la ligne du bas, et sur
+toutes les pages depuis JUSTE AVANT, dans l'en-tête (TOUT L'HISTORIQUE). Sur ordinateur, on déplace un panneau par sa
+barre de titre : sa place est gardée dans le navigateur, d'une page et d'une visite à l'autre ; un double-clic sur la
+barre le remet en place.
 
-L'antenne libre, le chat, n'a pas de touche en bas : la case « ANTENNE LIBRE », au bout du bandeau, ouvre l'écriture
-dans le bandeau et la page 888, sur toute la hauteur libre, à côté de l'image (`CHAT_EN_DIRECT.md`). Le réglage `CHAT`
-de `settings.ts` peut remettre le chat de Radio Cult, dans son ancien panneau, en secours.
+L'antenne libre, le chat (`CHAT_EN_DIRECT.md`), vivait dans le bandeau du haut, que la navbar de la maquette a
+remplacé : elle est éteinte à l'écran (`CHAT = ""` dans `settings.ts`) en attendant une autre place. Son code, sa base
+et l'écran de la régie restent prêts. Le même réglage peut remettre le chat de Radio Cult, dans son ancien panneau, en
+secours.
 
 ## Avant la mise en ligne
 

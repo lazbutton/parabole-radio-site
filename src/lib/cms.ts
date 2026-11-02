@@ -3,8 +3,9 @@
  * instance de fonction Vercel sert plusieurs requêtes). DATABASE_URL vise Supabase ; vide en local, c'est la base
  * PGlite de cms/.pglite (cms/README.md, « Travailler en local »).
  */
-import { connect, type Db } from "@parabole/cms";
-import { DATABASE_URL } from "astro:env/server";
+import { connect, createReader, type Db, type Reader } from "@parabole/cms";
+import { PUBLIC_SUPABASE_URL } from "astro:env/client";
+import { DATABASE_URL, PUBLIC_MEDIA_URL } from "astro:env/server";
 
 // Gardée sur globalThis : en développement, Vite recharge ce module à chaque modification, et PGlite n'ouvre sa base
 // que pour un seul processus.
@@ -20,4 +21,12 @@ export function database(): Promise<Db> {
     },
   );
   return shared.paraboleCms;
+}
+
+/** L'adresse publique du seau des images : PUBLIC_MEDIA_URL, sinon le seau « media » du projet Supabase. */
+const mediaBaseUrl = PUBLIC_MEDIA_URL || (PUBLIC_SUPABASE_URL ? `${PUBLIC_SUPABASE_URL.replace(/\/+$/, "")}/storage/v1/object/public/media` : "");
+
+/** Les lectures du site (cms/src/read) : sous le rôle du public, elles ne voient que le publié. */
+export async function reader(): Promise<Reader> {
+  return createReader(await database(), { mediaBaseUrl });
 }
