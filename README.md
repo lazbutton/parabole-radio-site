@@ -25,8 +25,8 @@ d'un **contenu**, le seul qui change :
 
 - la coque (`src/layouts/Base.astro`) : la vidéo de fond (et la neige du zapping) et le globe, l'en-tête (la navbar de
   la maquette du 2 novembre : le logo, la loupe et le menu sur une ligne, puis la ligne ON AIR : la touche d'écoute, ce
-  qui passe qui défile, JUSTE AVANT, le volume, la touche RADIO / VIDÉO), la ligne du bas (réseaux, contributeurs,
-  touches des panneaux), les panneaux PROGRAMMATION et HISTORIQUE, la page 888 de l'antenne libre, et le mode staff ;
+  qui passe qui défile, JUSTE AVANT, le volume, la touche RADIO / VIDÉO), la ligne du bas, sur l'accueil seulement
+  (réseaux, contributeurs, touches des panneaux), les panneaux PROGRAMMATION et HISTORIQUE, la page 888 de l'antenne libre, et le mode staff ;
 - le contenu : `<main id="page">`, rempli par chaque page de `src/pages/`.
 
 Le `ClientRouter` d'Astro charge les pages sans recharger l'onglet. Une fonction de remplacement maison
@@ -36,7 +36,7 @@ vidéo et l'en-tête ne sont jamais déplacés ni recréés.
 Pour une nouvelle page :
 
 - elle utilise `Base` et met tout son contenu dans le gabarit (`<Base page="…">…</Base>`) ;
-- son contenu défile dans sa zone, entre l'en-tête et la ligne du bas (`.feuille`, voir `src/styles/pages.css`) ;
+- son contenu défile dans sa zone, entre l'en-tête et le bas de l'écran (`.feuille`, voir `src/styles/pages.css`) ;
 - elle se range sur la grille de `src/styles/socle.css` : une marge au bord de l'écran (`--marge`), un écart entre deux
   blocs (`--ecart`), une hauteur de touche (`--touche-h`), la place libre entre `--haut` et `--bas` ;
 - elle n'a pas de `<script>` à elle : un script de la coque se branche sur l'événement `astro:after-swap` (voir
@@ -129,10 +129,11 @@ réponse porte `platforms`, la route s'en sert directement.
 
 ## Les panneaux
 
-PROGRAMMATION est toujours ouvert sur l'accueil, sur ordinateur ; ailleurs, et sur téléphone, il s'ouvre par sa
-touche. HISTORIQUE s'ouvre au-dessus de la ligne du bas. Sur ordinateur, on le déplace par sa barre de titre :
-sa place est gardée dans le navigateur, d'une page et d'une visite à l'autre ; un double-clic sur la barre le
-remet en place.
+La ligne du bas (réseaux, contributeurs, touches des panneaux) n'est que sur l'accueil. PROGRAMMATION y est toujours
+ouvert sur ordinateur ; sur téléphone, il s'ouvre par sa touche. HISTORIQUE s'ouvre au-dessus de la ligne du bas, et sur
+toutes les pages depuis JUSTE AVANT, dans l'en-tête (TOUT L'HISTORIQUE). Sur ordinateur, on déplace un panneau par sa
+barre de titre : sa place est gardée dans le navigateur, d'une page et d'une visite à l'autre ; un double-clic sur la
+barre le remet en place.
 
 L'antenne libre, le chat (`CHAT_EN_DIRECT.md`), vivait dans le bandeau du haut, que la navbar de la maquette a
 remplacé : elle est éteinte à l'écran (`CHAT = ""` dans `settings.ts`) en attendant une autre place. Son code, sa base
