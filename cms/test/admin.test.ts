@@ -406,11 +406,16 @@ describe("les shows dans l'admin", () => {
     const names = artists.map((one) => one.name);
     expect(names).toContain("Ana Brouillon (exemple)");
     expect(names).toEqual([...names].sort(frenchOrder.compare));
-    expect(facets.map((one) => [one.name, one.showTypes])).toEqual([
-      ["Thème", ["podcast"]],
-      ["Genre", ["dj_set", "playlist"]],
-      ["Géographie", ["dj_set", "playlist"]],
+    expect(facets.map((one) => [one.name, one.showTypes, one.groups.length])).toEqual([
+      ["Thème", ["podcast"], 3],
+      ["Genre", ["dj_set", "playlist"], 14],
+      ["Géographie", ["dj_set", "playlist"], 5],
     ]);
+    // De quoi choisir à la souris : les groupes dans l'ordre, leurs étiquettes dans l'ordre alphabétique.
+    const nameOf = (id: string) => tags.find((one) => one.id === id)?.name;
+    const theme = facets[0]!;
+    expect(theme.groups.map((group) => nameOf(group.tagId))).toEqual(["Culture", "Société", "Musique"]);
+    expect(theme.groups[2]!.members.map(nameOf)).toEqual(["Actualité musicale", "Histoire de la musique"]);
     // Dans l'ordre des filtres et de leurs groupes : Thème › Culture et ses étiquettes d'abord.
     const tagNames = tags.map((one) => one.name);
     expect(tagNames.slice(0, 4)).toEqual(["Culture", "Architecture", "Art", "Cinéma"]);

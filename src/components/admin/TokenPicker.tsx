@@ -34,12 +34,10 @@ type Props = {
   newLabel?: string;
   /** Ce qu'apprend un nom nouveau, dans la liste : « en brouillon » (un artiste), « à classer » (une étiquette). */
   newNote?: string;
-  /** Les choix montrés d'abord quand plusieurs correspondent (les étiquettes des filtres du type du show). */
-  preferred?: (option: Choice) => boolean;
   error?: string;
 };
 
-export function TokenPicker({ id, label, values, options, onChange, placeholder, ordered = false, allowNew = true, newLabel = "nouveau", newNote = "en brouillon", preferred, error }: Props) {
+export function TokenPicker({ id, label, values, options, onChange, placeholder, ordered = false, allowNew = true, newLabel = "nouveau", newNote = "en brouillon", error }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const box = useRef<HTMLDivElement | null>(null);
   const [query, setQuery] = useState("");
@@ -55,8 +53,8 @@ export function TokenPicker({ id, label, values, options, onChange, placeholder,
 
   const typed = query.replace(/\s+/g, " ").trim();
   const chosen = new Set(values);
-  // Les noms qui commencent par ce qu'on tape d'abord, puis les choix préférés, puis le reste.
-  const rank = (option: Choice) => (normalize(option.name).startsWith(normalize(typed)) ? 0 : 2) + (preferred && !preferred(option) ? 1 : 0);
+  // Les noms qui commencent par ce qu'on tape d'abord, puis les autres.
+  const rank = (option: Choice) => (normalize(option.name).startsWith(normalize(typed)) ? 0 : 1);
   const matches = typed
     ? options
         .filter((option) => !chosen.has(option.id) && normalize(option.name).includes(normalize(typed)))

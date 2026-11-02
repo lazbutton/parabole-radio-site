@@ -274,13 +274,53 @@ body { margin: 0; }
 .admin-places { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
 .admin-place { display: flex; align-items: center; gap: 10px; padding: 6px 0; box-shadow: inset 0 -1px var(--gray-a3); }
 .admin-place-name { display: flex; flex: 1; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-width: 0; }
-.admin-radios, .admin-checks { display: flex; flex-wrap: wrap; flex-direction: row; gap: 8px 20px; }
+.admin-radios { display: flex; flex-wrap: wrap; flex-direction: row; gap: 8px 20px; }
 .admin-select-indent { padding-left: calc(var(--space-3) + 14px); }
 .admin-select-count { margin-left: 10px; color: var(--gray-10); font-size: 11px; font-variant-numeric: tabular-nums; }
 
-/* Dans la fiche d'un show : où il ira dans les filtres du site */
-.admin-tag-summary { display: flex; flex-direction: column; gap: 2px; }
-.admin-tag-summary [data-off] { color: var(--amber-11); }
+/* Choisir les étiquettes d'une fiche, filtre par filtre (FacetPicker) : des pastilles à cocher d'un clic. */
+.admin-picker { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.admin-picker-search { width: 100%; max-width: 360px; }
+.admin-choice-lines { display: flex; flex-direction: column; gap: 8px; }
+.admin-choices { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.admin-choice {
+  display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 12px; box-sizing: border-box; border: 0;
+  border-radius: 999px; background: var(--gray-a3); color: var(--gray-12); font: inherit; font-size: var(--font-size-2); line-height: 1;
+  white-space: nowrap; cursor: pointer; transition: background 0.1s;
+}
+.admin-choice:hover { background: var(--gray-a5); }
+.admin-choice:focus-visible { outline: 2px solid var(--focus-8); outline-offset: 1px; }
+.admin-choice[data-group] { font-weight: 600; box-shadow: inset 0 0 0 1px var(--gray-a6); background: transparent; }
+.admin-choice[data-group]:hover { background: var(--gray-a3); }
+.admin-choice:is([aria-pressed="true"], [data-picked]) { background: var(--accent-9); color: var(--accent-contrast); box-shadow: none; }
+.admin-choice:is([aria-pressed="true"], [data-picked]):hover { background: var(--accent-10); }
+.admin-choice[aria-expanded="true"]:not([data-picked]) { background: var(--accent-a4); color: var(--accent-12); box-shadow: inset 0 0 0 1px var(--accent-a8); }
+.admin-choice-chevron { color: var(--gray-10); transition: transform 0.15s; }
+.admin-choice[aria-expanded="true"] .admin-choice-chevron { transform: rotate(180deg); color: inherit; }
+.admin-choice[data-picked] .admin-choice-chevron { color: inherit; }
+.admin-choice-count {
+  display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 999px;
+  background: var(--accent-9); color: var(--accent-contrast); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.admin-choice[data-picked] .admin-choice-count { background: var(--accent-contrast); color: var(--accent-11); }
+.admin-choice-note { font-size: 11px; font-weight: 400; opacity: 0.75; }
+.admin-choice-panel { padding: 10px 12px 12px; border-radius: var(--radius-4); background: var(--gray-a2); box-shadow: inset 0 0 0 1px var(--gray-a5); }
+.admin-choice-panel-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 10px; }
+/* Ce qui est choisi dans un grand filtre, et les étiquettes hors du type du show : des pastilles à retirer. */
+.admin-picked { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.admin-picked-chip {
+  display: inline-flex; align-items: center; gap: 2px; height: 28px; padding: 0 2px 0 11px; box-sizing: border-box; border-radius: 999px;
+  background: var(--accent-a4); color: var(--accent-12); font-size: var(--font-size-2); white-space: nowrap;
+}
+.admin-picked-chip[data-warn] { background: var(--amber-a4); color: var(--amber-12); }
+.admin-picked-remove {
+  display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: inherit; opacity: 0.75; cursor: pointer;
+}
+.admin-picked-remove:hover { opacity: 1; background: var(--black-a3); }
+.admin-picked-remove:focus-visible { outline: 2px solid var(--focus-8); }
+/* Un bouton fantôme posé seul dans une propriété : sans la marge négative qui l'aligne sur du texte. */
+.admin-ghost-add { margin: 0; }
 
 /* ---------- La recherche de partout (⌘K) ---------- */
 .rt-DialogContent.admin-palette { padding: 0; overflow: hidden; }
@@ -524,7 +564,7 @@ input.admin-track-start { font-family: var(--code-font-family); font-variant-num
 @media (prefers-reduced-motion: reduce) {
   .admin-progress::before { width: 100%; animation: none; }
   .admin-toast { animation: none !important; }
-  .admin-results, .admin-row-arrow, .admin-cell, .admin-title-input { transition: none; }
+  .admin-results, .admin-row-arrow, .admin-cell, .admin-title-input, .admin-choice, .admin-choice-chevron { transition: none; }
 }
 
 /* ---------- Tablette et téléphone ---------- */
@@ -595,6 +635,8 @@ input.admin-track-start { font-family: var(--code-font-family); font-variant-num
   /* iOS ne zoome pas sur un champ en 16 px (le titre et la recherche sont plus grands). */
   .admin-cell, .admin-tokens-input, .admin-rich-content, .admin-theme .rt-TextFieldInput, .admin-theme .rt-TextAreaInput { font-size: 16px; }
   .admin-chip-input, .admin-add-input { font-size: 16px; }
+  .admin-choice { height: 34px; padding: 0 13px; }
+  .admin-picker-search { max-width: none; }
   .admin-chip-input:focus, .admin-chip-input[data-wide] { width: 12.5em; }
   .admin-group-card { padding: 10px 12px 12px; }
   .admin-facet-head { margin-bottom: 16px; }

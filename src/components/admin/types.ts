@@ -13,8 +13,11 @@ export type Flash = { kind: "success" | "error" | "info"; title: string; descrip
 export type Choice = { id: string; name: string; status?: ContentStatus; note?: string };
 /** Une étiquette à proposer dans une fiche, avec ses places : le filtre, et le groupe (null : c'est un groupe). */
 export type TagChoice = { id: string; name: string; places: { facetId: string; groupId: string | null }[] };
-/** Un filtre des fiches de shows ou d'artistes : son nom, et les types de shows qu'il range (vide : tous). */
-export type FacetChoice = { id: string; name: string; description: string | null; showTypes: ShowType[] };
+/**
+ * Un filtre des fiches de shows ou d'artistes : son nom, les types de shows qu'il range (vide : tous), ses groupes dans
+ * l'ordre et les étiquettes de chacun dans l'ordre alphabétique (des identifiants d'étiquettes).
+ */
+export type FacetChoice = { id: string; name: string; description: string | null; showTypes: ShowType[]; groups: { tagId: string; members: string[] }[] };
 export type MediaView = { key: string; alt: string } | null;
 
 /** Le nombre de contenus publiés et en brouillon. */

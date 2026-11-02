@@ -5,16 +5,18 @@
  * Dépublier envoient la fiche sans quitter l'écran : le serveur vérifie, écrit sous le rôle de la personne connectée,
  * et renvoie la fiche à jour ; une erreur s'affiche à côté du champ fautif. Une fiche modifiée retient la navigation.
  *
- * Les étiquettes se choisissent dans un seul champ, chacune avec sa place dans les filtres du site (« Club ·
- * Afrique / Moyen-Orient ») ; dessous, les filtres où le show apparaîtra. Un nom inconnu crée une étiquette à classer.
+ * Les étiquettes se choisissent à la souris, filtre par filtre : ceux du type du show (Genre et Géographie pour un DJ
+ * set ou une playlist, Thème pour un podcast), en pastilles (FacetPicker). Une étiquette hors des filtres se tape dans
+ * « Autres » : elle sera à classer.
  */
 import { ENERGY, LABELS } from "@parabole/cms/labels";
 import type { FieldErrors, ShowForm } from "@parabole/cms";
-import { BookmarkIcon, CalendarIcon, ExternalLinkIcon, LayersIcon, MixerHorizontalIcon, PersonIcon, TimerIcon } from "@radix-ui/react-icons";
+import { BookmarkIcon, CalendarIcon, Cross2Icon, ExclamationTriangleIcon, ExternalLinkIcon, LayersIcon, MixerHorizontalIcon, PersonIcon, PlusIcon, TimerIcon } from "@radix-ui/react-icons";
 import { Button, DataList, Flex, IconButton, SegmentedControl, Text, TextField } from "@radix-ui/themes";
 import { useEffect, useMemo, useState } from "react";
 import { forgetRecent, rememberRecent } from "./recents";
 import { useBlocker, useRouter } from "./router";
+import { FacetPicker } from "./FacetPicker";
 import { Field, filledPlaces, FormError, MediaSlot, mergeSaved, placeErrors, postForm, Property, Section, SheetBar, SidePanel, TitleInput, useSheetKeys, type Intent, type SaveIntent } from "./sheet";
 import { TextEditor } from "./TextEditor";
 import { useNotify } from "./toast";
@@ -51,39 +53,30 @@ const PLURALS = { dj_set: "DJ sets", playlist: "playlists", podcast: "podcasts" 
 const ENERGY_STEPS = Array.from({ length: ENERGY.max - ENERGY.min + 1 }, (_, index) => String(ENERGY.min + index));
 
 /**
- * Les étiquettes à proposer, avec leur place en précision (« Club · Afrique / Moyen-Orient », « Genre » pour un groupe),
- * et ce qu'elles disent des filtres où ira le show : pour chaque filtre, les groupes couverts par les étiquettes choisies.
+ * Les étiquettes de la fiche, rangées pour être choisies à la souris : les filtres qui valent pour ce type de show, ce
+ * qui a été choisi ailleurs (dans un filtre d'un autre type de show), et ce qui n'est dans aucun filtre (« Autres »).
  */
-function useTagView(sheet: ShowSheet, chosen: string[], type: string) {
+function useTagChoices(sheet: ShowSheet, chosen: string[], type: string) {
   return useMemo(() => {
     const facets = new Map(sheet.facets.map((facet) => [facet.id, facet]));
     const names = new Map(sheet.tags.map((tag) => [tag.id, tag.name]));
-    const byId = new Map(sheet.tags.map((tag) => [tag.id, tag]));
-    const options: Choice[] = sheet.tags.map((tag) => ({
-      id: tag.id,
-      name: tag.name,
-      note: tag.places.length ? [...new Set(tag.places.map((place) => (place.groupId ? names.get(place.groupId) : facets.get(place.facetId)?.name)))].join(" · ") : "à classer",
-    }));
+    const places = new Map(sheet.tags.map((tag) => [tag.id, tag.places]));
     const fits = (facetId: string) => {
       const facet = facets.get(facetId);
       return !type || !facet || !facet.showTypes.length || facet.showTypes.includes(type as never);
     };
-    const preferred = (option: Choice) => (byId.get(option.id)?.places ?? []).some((place) => fits(place.facetId));
-    // Les groupes couverts, filtre par filtre, dans l'ordre des filtres.
-    const covered = new Map<string, Set<string>>();
-    const unplaced: string[] = [];
-    for (const value of chosen) {
-      const tag = byId.get(value);
-      if (!tag || !tag.places.length) {
-        unplaced.push(tag?.name ?? value.replace(/^nouveau:/, ""));
-        continue;
-      }
-      for (const place of tag.places) covered.set(place.facetId, (covered.get(place.facetId) ?? new Set()).add(names.get(place.groupId ?? tag.id) ?? ""));
-    }
-    const summary = sheet.facets
-      .filter((facet) => covered.has(facet.id))
-      .map((facet) => ({ name: facet.name, groups: [...covered.get(facet.id)!], fits: fits(facet.id) }));
-    return { options, preferred, summary, unplaced };
+    /** Les autres places d'une étiquette, en mots : l'aide au survol d'une pastille. */
+    const elsewhere = (tagId: string, facetId: string, groupId: string | null) =>
+      (places.get(tagId) ?? [])
+        .filter((place) => !(place.facetId === facetId && place.groupId === groupId))
+        .map((place) => (place.groupId ? `${facets.get(place.facetId)?.name} › ${names.get(place.groupId)}` : `${facets.get(place.facetId)?.name}`));
+    const isNew = (value: string) => value.startsWith("nouveau:");
+    // Rangées seulement dans des filtres d'un autre type de show : elles ne comptent pas pour celui-ci.
+    const stray = chosen.filter((value) => !isNew(value) && (places.get(value)?.length ?? 0) > 0 && !places.get(value)!.some((place) => fits(place.facetId)));
+    // Nouvelles, ou dans aucun filtre : les « Autres ».
+    const loose = chosen.filter((value) => isNew(value) || !(places.get(value)?.length ?? 0));
+    const looseOptions: Choice[] = sheet.tags.filter((tag) => !tag.places.length).map((tag) => ({ id: tag.id, name: tag.name }));
+    return { names, elsewhere, shown: sheet.facets.filter((facet) => fits(facet.id)), stray, loose, looseOptions };
   }, [sheet.facets, sheet.tags, chosen, type]);
 }
 
@@ -163,7 +156,9 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
   useBlocker(dirty, () => save("save"));
   useSheetKeys(dirty, () => void save("save"));
   const name = form.title.trim() || (sheet.id ? "Sans titre" : "Nouveau show");
-  const tagView = useTagView(sheet, form.tags, form.type);
+  const tags = useTagChoices(sheet, form.tags, form.type);
+  const [moreTags, setMoreTags] = useState(false);
+  const toggleTag = (id: string) => set("tags", form.tags.includes(id) ? form.tags.filter((value) => value !== id) : [...form.tags, id]);
   const typePlural = PLURALS[form.type as keyof typeof PLURALS];
   const soundcloud = /^https?:\/\//.test(form.soundcloudUrl.trim()) ? form.soundcloudUrl.trim() : null;
 
@@ -243,42 +238,17 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
                   ordered
                 />
               </Property>
-              <Property
-                label="Étiquettes"
-                icon={<BookmarkIcon />}
-                htmlFor="show-tags"
-                hint={
-                  <>
-                    {tagView.summary.length || tagView.unplaced.length ? (
-                      <span className="admin-tag-summary">
-                        {tagView.summary.map((facet) => (
-                          <span key={facet.name} data-off={!facet.fits || undefined}>
-                            {facet.name} : {facet.groups.join(", ")}
-                            {!facet.fits && typePlural ? ` — pas pour les ${typePlural}` : ""}
-                          </span>
-                        ))}
-                        {tagView.unplaced.length > 0 && <span>À classer : {tagView.unplaced.join(", ")}</span>}
-                      </span>
-                    ) : (
-                      "Genres, régions, thèmes : tape les premières lettres. Un nom inconnu crée une étiquette à classer dans Étiquettes."
-                    )}
-                  </>
-                }
-                error={errors.tags}
-              >
-                <TokenPicker
-                  id="show-tags"
-                  label="Étiquettes"
-                  values={form.tags}
-                  options={tagView.options}
-                  preferred={tagView.preferred}
-                  onChange={(values) => set("tags", values)}
-                  placeholder="Ajouter une étiquette…"
-                  newLabel="nouvelle"
-                  newNote="à classer"
-                  error={errors.tags}
-                />
-              </Property>
+              {tags.shown.map((facet) => (
+                <Property key={facet.id} label={facet.name} icon={<BookmarkIcon />}>
+                  <FacetPicker
+                    facet={facet}
+                    names={tags.names}
+                    elsewhere={(tagId, groupId) => tags.elsewhere(tagId, facet.id, groupId)}
+                    value={form.tags}
+                    onToggle={toggleTag}
+                  />
+                </Property>
+              ))}
               {form.type !== "podcast" && (
                 <Property
                   label="Mood"
@@ -290,7 +260,7 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
                     <Text size="2" color="gray">
                       {LABELS.energy.low}
                     </Text>
-                    <SegmentedControl.Root value={form.energy} onValueChange={(value) => set("energy", value)} aria-label="Mood, de calme à énergique" size="1" className="admin-energy">
+                    <SegmentedControl.Root value={form.energy} onValueChange={(value) => set("energy", value)} aria-label="Mood, de calme à énergique" size="2" className="admin-energy">
                       {ENERGY_STEPS.map((step) => (
                         <SegmentedControl.Item key={step} value={step}>
                           {step}
@@ -308,6 +278,54 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
                   </Flex>
                 </Property>
               )}
+              {tags.stray.length > 0 && (
+                <Property
+                  label="Hors de ce type"
+                  icon={<ExclamationTriangleIcon />}
+                  hint={`Ces étiquettes ne comptent pas pour les ${typePlural ?? "shows de ce type"} : retire-les, ou change le type.`}
+                >
+                  <div className="admin-picked">
+                    {tags.stray.map((id) => (
+                      <span key={id} className="admin-picked-chip" data-warn>
+                        {tags.names.get(id) ?? "?"}
+                        <button type="button" className="admin-picked-remove" onClick={() => toggleTag(id)} aria-label={`Retirer ${tags.names.get(id) ?? ""}`}>
+                          <Cross2Icon />
+                        </button>
+                      </span>
+                    ))}
+                    {tags.stray.length > 1 && (
+                      <Button type="button" size="1" variant="ghost" color="gray" onClick={() => set("tags", form.tags.filter((value) => !tags.stray.includes(value)))}>
+                        Tout retirer
+                      </Button>
+                    )}
+                  </div>
+                </Property>
+              )}
+              <Property
+                label="Autres"
+                icon={<BookmarkIcon />}
+                htmlFor={tags.loose.length || moreTags ? "show-other-tags" : undefined}
+                hint={tags.loose.length || moreTags ? "Une étiquette qui n'est dans aucun filtre : tape son nom. Elle sera à classer dans Étiquettes." : undefined}
+                error={errors.tags}
+              >
+                {tags.loose.length || moreTags ? (
+                  <TokenPicker
+                    id="show-other-tags"
+                    label="Autres étiquettes"
+                    values={tags.loose}
+                    options={tags.looseOptions}
+                    onChange={(values) => set("tags", [...form.tags.filter((value) => !tags.loose.includes(value)), ...values])}
+                    placeholder="Nom de l'étiquette…"
+                    newLabel="nouvelle"
+                    newNote="à classer"
+                    error={errors.tags}
+                  />
+                ) : (
+                  <Button type="button" variant="ghost" size="2" onClick={() => setMoreTags(true)} className="admin-ghost-add">
+                    <PlusIcon /> Une étiquette qui n'est dans aucun filtre
+                  </Button>
+                )}
+              </Property>
             </div>
             <Section title="Description">
               <TextEditor

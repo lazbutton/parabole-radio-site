@@ -76,44 +76,53 @@ export async function taxonomy(tx: Tx): Promise<Taxonomy> {
 
 /** Une étiquette à proposer dans une fiche, avec ses places : le filtre, et le groupe (null : c'est un groupe). */
 export type AdminTagChoice = { id: string; name: string; places: { facetId: string; groupId: string | null }[] };
-export type AdminFacetChoice = { id: string; name: string; description: string | null; showTypes: ShowType[] };
+/** Un filtre d'une fiche, prêt à montrer : ses groupes dans l'ordre, les étiquettes de chacun dans l'ordre alphabétique. */
+export type AdminFacetChoice = { id: string; name: string; description: string | null; showTypes: ShowType[]; groups: { tagId: string; members: string[] }[] };
 
 /**
- * Les étiquettes que propose une fiche : celles rangées dans les filtres de ce contenu (shows, artistes ou
- * événements), dans l'ordre des filtres et de leurs groupes (les étiquettes d'un groupe dans l'ordre alphabétique),
- * puis celles à classer quand `unplaced` le demande.
+ * Ce que propose une fiche : les filtres de ce contenu (shows, artistes ou événements) avec leurs groupes et leurs
+ * étiquettes, de quoi les choisir à la souris ; et les étiquettes avec leurs places, dans l'ordre de ces filtres, puis
+ * celles à classer quand `unplaced` le demande.
  */
 export async function tagChoices(tx: Tx, scope: FacetScope, { unplaced = false } = {}): Promise<{ facets: AdminFacetChoice[]; tags: AdminTagChoice[] }> {
-  const facets = await tx
+  const rows = await tx
     .select({ id: facet.id, name: facet.name, description: facet.description, showTypes: facet.showTypes })
     .from(facet)
     .where(eq(facet.scope, scope))
     .orderBy(asc(facet.position), asc(facet.name));
-  const ids = facets.map((one) => one.id);
+  const ids = rows.map((one) => one.id);
   const groups = ids.length
     ? await tx.select({ facetId: tagGroup.facetId, tagId: tagGroup.tagId }).from(tagGroup).where(inArray(tagGroup.facetId, ids)).orderBy(asc(tagGroup.position))
     : [];
   const members = ids.length ? await tx.select({ facetId: tagMember.facetId, groupId: tagMember.groupId, tagId: tagMember.tagId }).from(tagMember).where(inArray(tagMember.facetId, ids)) : [];
+  const all = await tx.select({ id: tag.id, name: tag.name }).from(tag);
+  const names = new Map(all.map((row) => [row.id, row.name]));
+  const byName = (a: string, b: string) => frenchOrder.compare(names.get(a) ?? "", names.get(b) ?? "");
+  const facets = rows.map((one) => ({
+    ...one,
+    groups: groups
+      .filter((group) => group.facetId === one.id)
+      .map((group) => ({
+        tagId: group.tagId,
+        members: members
+          .filter((member) => member.facetId === one.id && member.groupId === group.tagId)
+          .map((member) => member.tagId)
+          .sort(byName),
+      })),
+  }));
+
   const places = new Map<string, AdminTagChoice["places"]>();
   const place = (tagId: string, where: AdminTagChoice["places"][number]) => places.set(tagId, [...(places.get(tagId) ?? []), where]);
   for (const group of groups) place(group.tagId, { facetId: group.facetId, groupId: null });
   for (const member of members) place(member.tagId, { facetId: member.facetId, groupId: member.groupId });
-  const rows = await tx.select({ id: tag.id, name: tag.name }).from(tag);
-  const names = new Map(rows.map((row) => [row.id, row.name]));
-  // L'ordre des fiches : filtre par filtre, chaque groupe puis ses étiquettes par ordre alphabétique.
-  const order: string[] = [];
-  for (const one of facets)
-    for (const group of groups.filter((row) => row.facetId === one.id)) {
-      order.push(group.tagId);
-      const own = members.filter((member) => member.facetId === one.id && member.groupId === group.tagId).map((member) => member.tagId);
-      order.push(...own.sort((a, b) => frenchOrder.compare(names.get(a) ?? "", names.get(b) ?? "")));
-    }
+  // L'ordre des fiches : filtre par filtre, chaque groupe puis ses étiquettes.
+  const order = facets.flatMap((one) => one.groups.flatMap((group) => [group.tagId, ...group.members]));
   if (unplaced) {
     const placedAnywhere = new Set([
       ...(await tx.select({ id: tagGroup.tagId }).from(tagGroup)).map((row) => row.id),
       ...(await tx.select({ id: tagMember.tagId }).from(tagMember)).map((row) => row.id),
     ]);
-    order.push(...rows.filter((row) => !placedAnywhere.has(row.id)).sort((a, b) => frenchOrder.compare(a.name, b.name)).map((row) => row.id));
+    order.push(...all.filter((row) => !placedAnywhere.has(row.id)).sort((a, b) => frenchOrder.compare(a.name, b.name)).map((row) => row.id));
   }
   const tags = [...new Set(order)].map((id) => ({ id, name: names.get(id) ?? "", places: places.get(id) ?? [] }));
   return { facets, tags };

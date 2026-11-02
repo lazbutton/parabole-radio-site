@@ -7,8 +7,9 @@
 import { LABELS } from "@parabole/cms/labels";
 import type { ArtistForm, FieldErrors } from "@parabole/cms";
 import { ArrowDownIcon, ArrowUpIcon, BookmarkIcon, DotsHorizontalIcon, DragHandleDots2Icon, ExternalLinkIcon, PersonIcon, PlusIcon, TrashIcon } from "@radix-ui/react-icons";
-import { Badge, Button, CheckboxGroup, DataList, DropdownMenu, Flex, IconButton, SegmentedControl, Text, TextField } from "@radix-ui/themes";
+import { Badge, Button, DataList, DropdownMenu, Flex, IconButton, SegmentedControl, Text, TextField } from "@radix-ui/themes";
 import { useEffect, useMemo, useState } from "react";
+import { FacetPicker } from "./FacetPicker";
 import { StatusBadge, TypeTile } from "./marks";
 import { forgetRecent, rememberRecent } from "./recents";
 import { useBlocker, useRouter } from "./router";
@@ -54,6 +55,8 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
   const [busy, setBusy] = useState<Intent | null>(null);
   const dirty = useMemo(() => fingerprint(form) !== saved, [form, saved]);
   const set = <K extends keyof EditorForm>(field: K, value: EditorForm[K]) => setForm((current) => ({ ...current, [field]: value }));
+  const tagNames = useMemo(() => new Map(sheet.tags.map((tag) => [tag.id, tag.name])), [sheet.tags]);
+  const toggleTag = (id: string) => set("tags", form.tags.includes(id) ? form.tags.filter((value) => value !== id) : [...form.tags, id]);
   const url = sheet.id ? `/admin/artistes/${sheet.id}` : "/admin/artistes/nouveau";
 
   // La fiche rejoint les « ouverts récemment » de la recherche (⌘K), sous son nom enregistré.
@@ -147,32 +150,17 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
                   ))}
                 </SegmentedControl.Root>
               </Property>
-              {sheet.facets.map((facet) => {
-                const options = sheet.tags.filter((tag) => tag.places.some((place) => place.facetId === facet.id));
-                const mine = (id: string) => options.some((option) => option.id === id);
-                return (
-                  <Property key={facet.id} label={facet.name} icon={<BookmarkIcon />} hint={facet.description ?? undefined} error={errors.tags}>
-                    {options.length ? (
-                      <CheckboxGroup.Root
-                        value={form.tags.filter(mine)}
-                        onValueChange={(values) => set("tags", [...form.tags.filter((id) => !mine(id)), ...values])}
-                        aria-label={facet.name}
-                        className="admin-checks"
-                      >
-                        {options.map((option) => (
-                          <CheckboxGroup.Item key={option.id} value={option.id}>
-                            {option.name}
-                          </CheckboxGroup.Item>
-                        ))}
-                      </CheckboxGroup.Root>
-                    ) : (
-                      <Text size="2" color="gray">
-                        Pas encore d'étiquette dans ce filtre : ajoute-les dans Étiquettes.
-                      </Text>
-                    )}
-                  </Property>
-                );
-              })}
+              {sheet.facets.map((facet) => (
+                <Property key={facet.id} label={facet.name} icon={<BookmarkIcon />} error={errors.tags}>
+                  {facet.groups.length ? (
+                    <FacetPicker facet={facet} names={tagNames} elsewhere={() => []} value={form.tags} onToggle={toggleTag} />
+                  ) : (
+                    <Text size="2" color="gray">
+                      Pas encore d'étiquette dans ce filtre : ajoute-les dans Étiquettes.
+                    </Text>
+                  )}
+                </Property>
+              ))}
             </div>
             <Section title="Bio">
               <TextEditor id="bio" label="Bio" value={form.bio} onChange={(value) => set("bio", value)} error={errors.bio} placeholder="Qui est-ce, ce qu'on entend dans ses shows, d'où ça vient…" />
