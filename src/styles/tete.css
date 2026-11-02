@@ -25,11 +25,11 @@
 /* une page de télétexte ouverte (la loupe, le sommaire, JUSTE AVANT) passe devant les panneaux */
 .tete:has(.teletexte:not([hidden])) { z-index: 45; }
 
-/* Les touches de l'en-tête : le cadre et la plaque des touches de la ligne du bas */
+/* Les touches de l'en-tête : le cadre et la plaque des touches de la ligne du bas, sans leur flou (la plaque de
+   l'en-tête floute déjà ce qui passe dessous : un flou par touche ne ferait que ralentir le défilement) */
 .menu a, .tete-touche, .loupe-champ {
   height: var(--touche-h);
   background: rgba(0,0,0,0.38);
-  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
   color: #fff039;
   border: 2px solid #fff039; border-radius: 0;
   box-shadow: -2px 0 rgba(255,0,72,0.5), 2px 0 rgba(0,200,255,0.45);   /* le cadre bave */
