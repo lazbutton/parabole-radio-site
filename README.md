@@ -23,15 +23,15 @@ programmation, l'historique et les liens Hopper marchent comme en ligne. Une mod
 Le son ne doit jamais se couper quand on change de page. Le site est donc fait d'une **coque**, posée une fois, et
 d'un **contenu**, le seul qui change :
 
-- la coque (`src/layouts/Base.astro`) : la vidéo de fond (et la neige du zapping) et le globe, l'en-tête (le bandeau
-  qui défile, où passent aussi les messages de l'antenne libre, puis le logo, le menu tout contre lui et le son : ce qui
-  passe et ÉCOUTER hors de l'accueil, le volume, la touche RADIO / VIDÉO), la ligne du bas (réseaux, contributeurs,
+- la coque (`src/layouts/Base.astro`) : la vidéo de fond (et la neige du zapping) et le globe, l'en-tête (la navbar de
+  la maquette du 2 novembre : le logo, la loupe et le menu sur une ligne, puis la ligne ON AIR : la touche d'écoute, ce
+  qui passe qui défile, JUSTE AVANT, le volume, la touche RADIO / VIDÉO), la ligne du bas (réseaux, contributeurs,
   touches des panneaux), les panneaux PROGRAMMATION et HISTORIQUE, la page 888 de l'antenne libre, et le mode staff ;
 - le contenu : `<main id="page">`, rempli par chaque page de `src/pages/`.
 
 Le `ClientRouter` d'Astro charge les pages sans recharger l'onglet. Une fonction de remplacement maison
 (`src/scripts/router.ts`) ne remplace que le titre, les styles, `<html data-page>` et `<main id="page">` : le son, la
-vidéo, le bandeau et l'antenne libre ne sont jamais déplacés ni recréés.
+vidéo et l'en-tête ne sont jamais déplacés ni recréés.
 
 Pour une nouvelle page :
 
@@ -134,9 +134,10 @@ touche. HISTORIQUE s'ouvre au-dessus de la ligne du bas. Sur ordinateur, on le d
 sa place est gardée dans le navigateur, d'une page et d'une visite à l'autre ; un double-clic sur la barre le
 remet en place.
 
-L'antenne libre, le chat, n'a pas de touche en bas : la case « ANTENNE LIBRE », au bout du bandeau, ouvre l'écriture
-dans le bandeau et la page 888, sur toute la hauteur libre, à côté de l'image (`CHAT_EN_DIRECT.md`). Le réglage `CHAT`
-de `settings.ts` peut remettre le chat de Radio Cult, dans son ancien panneau, en secours.
+L'antenne libre, le chat (`CHAT_EN_DIRECT.md`), vivait dans le bandeau du haut, que la navbar de la maquette a
+remplacé : elle est éteinte à l'écran (`CHAT = ""` dans `settings.ts`) en attendant une autre place. Son code, sa base
+et l'écran de la régie restent prêts. Le même réglage peut remettre le chat de Radio Cult, dans son ancien panneau, en
+secours.
 
 ## Avant la mise en ligne
 

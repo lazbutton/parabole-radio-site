@@ -39,7 +39,13 @@ export const STATION_TIMEZONE = "Europe/Paris"; // les panneaux donnent les heur
 // Le chat. "antenne" : l'antenne libre (CHAT_EN_DIRECT.md) : les messages défilent dans le bandeau, on y écrit son pseudo
 // puis son message, et la conversation se lit sur la page 888 (src/scripts/antenne.ts) ; la régie modère dans l'admin.
 // "radiocult" : le chat de Radio Cult, dans le panneau CHAT (CHAT_URL), en secours. "" : pas de chat.
-export const CHAT: "antenne" | "radiocult" | "" = "antenne";
+// Éteint depuis la navbar de la maquette (2 novembre 2026) : le bandeau du haut, où vivait l'antenne, a disparu, et elle
+// n'a pas encore d'autre place à l'écran. Son code, sa base et la régie restent prêts : pour la rallumer, lui rendre une
+// place (antenne.ts cherche .bandeau, .bandeau-piste et #antenneCase), puis remettre "antenne".
+export const CHAT: "antenne" | "radiocult" | "" = "";
+// Les phrases de Parabole, qui défilent dans la ligne ON AIR de l'accueil, séparées d'un carré jaune : ce qui passe y est
+// déjà affiché en grand (src/scripts/nowplaying.ts). Ailleurs, la ligne fait défiler le titre.
+export const PHRASES_ACCUEIL = ["PARABOLE RADIO", "UNION DE LA JEUNESSE INTERNATIONALE COMMUNITY RADIO", "CA VA PETER !!!", "LIVE", "PARIS 18"];
 // Le chat de Radio Cult (CHAT = "radiocult"), aux couleurs du site (theme=custom : bc le fond, ptc le texte, stc et
 // primaryColor les accents ; angles droits, layout=flat).
 export const CHAT_URL =

@@ -5,8 +5,8 @@
  * l'accueil (src/styles/antenne.css). La page y ajoute ce qui passe, affiché
  * comme la chaîne au zapping, avec la touche ÉCOUTER et les logos des plateformes où Hopper trouve le morceau (en bas
  * à gauche, src/styles/tele.css), et son texte micrographique (en haut à droite, sous l'en-tête). Les deux sont
- * remplis par src/scripts/nowplaying.ts ; la touche passe par src/scripts/audio.ts. Ici, l'en-tête n'affiche donc ni
- * le titre ni sa propre touche ÉCOUTER (src/styles/tete.css).
+ * remplis par src/scripts/nowplaying.ts ; la touche passe par src/scripts/audio.ts. Ici, la ligne ON AIR de l'en-tête
+ * ne refait donc pas défiler le titre : elle fait défiler les phrases de Parabole (PHRASES_ACCUEIL, settings.ts).
  */
 import Base from "../layouts/Base.astro";
 ---

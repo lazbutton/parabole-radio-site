@@ -1,80 +1,71 @@
 ---
 /**
- * L'en-tête, sur toutes les pages, écrit comme les titres télé (src/styles/tete.css) : il flotte sur l'image, sans fond
- * ni trait. Tout en haut, le bandeau qui défile ; dessous, la rangée : le logo rond (retour à l'accueil ; un double-clic
- * ouvre le mode staff), le menu des rubriques tout contre lui et, à droite, le son. Le son : ce qui passe et la touche
- * ÉCOUTER (pas sur l'accueil, qui les affiche déjà en bas à gauche), le volume, et la touche RADIO / VIDÉO (le son du
- * direct ou celui des vidéos). Il n'est pas remplacé à la navigation : src/scripts/router.ts y met à jour la rubrique
- * ouverte, et le son continue d'une page à l'autre. Le flux vient de l'adaptateur de la station (src/lib/station),
- * écrit ici au build : data-flux.
+ * L'en-tête, sur toutes les pages : la navbar de la maquette du 2 novembre, en deux lignes (src/styles/tete.css).
+ *
+ * Ligne 1, posée sur l'image comme les titres télé : le logo rond (retour au direct ; un double-clic ouvre le mode
+ * staff), la loupe, qui cherche dans tout le site et répond en page de télétexte (src/scripts/recherche.ts), et le menu
+ * des rubriques. Sur téléphone, la loupe et le menu se replient en deux touches : la loupe s'ouvre sur toute la ligne,
+ * MENU ouvre le sommaire en télétexte (src/scripts/sommaire.ts).
+ *
+ * Ligne 2, la ligne ON AIR : une bande noire au trait jaune, l'allure de l'ancien bandeau. ▶ ON AIR lance et arrête le
+ * direct, et son témoin dit si la station est à l'antenne ; le texte qui défile donne ce qui passe, et sur l'accueil,
+ * qui l'affiche déjà en grand, les phrases de Parabole (src/scripts/nowplaying.ts) ; JUSTE AVANT déplie le morceau
+ * d'avant (src/scripts/juste-avant.ts) ; puis le volume et RADIO / VIDÉO (le son du direct ou celui des vidéos).
+ *
+ * L'en-tête n'est pas remplacé à la navigation : src/scripts/router.ts y met à jour la rubrique ouverte, et le son
+ * continue d'une page à l'autre. Le flux vient de l'adaptateur de la station (src/lib/station), écrit ici au build :
+ * data-flux. Les identifiants du lecteur (player, playerStatus, playerTicker…) sont ceux que lisent audio.ts et
+ * nowplaying.ts.
  */
 import logoBarre from "../assets/logo-barre.png";
 import { MENU, type Page } from "../lib/menu";
 import { stream } from "../lib/station";
-import { CHAT } from "../scripts/settings";
+import { PHRASES_ACCUEIL } from "../scripts/settings";
 
 interface Props {
   page: Page;
 }
 const { page } = Astro.props;
-/** Les phrases du bandeau qui défile, séparées d'un carré jaune. */
-const BANDEAU = ["PARABOLE RADIO", "UNION DE LA JEUNESSE INTERNATIONALE COMMUNITY RADIO", "CA VA PETER !!!", "LIVE", "PARIS 18"];
-/** Six fois les phrases : la piste glisse d'une moitié, et chaque moitié couvre même un très grand écran. */
-const COPIES = 6;
+/** Avant que le direct réponde, la ligne ON AIR défile déjà : les phrases sur l'accueil, le nom de la radio ailleurs. */
+const texteDeDepart = page === "accueil" ? PHRASES_ACCUEIL : ["Parabole Radio", "Paris 18"];
 ---
 
 <header class="tete">
-  <!-- Le bandeau qui défile : la première copie se lit, les autres ne sont là que pour la boucle. Avec l'antenne libre
-       (src/scripts/antenne.ts), un script reprend la piste pour y glisser les messages entre les phrases ; on écrit dans
-       le bandeau même, et la case au bout l'ouvre. Pas sur l'accueil : il n'y garde que ses phrases. -->
-  <div class="bandeau">
-    <div class="bandeau-defile">
-      <div class="bandeau-piste">
-        {
-          Array.from({ length: COPIES }, (_, copie) => (
-            <p class="bandeau-texte" aria-hidden={copie > 0 ? "true" : undefined}>
-              {BANDEAU.map((phrase) => (
-                <>
-                  <span>{phrase}</span>
-                  <i class="bandeau-carre" aria-hidden="true" />
-                </>
-              ))}
-            </p>
-          ))
-        }
-      </div>
-    </div>
-    {
-      CHAT === "antenne" && (
-        <>
-          <form id="antenneEcriture" class="bandeau-ecriture" hidden autocomplete="off" novalidate>
-            <label class="ecriture-pseudo">
-              <span class="ecriture-label">Pseudo ▸</span>
-              <input id="antennePseudo" name="pseudo" type="text" maxlength="20" spellcheck="false" autocapitalize="off" placeholder="ton pseudo" />
-            </label>
-            <button id="antenneOk" class="ecriture-touche ecriture-ok" type="button">OK</button>
-            <button id="antenneEtiquette" class="ecriture-etiquette" type="button" aria-label="Changer de pseudo" />
-            <label class="ecriture-message">
-              <span class="ecriture-label">Message ▸</span>
-              <input id="antenneMessage" name="message" type="text" maxlength="160" enterkeyhint="send" placeholder="ton message à l'antenne" />
-            </label>
-            <span id="antenneCompteur" class="ecriture-compteur" aria-live="polite" />
-            <button id="antenneEnvoi" class="ecriture-touche ecriture-envoi" type="submit" disabled>Envoi</button>
-            <div id="antenneFlash" class="ecriture-flash" aria-hidden="true" />
-          </form>
-          <button id="antenneCase" class="bandeau-case" type="button" aria-controls="antennePage" aria-expanded="false">
-            <svg class="icon" aria-hidden="true"><use href="#icon-comment" /></svg>
-            <span class="case-long">Antenne libre</span><span class="case-court">Antenne</span>
-            <span class="case-croix" aria-hidden="true">✕</span>
-          </button>
-        </>
-      )
-    }
-  </div>
   <div class="top-bar">
     <a id="logoSquare" class="tete-logo" href="/" aria-label="Parabole Radio, retour au direct">
       <img src={logoBarre.src} width={logoBarre.width} height={logoBarre.height} alt="" />
     </a>
+    <!-- La loupe : sans script, le formulaire mène aux artistes trouvés ; avec, la page de télétexte P101 répond à
+         chaque lettre, juste sous la ligne ON AIR -->
+    <form id="loupe" class="loupe" role="search" action="/residents" method="get" autocomplete="off">
+      <label class="loupe-champ">
+        <svg class="icon" aria-hidden="true"><use href="#icon-loupe"></use></svg>
+        <span class="sr-only">Chercher sur le site</span>
+        <input
+          id="loupeChamp"
+          name="q"
+          type="search"
+          maxlength="80"
+          spellcheck="false"
+          autocapitalize="off"
+          enterkeyhint="search"
+          placeholder="Chercher un artiste, une émission…"
+          aria-controls="loupePage"
+          aria-expanded="false"
+          aria-keyshortcuts="/"
+        />
+      </label>
+      <button id="loupeFermer" class="tete-touche loupe-fermer" type="button" aria-label="Fermer la recherche">&times;</button>
+      <div id="loupePage" class="loupe-page teletexte" hidden>
+        <div class="teletexte-tete">
+          <span id="loupeNumero" class="teletexte-numero" aria-hidden="true">P101</span>
+          <span id="loupeTitre" class="teletexte-titre">Recherche</span>
+          <span class="teletexte-horloge" data-horloge aria-hidden="true"></span>
+        </div>
+        <div id="loupeResultats" class="loupe-resultats"></div>
+      </div>
+      <p id="loupeAnnonce" class="sr-only" aria-live="polite"></p>
+    </form>
     <nav class="menu" aria-label="Rubriques">
       <ul>
         {
@@ -88,47 +79,102 @@ const COPIES = 6;
         }
       </ul>
     </nav>
-    <!-- Le son. data-state : off (pas de flux) · idle · loading · playing · error ; data-air : on · off (ce que dit le
-         direct). Tenus par src/scripts/audio.ts. -->
-    <div id="player" class="lecteur" data-state="off" data-air="off" data-flux={stream}>
-      <!-- ce qui passe et la touche ÉCOUTER : sur l'accueil, c'est l'affichage en bas à gauche qui les donne -->
-      <div class="ecoute">
-        <button class="ecoute-touche" type="button" data-ecouter>
-          <svg class="icon direct-icone-lire" aria-hidden="true"><use href="#icon-play"></use></svg>
-          <svg class="icon direct-icone-pause" aria-hidden="true"><use href="#icon-pause"></use></svg>
-          <span class="direct-mot-lire">Écouter</span><span class="direct-mot-pause">Arrêter</span>
-        </button>
-        <div class="ecoute-texte">
-          <span class="ecoute-etat"><span class="ecoute-point"></span><span id="playerStatus">OFF AIR</span></span>
-          <div id="playerTicker" class="ecoute-titre">
-            <div id="playerTickerTrack" class="ecoute-piste">
-              <span class="player-ticker-item"><span class="title">Parabole Radio</span><span class="artist">Paris 18</span></span>
-            </div>
-          </div>
-        </div>
+    <!-- Sur téléphone, la loupe et le menu repliés en deux touches -->
+    <button id="loupeOuvrir" class="tete-touche loupe-ouvrir" type="button" aria-label="Chercher sur le site" aria-expanded="false">
+      <svg class="icon" aria-hidden="true"><use href="#icon-loupe"></use></svg>
+    </button>
+    <button id="sommaireOuvrir" class="tete-touche sommaire-ouvrir" type="button" aria-controls="sommaire" aria-expanded="false">Menu</button>
+    <div id="adminControlsContainer" class="flex items-center gap-1"></div>
+  </div>
+
+  <!-- La ligne ON AIR. data-state : off (pas de flux) · idle · loading · playing · error ; data-air : on · off (ce que dit
+       le direct). Tenus par src/scripts/audio.ts. -->
+  <div id="player" class="lecteur" data-state="off" data-air="off" data-flux={stream}>
+    <button class="ecoute-touche" type="button" data-ecouter>
+      <svg class="icon direct-icone-lire" aria-hidden="true"><use href="#icon-play"></use></svg>
+      <svg class="icon direct-icone-pause" aria-hidden="true"><use href="#icon-pause"></use></svg>
+      <span class="sr-only direct-mot-lire">Écouter le direct :</span><span class="sr-only direct-mot-pause">Arrêter le direct :</span>
+      <span id="playerStatus">OFF AIR</span>
+      <span class="ecoute-point" aria-hidden="true"></span>
+    </button>
+    <!-- Ce qui passe, qui défile ; un clic (ou un toucher) déplie aussi le morceau d'avant -->
+    <button id="playerTicker" class="ecoute-titre" type="button" aria-controls="avantPage" aria-expanded="false">
+      <span id="playerTickerTrack" class="ecoute-piste">
+        <span class="ecoute-moitie">
+          {
+            texteDeDepart.map((texte) => (
+              <>
+                <span class="ecoute-morceau">{texte}</span>
+                <i class="ecoute-carre" aria-hidden="true" />
+              </>
+            ))
+          }
+        </span>
+      </span>
+      <span class="sr-only">, voir aussi le morceau d'avant</span>
+    </button>
+    <button id="avantTouche" class="ligne-touche avant-touche" type="button" aria-controls="avantPage" aria-expanded="false">Juste avant</button>
+    <!-- JUSTE AVANT : le morceau d'avant et celui qui passe, avec les plateformes où Hopper les trouve -->
+    <div id="avantPage" class="avant-page teletexte" role="region" aria-labelledby="avantTitre" hidden>
+      <div class="teletexte-tete">
+        <span id="avantTitre" class="teletexte-titre">Juste avant</span>
+        <span class="teletexte-horloge" data-horloge aria-hidden="true"></span>
       </div>
-      <div class="son">
-        <button id="playerMute" class="son-muet" type="button" aria-label="Couper le son" aria-pressed="false">
-          <svg class="icon icon-sound-on" aria-hidden="true"><use href="#icon-sound"></use></svg>
-          <svg class="icon icon-sound-off" aria-hidden="true"><use href="#icon-sound-off"></use></svg>
-        </button>
-        <label id="playerVolumeWrap" class="son-volume"
-          ><span class="son-barres" aria-hidden="true"></span><input
-            id="playerVolume"
-            class="son-curseur"
-            type="range"
-            min="0"
-            max="100"
-            value="90"
-            aria-label="Volume"
-          /></label
-        >
-      </div>
-      <button id="soundToggle" class="source" type="button" data-mode="radio"
+      <div id="avantMorceaux" class="avant-morceaux"></div>
+      <button id="avantHistorique" class="avant-historique" type="button">Tout l'historique ▸</button>
+    </div>
+    <div class="son">
+      <button id="playerMute" class="son-muet" type="button" aria-label="Couper le son" aria-pressed="false">
+        <svg class="icon icon-sound-on" aria-hidden="true"><use href="#icon-sound"></use></svg>
+        <svg class="icon icon-sound-off" aria-hidden="true"><use href="#icon-sound-off"></use></svg>
+      </button>
+      <label id="playerVolumeWrap" class="son-volume"
+        ><span class="son-barres" aria-hidden="true"></span><input
+          id="playerVolume"
+          class="son-curseur"
+          type="range"
+          min="0"
+          max="100"
+          value="90"
+          aria-label="Volume"
+        /></label
+      >
+    </div>
+    <button id="soundToggle" class="source" type="button" data-mode="radio"
+      ><span class="source-radio">Radio</span><span class="source-video">Vidéo</span></button
+    >
+  </div>
+
+  <!-- Le sommaire, sur téléphone : les rubriques en pages de télétexte, et la source du son -->
+  <div id="sommaire" class="sommaire teletexte" role="dialog" aria-modal="true" aria-labelledby="sommaireTitre" hidden>
+    <div class="teletexte-tete">
+      <span class="teletexte-numero" aria-hidden="true">P100</span>
+      <span id="sommaireTitre" class="teletexte-titre">Sommaire</span>
+      <span class="teletexte-horloge" data-horloge aria-hidden="true"></span>
+      <button id="sommaireFermer" class="tete-touche sommaire-fermer" type="button" aria-label="Fermer le sommaire">&times;</button>
+    </div>
+    <nav aria-label="Rubriques">
+      <ul class="sommaire-liste">
+        {
+          MENU.map((item) => (
+            <li>
+              <a href={item.href} data-page={item.page} aria-current={item.page === page ? "page" : undefined}>
+                <span class="sommaire-numero" aria-hidden="true">{item.teletexte}</span>
+                <span class="sommaire-mot">{item.label}</span>
+                <span class="sommaire-points" aria-hidden="true" />
+                <span class="sommaire-fleche" aria-hidden="true">▸</span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+    <div class="sommaire-son">
+      <span>Son</span>
+      <button id="sommaireSource" class="source" type="button" data-mode="radio"
         ><span class="source-radio">Radio</span><span class="source-video">Vidéo</span></button
       >
     </div>
-    <div id="adminControlsContainer" class="flex items-center gap-1"></div>
   </div>
   <audio id="radioStream" preload="none"></audio>
 </header>

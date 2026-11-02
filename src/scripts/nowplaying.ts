@@ -1,13 +1,74 @@
 // ---------- LE DIRECT (ce qui passe, NOWPLAYING_URL dans settings.ts) ----------
-// Lit {title, artist, show, source, elapsed, received_at, previous, next_autodj} toutes les 10 s, pour l'en-tête (le
-// titre qui défile, hors de l'accueil), l'affichage de l'accueil et HISTORIQUE.
+// Lit {title, artist, show, source, elapsed, received_at, previous, next_autodj} toutes les 10 s, pour la ligne ON AIR
+// de l'en-tête (ce qui passe, qui défile ; sur l'accueil, les phrases de Parabole), l'affichage de l'accueil et
+// HISTORIQUE.
 import type { NowPlaying, Track } from "../lib/station/types";
 import { radioControl } from "./audio";
 import { historyOpen, loadHistory } from "./history";
 import { askHopper, fillLogos } from "./hopper";
-import { NOWPLAYING_URL } from "./settings";
+import { NOWPLAYING_URL, PHRASES_ACCUEIL } from "./settings";
 import { station, type Play } from "./state";
 import { escapeHtml, fetchJson } from "./util";
+
+// ---------- LA LIGNE ON AIR : ce qui passe, qui défile en continu, comme le bandeau d'une chaîne d'info ----------
+// Un passage du texte (les morceaux, chacun suivi d'un carré jaune) est répété autant qu'il faut pour couvrir la ligne :
+// c'est une moitié de la piste ; la seconde moitié la recopie, et la piste glisse d'une moitié, en boucle, à 40 px par
+// seconde. Seul le premier passage se lit (les copies sont cachées aux lecteurs d'écran). Avec « réduire les
+// animations », un seul passage, immobile, coupé proprement. Sur l'accueil, qui affiche déjà ce qui passe en grand, la
+// ligne fait défiler les phrases de Parabole.
+const VITESSE = 40; // px par seconde, celle de l'ancien bandeau
+let direct = [`<span class="titre">Parabole Radio</span>`, "Paris 18"]; // les morceaux de la ligne, en HTML échappé
+let affiche = "";
+const calme = () => !!window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const phrases = () => PHRASES_ACCUEIL.map((phrase) => escapeHtml(phrase));
+
+/** Remet la ligne ON AIR à jour : ce qui passe, ou les phrases sur l'accueil (appelé aussi après chaque navigation). */
+export function refreshTicker(force = false) {
+  const ticker = document.getElementById("playerTicker");
+  const piste = document.getElementById("playerTickerTrack");
+  if (!ticker || !piste) return;
+  const morceaux = document.documentElement.dataset.page === "accueil" ? phrases() : direct;
+  const passage = morceaux.map((m) => `<span class="ecoute-morceau">${m}</span><i class="ecoute-carre" aria-hidden="true"></i>`).join("");
+  const cle = passage + "|" + ticker.clientWidth + "|" + calme();
+  if (!force && cle === affiche) return;
+  affiche = cle;
+  piste.innerHTML = `<span class="ecoute-moitie"><span class="ecoute-lu">${passage}</span></span>`;
+  if (calme()) {
+    ticker.classList.remove("defile");
+    return;
+  }
+  // assez de passages pour couvrir la ligne, puis la même moitié une seconde fois : la boucle est sans couture (mesuré
+  // en mode défilant, où rien ne coupe le passage)
+  ticker.classList.add("defile");
+  const largeur = piste.firstElementChild!.getBoundingClientRect().width || 1;
+  const fois = Math.max(1, Math.ceil(ticker.clientWidth / largeur));
+  const copies = passage.repeat(fois - 1);
+  piste.innerHTML =
+    `<span class="ecoute-moitie"><span class="ecoute-lu">${passage}</span>${copies ? `<span class="ecoute-copies" aria-hidden="true">${copies}</span>` : ""}</span>` +
+    `<span class="ecoute-moitie" aria-hidden="true">${passage.repeat(fois)}</span>`;
+  piste.style.setProperty("--duree", ((largeur * fois) / VITESSE).toFixed(1) + "s");
+}
+/** Ce que dit le direct, en morceaux de la ligne : une émission, puis son morceau ; sinon l'artiste et le titre. */
+function setTicker(d: NowPlaying | null, waiting: boolean) {
+  const morceau =
+    d && !waiting
+      ? (d.artist ? `${escapeHtml(d.artist)}<span class="entre"> — </span>` : "") + `<span class="titre">${escapeHtml(d.title)}</span>`
+      : "";
+  if (d && d.show) direct = [`<span class="emission">${escapeHtml(d.show)}</span>${morceau ? `<span class="entre"> ▸ </span>${morceau}` : ""}`];
+  else direct = morceau ? [morceau] : [`<span class="titre">Parabole Radio</span>`, "Paris 18"];
+  refreshTicker();
+}
+if ("ResizeObserver" in window) {
+  const ticker = document.getElementById("playerTicker");
+  let largeur = -1;
+  if (ticker)
+    new ResizeObserver(() => {
+      if (ticker.clientWidth === largeur) return;
+      largeur = ticker.clientWidth;
+      refreshTicker();
+    }).observe(ticker);
+}
+window.matchMedia?.("(prefers-reduced-motion: reduce)").addEventListener?.("change", () => refreshTicker(true));
 
 // Ce qui passe, sur l'accueil : l'affichage façon chaîne (ON AIR ou OFF AIR, le titre et, à sa droite, les logos des
 // plateformes où Hopper trouve le morceau, le sous-titre) et le texte « NOW PLAYING » (micro-spec). Ils sont dans le
@@ -21,6 +82,7 @@ const headline = {
   morceau: null as Track | null, // ce que Hopper cherche sur les plateformes
 };
 export function refreshNowPlaying() {
+  refreshTicker();
   const micro = document.getElementById("nowPlaying");
   if (micro) micro.textContent = microText;
   const state = document.getElementById("directEtat"),
@@ -46,31 +108,7 @@ export function refreshNowPlaying() {
 }
 
 (function nowPlaying() {
-  const ticker = document.getElementById("playerTicker");
-  const track = document.getElementById("playerTickerTrack")!;
-  if (!ticker) return;
-  let shown = ["Parabole Radio", "Paris 18"],
-    measured = -1; // la largeur de la place du titre à sa dernière mesure
-  // Dans l'en-tête, le titre défile seulement quand il est trop long pour tenir.
-  function setTicker(title: string, artist: string, force?: boolean) {
-    if (!force && shown[0] === title && shown[1] === artist) return;
-    shown = [title, artist];
-    const item = (hidden: boolean) =>
-      `<span class="player-ticker-item"${hidden ? ' aria-hidden="true"' : ""}>` +
-      `<span class="title">${escapeHtml(title)}</span>${artist ? `<span class="artist">${escapeHtml(artist)}</span>` : ""}</span>`;
-    track.innerHTML = item(false);
-    ticker!.classList.remove("scrolling"); // mesuré sans la marge qui sépare les deux copies
-    const scroll = track.scrollWidth > ticker!.clientWidth;
-    ticker!.classList.toggle("scrolling", scroll);
-    if (scroll) track.insertAdjacentHTML("beforeend", item(true)); // une seconde copie rend la boucle sans couture
-    measured = ticker!.clientWidth;
-  }
-  // ... et se remesure quand sa place change : la fenêtre, ou l'arrivée sur une rubrique (caché sur l'accueil, il n'a
-  // pas de place du tout)
-  function remeasure() {
-    if (ticker!.clientWidth !== measured) setTicker(shown[0], shown[1], true);
-  }
-  if ("ResizeObserver" in window) new ResizeObserver(remeasure).observe(ticker);
+  refreshTicker();
   // le morceau à l'antenne, et ce qui était à l'antenne au dernier coup d'œil (HISTORIQUE)
   let current: Play | null = null,
     shownOnAir = "";
@@ -80,8 +118,7 @@ export function refreshNowPlaying() {
       const d: NowPlaying & { played_at?: string } = await fetchJson<NowPlaying>(NOWPLAYING_URL, { cache: "no-store" });
       station.now = d;
       const waiting = !d.title || /en attente/i.test(d.title);
-      if (d.show) setTicker(d.show, waiting ? "" : [d.title, d.artist].filter(Boolean).join(" — ")); // une émission : son nom, puis le morceau
-      else setTicker(waiting ? "Parabole Radio" : d.title, waiting ? "Paris 18" : d.artist || "");
+      setTicker(d, waiting);
       microText = waiting ? d.show || "—" : [d.artist, d.title].filter(Boolean).join(" — ");
       // l'affichage : une émission en titre, avec son morceau dessous ; sinon le morceau, avec son artiste
       headline.etat = d.source === "off" ? "Off air" : "On air";

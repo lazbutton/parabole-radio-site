@@ -14,6 +14,9 @@ export default defineConfig({
   integrations: [react()],
   // Navigation sans rechargement (ClientRouter, src/layouts/Base.astro) : une page survolée est chargée d'avance.
   prefetch: { prefetchAll: true, defaultStrategy: "hover" },
+  // Les rubriques ont pris des adresses en français avec le menu de la maquette du 2 novembre (src/lib/menu.ts) : les
+  // anciennes y mènent pour toujours (redirection permanente).
+  redirects: { "/show": "/emissions", "/event": "/evenements", "/about": "/a-propos" },
   // Le tsconfig du projet, nommé : sans lui, Vite le cherche en remontant les dossiers, et une copie du projet rangée
   // dans un autre (les worktrees de .claude/worktrees/) tombe sur celui du dossier parent. Aussi pour l'analyse des
   // dépendances du serveur de développement, qui a ses propres réglages.
@@ -31,6 +34,9 @@ export default defineConfig({
       // l'adresse ni la clé publiable ne sont secrètes.
       PUBLIC_SUPABASE_URL: envField.string({ context: "client", access: "public", optional: true }),
       PUBLIC_SUPABASE_PUBLISHABLE_KEY: envField.string({ context: "client", access: "public", optional: true }),
+      // L'adresse publique du seau des images du CMS (Supabase Storage). Vide : celle du seau « media » de
+      // PUBLIC_SUPABASE_URL (src/lib/cms.ts) ; un autre seau, ou un serveur d'images local pour les essais, la remplace.
+      PUBLIC_MEDIA_URL: envField.string({ context: "server", access: "public", optional: true }),
       // Turnstile (Cloudflare), contre les robots, au premier message d'un pseudo (CHAT_EN_DIRECT.md, 6.3). Sans ces
       // deux réglages, l'antenne marche sans cette vérification ; les autres limites tiennent.
       PUBLIC_TURNSTILE_SITE_KEY: envField.string({ context: "client", access: "public", optional: true }),

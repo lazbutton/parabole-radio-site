@@ -16,6 +16,13 @@ modération automatique se fait par des règles ; les auditeurs ont une session 
 juste avant le message ; **l'accueil n'a pas d'antenne** : ni la case, ni les messages au bandeau, ni la page 888, ni le
 chat de Radio Cult, et pas de connexion. L'antenne vit sur les autres pages. Ce qui reste à trancher est à la section 14.
 
+**Mis à jour le 2 novembre 2026, plus tard** : la navbar de la maquette a remplacé l'en-tête, et le bandeau du haut a
+disparu avec elle. Décision : **pas d'affichage du chat pour l'instant**. L'antenne est éteinte à l'écran (`CHAT = ""`
+dans `src/scripts/settings.ts`) : ni messages, ni écriture, ni page 888, et pas de connexion. Son code, sa base et l'écran
+de la régie restent prêts. Pour la rallumer, lui trouver une autre place (`antenne.ts` cherche `.bandeau`,
+`.bandeau-piste` et `#antenneCase`), puis remettre `CHAT = "antenne"`. Ce document décrit l'antenne telle qu'elle était
+dans le bandeau.
+
 **Sommaire**
 
 1. [Ce qu'on veut](#1-ce-quon-veut)

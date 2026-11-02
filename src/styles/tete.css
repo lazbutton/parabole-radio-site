@@ -1,42 +1,35 @@
-/* L'en-tête, sur toutes les pages (TopBar.astro), écrit comme les titres télé (tele.css) : il flotte sur l'image, sans
-   fond ni trait. Tout en haut, le bandeau qui défile, comme celui d'une chaîne d'info ; dessous, la rangée du logo, du
-   menu et du son, des touches comme celles de la ligne du bas (ligne-du-bas.css) : une plaque sombre et floue où l'image
-   passe encore, un cadre jaune qui bave en rouge et cyan, du texte jaune aux couleurs qui bavent. Ce qui est allumé (la
-   rubrique ouverte, la radio à l'écoute, la source du son) est en bleu sur jaune. Entre les touches, l'image se voit et
-   se clique comme ailleurs (le zapping, background.ts). */
+/* L'en-tête, sur toutes les pages (TopBar.astro) : la navbar de la maquette du 2 novembre, en deux lignes.
+   La ligne 1 flotte sur l'image, écrite comme les titres télé (tele.css) : des touches comme celles de la ligne du bas
+   (ligne-du-bas.css), une plaque sombre et floue où l'image passe encore, un cadre jaune qui bave en rouge et cyan, du
+   texte jaune aux couleurs qui bavent. La ligne 2, la ligne ON AIR, reprend l'allure de l'ancien bandeau : une bande
+   noire sur toute la largeur, un trait jaune lumineux dessous, et son texte qui défile comme celui d'une chaîne d'info.
+   Ce qui est allumé (la rubrique ouverte, la radio à l'écoute, la source du son) est en bleu sur jaune. Entre les touches
+   de la ligne 1, l'image se voit et se clique comme ailleurs (le zapping, background.ts). */
 :root {
-  --bandeau-h: 42px;                          /* le bandeau qui défile */
-  --rang-h: calc(var(--touche-h) + 12px);     /* la rangée : logo, menu, son, à la hauteur des touches (socle.css) */
-  --barre-h: calc(var(--bandeau-h) + var(--rang-h));   /* tout l'en-tête : les panneaux et les rubriques commencent dessous */
+  --rang-h: calc(var(--touche-h) + 12px);             /* la ligne 1 : logo, loupe, menu, à la hauteur des touches (socle.css) */
+  --onair-h: 40px;                                    /* la ligne ON AIR */
+  --onair-touche-h: calc(var(--onair-h) - 12px);      /* ses touches */
+  --barre-h: calc(var(--rang-h) + var(--onair-h));    /* tout l'en-tête : les panneaux et les rubriques commencent dessous */
 }
 
 .tete { position: fixed; top: 0; left: 0; right: 0; z-index: 30; pointer-events: none; }
-.bandeau, .tete-logo, .menu a, .ecoute, .son, .source, #adminControlsContainer { pointer-events: auto; }
+/* une page de télétexte ouverte (la loupe, le sommaire, JUSTE AVANT) passe devant les panneaux */
+.tete:has(.teletexte:not([hidden])) { z-index: 45; }
+.tete-logo, .loupe, .menu a, .tete-touche, .lecteur, .teletexte, #adminControlsContainer { pointer-events: auto; }
 
-/* ---------- LE BANDEAU QUI DÉFILE ----------
-   Une bande noire et un trait jaune dessous, sur toute la largeur. Les phrases, en capitales blanches aux couleurs qui
-   bavent, séparées d'un carré jaune. Le survol les arrête. */
-.bandeau {
-  height: var(--bandeau-h);
-  display: flex; align-items: center; overflow: hidden;
-  background: #000000;
-  border-bottom: 2px solid #fff039;
-  box-shadow: 0 2px 10px rgba(255,240,57,0.18);
-}
-.bandeau-piste { display: flex; flex-shrink: 0; animation: bandeauDefile 105s linear infinite; }   /* environ 40 px par seconde */
-.bandeau:hover .bandeau-piste { animation-play-state: paused; }
-@keyframes bandeauDefile { to { transform: translateX(-50%); } }
-.bandeau-texte {
-  display: flex; align-items: center; flex-shrink: 0;
-  color: #ffffff; font-size: 19px; font-weight: 700; letter-spacing: 0.12em; line-height: 1; white-space: nowrap;
+/* Les touches de l'en-tête : le cadre et la plaque des touches de la ligne du bas */
+.menu a, .tete-touche, .loupe-champ {
+  height: var(--touche-h);
+  background: rgba(0,0,0,0.38);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+  color: #fff039;
+  border: 2px solid #fff039; border-radius: 0;
+  box-shadow: -2px 0 rgba(255,0,72,0.5), 2px 0 rgba(0,200,255,0.45);   /* le cadre bave */
   text-shadow: -1.5px 0 rgba(255,0,72,0.55), 1.5px 0 rgba(0,200,255,0.5), 0 2px 5px rgba(0,0,0,0.6);
 }
-.bandeau-carre {
-  width: 8px; height: 8px; margin: 0 30px; flex-shrink: 0;
-  background: #fff039; box-shadow: -1.5px 0 rgba(255,0,72,0.6), 1.5px 0 rgba(0,200,255,0.55);
-}
+.tete .icon { filter: drop-shadow(-1.5px 0 rgba(255,0,72,0.6)) drop-shadow(1.5px 0 rgba(0,200,255,0.55)); }
 
-/* ---------- LA RANGÉE : le logo, le menu tout contre lui, puis le son à droite ---------- */
+/* ---------- LIGNE 1 : le logo, la loupe, le menu ---------- */
 .top-bar { display: flex; align-items: center; gap: 8px; height: var(--rang-h); padding: 0 var(--marge); }
 
 /* Le logo : il ramène à l'accueil ; un double-clic ouvre le mode staff. Blanc comme le logo d'une chaîne dans le coin
@@ -58,91 +51,142 @@
 }
 .tete-logo:focus-visible { outline: 2px solid #ffffff; outline-offset: 3px; }
 
-/* Le menu : SHOW · RESIDENTS · EVENT · ABOUT. La rubrique ouverte est allumée, et chaque touche s'allume au survol,
-   comme celles de la ligne du bas. */
+/* La loupe : un champ cadré comme une touche, qui prend la place libre entre le logo et le menu */
+.loupe { position: relative; flex: 1 1 auto; min-width: 0; max-width: 560px; }
+.loupe-champ { display: flex; align-items: center; gap: 10px; padding: 0 12px; cursor: text; }
+.loupe-champ .icon { width: 15px; height: 15px; flex-shrink: 0; }
+.loupe-champ input {
+  flex: 1 1 auto; min-width: 0; height: 100%; padding: 0;
+  background: none; border: 0; border-radius: 0; outline: none;
+  color: #ffffff; caret-color: #fff039;
+  font: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; text-shadow: inherit;
+}
+.loupe-champ input::placeholder { color: #fff039; opacity: 0.7; }
+.loupe-champ input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.loupe-champ:focus-within { outline: 2px solid #ffffff; outline-offset: 3px; }
+
+/* Le menu : ÉMISSIONS · RÉSIDENTS · ÉVÉNEMENTS · À PROPOS, à droite. La rubrique ouverte est allumée, et chaque touche
+   s'allume au survol, comme celles de la ligne du bas. */
+.menu { margin-left: auto; }
 .menu ul { display: flex; gap: 8px; list-style: none; }
 .menu a {
-  display: flex; align-items: center; height: var(--touche-h); padding: 0 16px;
-  background: rgba(0,0,0,0.38);
-  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
-  color: #fff039; text-decoration: none;
-  border: 2px solid #fff039;
-  box-shadow: -2px 0 rgba(255,0,72,0.5), 2px 0 rgba(0,200,255,0.45);   /* le cadre bave */
+  display: flex; align-items: center; padding: 0 16px;
+  text-decoration: none;
   font-size: 14px; font-weight: 700; letter-spacing: 0.1em; line-height: 1; text-transform: uppercase; white-space: nowrap;
-  text-shadow: -1.5px 0 rgba(255,0,72,0.55), 1.5px 0 rgba(0,200,255,0.5), 0 2px 5px rgba(0,0,0,0.6);
   transition: background 0.15s, color 0.15s;
 }
 .menu a:hover, .menu a[aria-current="page"] { background: #fff039; color: #000dff; text-shadow: none; }
 .menu a[aria-current="page"] { box-shadow: -2px 0 rgba(255,0,72,0.6), 2px 0 rgba(0,200,255,0.55); }
 .menu a:focus-visible { outline: 2px solid #ffffff; outline-offset: 3px; }
 
-/* ---------- LE SON : ce qui passe et ÉCOUTER, le volume, la source ---------- */
-.lecteur { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex: 1; min-width: 0; }   /* toute la place à droite du menu */
-/* les plaques du son, cadrées comme les touches du menu */
-.ecoute, .son, .source {
-  height: var(--touche-h);
-  background: rgba(0,0,0,0.38);
-  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
-  border: 2px solid #fff039; border-radius: 0;
-  box-shadow: -2px 0 rgba(255,0,72,0.5), 2px 0 rgba(0,200,255,0.45);
+/* Les touches repliées du téléphone (la loupe, MENU), et les croix qui referment */
+.tete-touche {
+  display: none; align-items: center; justify-content: center; flex-shrink: 0; padding: 0 12px;
+  font: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; line-height: 1; text-transform: uppercase;
+  cursor: pointer; transition: background 0.15s, color 0.15s;
+}
+.tete-touche .icon { width: 15px; height: 15px; }
+.tete-touche:hover, .tete-touche[aria-expanded="true"] { background: #fff039; color: #000dff; text-shadow: none; }
+.tete-touche:hover .icon, .tete-touche[aria-expanded="true"] .icon { filter: none; }
+.tete-touche:focus-visible { outline: 2px solid #ffffff; outline-offset: 3px; }
+.loupe-ouvrir { width: var(--touche-h); padding: 0; }
+.loupe-fermer, .sommaire-fermer { width: var(--touche-h); padding: 0; font-size: 18px; }
+
+#adminControlsContainer:empty { display: none; }
+
+/* ---------- LIGNE 2 : la ligne ON AIR ---------- */
+.lecteur {
+  position: relative;
+  display: flex; align-items: center; gap: 10px;
+  height: var(--onair-h); padding: 0 var(--marge);
+  background: #000000;
+  border-bottom: 2px solid #fff039;
+  box-shadow: 0 2px 10px rgba(255,240,57,0.18);
   color: #fff039;
   text-transform: uppercase;
   text-shadow: -1.5px 0 rgba(255,0,72,0.55), 1.5px 0 rgba(0,200,255,0.5), 0 2px 5px rgba(0,0,0,0.6);
 }
+/* les touches de la ligne, cadrées comme celles du haut, un peu plus basses */
+.lecteur .ecoute-touche, .ligne-touche, .son, .source {
+  height: var(--onair-touche-h); flex-shrink: 0;
+  background: rgba(0,0,0,0.38);
+  border: 2px solid #fff039; border-radius: 0;
+  box-shadow: -2px 0 rgba(255,0,72,0.5), 2px 0 rgba(0,200,255,0.45);
+  color: #fff039;
+}
 
-/* Ce qui passe, et la touche ÉCOUTER (▶ PLAY d'un magnétoscope) collée devant : l'affichage de l'accueil en petit
-   (tele.css), qui le remplace là-bas. Sa largeur ne suit pas le titre : la rangée ne bouge pas d'un morceau à l'autre.
-   Il s'allume en clignant quand on arrive sur une rubrique. */
-.ecoute {
-  display: flex; align-items: stretch; flex: 0 1 380px; min-width: 0;
-  animation: allumageCligne 0.42s linear both;
+/* ▶ ON AIR : la touche d'écoute et le témoin de l'antenne. Allumée à l'écoute, comme la grande touche de l'accueil
+   (tele.css) ; le témoin clignote à l'antenne, plus vite pendant la connexion, et devient gris hors antenne. */
+.lecteur .ecoute-touche {
+  display: flex; align-items: center; gap: 8px; padding: 0 12px 0 11px;
+  font: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; line-height: 1; text-transform: inherit; text-shadow: inherit;
+  white-space: nowrap; cursor: pointer;
 }
-html[data-page="accueil"] .ecoute { display: none; }
-/* allumée à l'écoute, comme la grande touche de l'accueil (tele.css) */
-.ecoute-touche {
-  display: flex; align-items: center; gap: 8px; flex-shrink: 0; padding: 0 14px 0 12px;
-  background: none; color: inherit; border: none; border-right: 2px solid #fff039; border-radius: 0; cursor: pointer;
-  font: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; line-height: 1; text-transform: inherit;
-  text-shadow: inherit;
-}
-.ecoute-touche .icon { width: 11px; height: 11px; filter: drop-shadow(-1.5px 0 rgba(255,0,72,0.6)) drop-shadow(1.5px 0 rgba(0,200,255,0.55)); }
-.ecoute-touche:hover { background: #fff039; color: #000dff; text-shadow: none; }
-.ecoute-touche:hover .icon { filter: none; }
-.ecoute-touche:focus-visible { outline: 2px solid #ffffff; outline-offset: -5px; }
-/* à droite : ON AIR (son témoin clignote à l'antenne, plus vite pendant la connexion), et le titre, qui défile quand
-   il est trop long (nowplaying.ts) */
-.ecoute-texte { display: flex; flex-direction: column; justify-content: center; gap: 4px; flex: 1; min-width: 0; padding: 0 12px; }
-.ecoute-etat { display: flex; align-items: center; gap: 7px; color: #ffffff; font-size: 9px; font-weight: 700; letter-spacing: 0.14em; line-height: 1; white-space: nowrap; }
-.ecoute-point { width: 6px; height: 6px; flex-shrink: 0; background: #fff039; animation: playerBlink 1.2s steps(2) infinite; }
+.lecteur .ecoute-touche .icon { width: 11px; height: 11px; }
+.lecteur .ecoute-touche:hover { background: #fff039; color: #000dff; text-shadow: none; }
+.lecteur .ecoute-touche:hover .icon { filter: none; }
+.lecteur .ecoute-touche:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+.ecoute-point { width: 6px; height: 6px; flex-shrink: 0; background: currentColor; animation: playerBlink 1.2s steps(2) infinite; }
 #player[data-state="loading"] .ecoute-point { animation-duration: 0.6s; }
 #player[data-air="off"] .ecoute-point { background: #777777; animation: none; }
-.ecoute-titre { overflow: hidden; white-space: nowrap; font-size: 13px; line-height: 1; }
-.ecoute-piste { display: inline-flex; }
-.ecoute-titre.scrolling .ecoute-piste { animation: playerTicker 16s linear infinite; }
-.ecoute-titre:hover .ecoute-piste { animation-play-state: paused; }
-@keyframes playerTicker { to { transform: translateX(-50%); } }
-.ecoute-titre .player-ticker-item { display: inline-flex; align-items: center; gap: 8px; padding-right: 36px; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; line-height: 1.1; }
-.ecoute-titre:not(.scrolling) .player-ticker-item { padding-right: 0; }
-.ecoute-titre .title { filter: blur(0.3px); }
-.ecoute-titre .artist { color: #ffffff; }
-.ecoute-titre .artist::before { content: ''; display: inline-block; width: 5px; height: 5px; margin: 0 8px 2px 0; background: #fff039; }
+
+/* Ce qui passe : le texte défile en continu vers la gauche, comme sur la maquette, environ 40 px par seconde
+   (nowplaying.ts règle --duree sur sa longueur). Le survol l'arrête ; un clic déplie JUSTE AVANT. */
+.ecoute-titre {
+  flex: 1 1 auto; min-width: 0; height: 100%;
+  display: flex; align-items: center; overflow: hidden;
+  padding: 0; background: none; border: 0; color: inherit;
+  font: inherit; text-align: left; text-transform: inherit; text-shadow: inherit;
+  cursor: pointer;
+  -webkit-mask: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
+          mask: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
+}
+.ecoute-titre:focus-visible { outline: 2px solid #ffffff; outline-offset: -4px; -webkit-mask: none; mask: none; }
+.ecoute-piste { display: flex; flex-shrink: 0; }
+.ecoute-titre.defile .ecoute-piste { animation: ligneDefile var(--duree, 40s) linear infinite; }
+.ecoute-titre:is(:hover, :focus-visible) .ecoute-piste { animation-play-state: paused; }
+@keyframes ligneDefile { to { transform: translateX(-50%); } }
+.ecoute-moitie, .ecoute-lu, .ecoute-copies { display: flex; align-items: center; flex-shrink: 0; }
+.ecoute-morceau {
+  flex-shrink: 0; white-space: nowrap;
+  color: #ffffff; font-size: 15px; font-weight: 700; letter-spacing: 0.1em; line-height: 1;
+}
+.ecoute-morceau .titre, .ecoute-morceau .emission { color: #fff039; }
+.ecoute-morceau .entre { color: #fff039; opacity: 0.8; }
+.ecoute-carre {
+  width: 7px; height: 7px; margin: 0 26px; flex-shrink: 0;
+  background: #fff039; box-shadow: -1.5px 0 rgba(255,0,72,0.6), 1.5px 0 rgba(0,200,255,0.55);
+}
+/* immobile (« réduire les animations ») : un seul passage, coupé proprement */
+.ecoute-titre:not(.defile) .ecoute-moitie { min-width: 0; overflow: hidden; }
+.ecoute-titre:not(.defile) .ecoute-piste { min-width: 0; max-width: 100%; }
+.ecoute-titre:not(.defile) .ecoute-morceau { overflow: hidden; text-overflow: ellipsis; flex-shrink: 1; min-width: 0; }
+
+/* JUSTE AVANT (le PREVIOUS de la maquette) : une touche qui déplie sa page de télétexte */
+.ligne-touche {
+  display: flex; align-items: center; padding: 0 12px;
+  font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; line-height: 1; text-transform: inherit; text-shadow: inherit;
+  white-space: nowrap; cursor: pointer; transition: background 0.15s, color 0.15s;
+}
+.ligne-touche:hover, .ligne-touche[aria-expanded="true"] { background: #fff039; color: #000dff; text-shadow: none; }
+.ligne-touche:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
 
 /* Le volume : une touche muet, et une rampe de segments allumés jusqu'à --v (posé par audio.ts), comme le volume
    d'un téléviseur, sous le vrai curseur, invisible, qui fait le travail (souris, toucher, clavier) */
-.son { display: flex; align-items: center; gap: 10px; flex-shrink: 0; padding: 0 12px; }
+.son { display: flex; align-items: center; gap: 10px; padding: 0 11px; }
 #player[data-state="off"] .son { display: none; }
 .son-muet {
   width: 18px; height: 18px; padding: 0; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   background: none; border: none; color: inherit; cursor: pointer;
 }
-.son-muet .icon { width: 16px; height: 16px; filter: drop-shadow(-1.5px 0 rgba(255,0,72,0.6)) drop-shadow(1.5px 0 rgba(0,200,255,0.55)); }
+.son-muet .icon { width: 16px; height: 16px; }
 .son-muet:hover { color: #ffffff; }
 .son-muet:focus-visible { outline: 2px solid #ffffff; outline-offset: 3px; }
 .son-muet .icon-sound-off, .son-muet[aria-pressed="true"] .icon-sound-on { display: none; }
 .son-muet[aria-pressed="true"] .icon-sound-off { display: block; }
 .son-volume {
-  --v: 90%; position: relative; display: block; width: 64px; height: 16px;
+  --v: 90%; position: relative; display: block; width: 64px; height: 14px;
   filter: drop-shadow(-1.5px 0 rgba(255,0,72,0.6)) drop-shadow(1.5px 0 rgba(0,200,255,0.55));   /* les segments bavent */
 }
 .son-barres {
@@ -157,65 +201,178 @@ html[data-page="accueil"] .ecoute { display: none; }
   position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;
   -webkit-appearance: none; appearance: none; background: transparent; opacity: 0; cursor: pointer;
 }
-.son-curseur::-webkit-slider-thumb { -webkit-appearance: none; width: 2px; height: 16px; }
-.son-curseur::-moz-range-thumb { width: 2px; height: 16px; border: 0; }
+.son-curseur::-webkit-slider-thumb { -webkit-appearance: none; width: 2px; height: 14px; }
+.son-curseur::-moz-range-thumb { width: 2px; height: 14px; border: 0; }
 .son-volume:has(:focus-visible) { outline: 2px solid #ffffff; outline-offset: 4px; }
 #player[data-novolume] .son-volume { display: none; }   /* iPhone : ce sont les boutons du téléphone */
 
 /* La source du son, comme l'entrée d'un téléviseur : RADIO (le direct) ou VIDÉO (le son des clips), celle qui joue
-   allumée ; un clic passe à l'autre (audio.ts) */
-.source { display: flex; align-items: stretch; flex-shrink: 0; padding: 0; cursor: pointer; font: inherit; }
+   allumée ; un clic passe à l'autre (audio.ts). La même touche se retrouve dans le sommaire des téléphones. */
+.source { display: flex; align-items: stretch; padding: 0; cursor: pointer; font: inherit; text-transform: uppercase; text-shadow: inherit; }
 .source span {
-  display: flex; align-items: center; padding: 0 11px;
-  font-size: 12px; font-weight: 700; letter-spacing: 0.1em; line-height: 1;
+  display: flex; align-items: center; padding: 0 10px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.1em; line-height: 1;
   opacity: 0.6; transition: opacity 0.15s;
 }
 .source:hover span { opacity: 1; }
 .source[data-mode="radio"] .source-radio, .source[data-mode="video"] .source-video { background: #fff039; color: #000dff; text-shadow: none; opacity: 1; }
-.source:focus-visible { outline: 2px solid #ffffff; outline-offset: 3px; }
+.source:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
 
-#adminControlsContainer:empty { display: none; }
+/* ---------- LES PAGES DE TÉLÉTEXTE de l'en-tête : la loupe (P101), JUSTE AVANT, le sommaire (P100) ----------
+   De la famille des panneaux (panneaux.css) et de la page 888 : une plaque presque noire, des lignes de balayage, le
+   cadre jaune qui bave ; en tête, le numéro de la page en bleu sur jaune, son nom en jaune, l'heure de la station à la
+   seconde (teletexte.ts). */
+.teletexte {
+  border: 2px solid #fff039;
+  background:
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 3px),   /* lignes de balayage */
+    rgba(0,0,0,0.9);
+  -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px);
+  box-shadow: -2px 0 rgba(255,0,72,0.5), 2px 0 rgba(0,200,255,0.45);
+  color: #ffffff;
+  text-transform: uppercase;
+  text-shadow: -1.5px 0 rgba(255,0,72,0.55), 1.5px 0 rgba(0,200,255,0.5), 0 2px 5px rgba(0,0,0,0.6);
+}
+.teletexte[hidden] { display: none !important; }
+.teletexte-tete { flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 12px 14px 10px; border-bottom: 1px dashed rgba(255,240,57,0.45); }
+.teletexte-numero {
+  flex-shrink: 0; padding: 4px 6px 3px; background: #fff039; color: #000dff;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em; line-height: 1; font-variant-numeric: tabular-nums; text-shadow: none;
+  box-shadow: -1.5px 0 rgba(255,0,72,0.6), 1.5px 0 rgba(0,200,255,0.55);
+}
+.teletexte-titre {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: #fff039; font-size: 17px; font-weight: 700; letter-spacing: 0.04em; line-height: 1.1; filter: blur(0.3px);
+  text-shadow: -2px 0 rgba(255,0,72,0.6), 2px 0 rgba(0,200,255,0.55), 0 0 12px rgba(255,240,57,0.4), 0 2px 6px rgba(0,0,0,0.55);
+}
+.teletexte-horloge { flex-shrink: 0; margin-left: auto; color: #fff039; font-size: 13px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+
+/* La loupe répond juste sous la ligne ON AIR, sous son champ */
+.loupe-page {
+  position: absolute; left: 0;
+  top: calc(100% + 6px + var(--onair-h) + var(--ecart) / 2);
+  width: max(100%, 460px); max-width: calc(100vw - 2 * var(--marge));
+  max-height: calc(100vh - var(--barre-h) - var(--band-h, 58px) - 2 * var(--ecart));
+  display: flex; flex-direction: column;
+}
+.loupe-resultats {
+  min-height: 0; overflow-y: auto; padding: 4px 0 12px;
+  scrollbar-width: thin; scrollbar-color: #fff039 transparent;
+}
+.loupe-groupe { margin-top: 10px; padding: 0 14px 4px; color: #fff039; font-size: 10px; font-weight: 700; letter-spacing: 0.14em; }
+.loupe-ligne {
+  display: flex; align-items: baseline; gap: 10px; padding: 7px 14px 7px 30px;
+  color: #ffffff; text-decoration: none;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.06em; line-height: 1.3;
+}
+.loupe-ligne .loupe-nom { min-width: 0; overflow-wrap: anywhere; }
+.loupe-ligne .loupe-quoi { margin-left: auto; flex-shrink: 0; max-width: 55%; color: #fff039; font-size: 10px; letter-spacing: 0.1em; text-align: right; }
+a.loupe-ligne { position: relative; }
+a.loupe-ligne::before { content: '▸'; position: absolute; left: 14px; color: #fff039; }
+a.loupe-ligne:hover, a.loupe-ligne:focus-visible { background: #fff039; color: #000dff; text-shadow: none; outline: none; }
+a.loupe-ligne:is(:hover, :focus-visible)::before, a.loupe-ligne:is(:hover, :focus-visible) .loupe-quoi { color: #000dff; }
+.loupe-tous { color: #fff039; font-size: 11px; letter-spacing: 0.12em; }
+.loupe-message { padding: 14px; color: #ffffff; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; line-height: 1.5; }
+.loupe-message.erreur { color: #fff039; }
+
+/* JUSTE AVANT se déplie sous la ligne ON AIR, à droite */
+.avant-page {
+  position: absolute; right: var(--marge); top: calc(100% + var(--ecart) / 2);
+  width: min(380px, calc(100vw - 2 * var(--marge)));
+  text-align: left;
+}
+.avant-morceaux { padding: 4px 0 6px; }
+.avant-morceau { padding: 10px 14px 8px; }
+.avant-morceau + .avant-morceau { border-top: 1px dashed rgba(255,240,57,0.3); }
+.avant-quand { display: flex; justify-content: space-between; gap: 10px; color: #fff039; font-size: 10px; font-weight: 700; letter-spacing: 0.14em; }
+.avant-titre { margin-top: 6px; color: #ffffff; font-size: 15px; font-weight: 700; letter-spacing: 0.04em; line-height: 1.2; overflow-wrap: anywhere; }
+.avant-artiste { margin-top: 3px; color: #fff039; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; line-height: 1.3; overflow-wrap: anywhere; }
+.avant-page .direct-plateformes { --h: 17px; margin-top: 9px; }
+.avant-historique {
+  display: block; width: 100%; padding: 10px 14px 11px;
+  background: none; border: 0; border-top: 1px dashed rgba(255,240,57,0.45);
+  color: #fff039; font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-align: left; text-transform: inherit; text-shadow: inherit;
+  cursor: pointer;
+}
+.avant-historique:hover { background: #fff039; color: #000dff; text-shadow: none; }
+.avant-historique:focus-visible { outline: 2px solid #ffffff; outline-offset: -4px; }
+
+/* Le sommaire des téléphones : les rubriques comme les pages d'un télétexte, entre l'en-tête et la ligne du bas ; la
+   ligne ON AIR reste visible au-dessus */
+.sommaire {
+  position: fixed; left: var(--marge); right: var(--marge); top: calc(var(--barre-h) + var(--ecart));
+  max-height: calc(100vh - var(--barre-h) - var(--bas) - var(--ecart));
+  display: flex; flex-direction: column; overflow-y: auto;
+}
+@supports (height: 100dvh) { .sommaire { max-height: calc(100dvh - var(--barre-h) - var(--bas) - var(--ecart)); } }
+.sommaire .teletexte-tete { padding-right: 10px; }
+.sommaire-fermer { display: flex; height: 30px; width: 30px; }
+.sommaire-liste { list-style: none; padding: 8px 0; }
+.sommaire-liste a {
+  display: flex; align-items: baseline; gap: 14px; min-height: 52px; padding: 16px 16px 14px;
+  color: #ffffff; text-decoration: none;
+  font-size: 19px; font-weight: 700; letter-spacing: 0.06em; line-height: 1;
+}
+.sommaire-numero { color: #fff039; font-variant-numeric: tabular-nums; }
+.sommaire-points { flex: 1 1 auto; min-width: 12px; border-bottom: 2px dotted rgba(255,240,57,0.55); }
+.sommaire-fleche { color: #fff039; }
+.sommaire-liste a[aria-current="page"], .sommaire-liste a:hover { background: #fff039; color: #000dff; text-shadow: none; }
+.sommaire-liste a:is([aria-current="page"], :hover) :is(.sommaire-numero, .sommaire-fleche) { color: #000dff; }
+.sommaire-liste a:is([aria-current="page"], :hover) .sommaire-points { border-color: rgba(0,13,255,0.5); }
+.sommaire-liste a:focus-visible { outline: 2px solid #ffffff; outline-offset: -4px; }
+.sommaire-son {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 16px 14px; border-top: 1px dashed rgba(255,240,57,0.45);
+  color: #fff039; font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
+}
+.sommaire-son .source { height: 32px; background: rgba(0,0,0,0.38); border: 2px solid #fff039; box-shadow: -2px 0 rgba(255,0,72,0.5), 2px 0 rgba(0,200,255,0.45); color: #fff039; }
 
 @media (prefers-reduced-motion: reduce) {
-  .bandeau-piste, .ecoute-piste, .ecoute-point, .ecoute { animation: none !important; }
+  .ecoute-piste, .ecoute-point { animation: none !important; }
 }
 
 /* ---------- ÉCRANS PLUS ÉTROITS ----------
-   Le menu se resserre, puis la rampe du volume part (la touche muet reste). Sur écran étroit, le son passe sur une
-   seconde ligne, sous le menu qui prend toute la largeur ; le bandeau reste, plus petit. */
+   Le menu se resserre, puis la rampe du volume part (la touche muet reste). Sur téléphone, la loupe et le menu se
+   replient en deux touches (la loupe s'ouvre alors sur toute la ligne), et la ligne ON AIR ne garde que l'écoute, ce qui
+   passe et la touche muet : JUSTE AVANT se déplie en touchant le texte, RADIO / VIDÉO passe dans le sommaire. */
 @media (max-width: 1100px) {
-  .menu a { padding: 0 12px; font-size: 13px; }
-  .ecoute { flex-basis: 320px; }
+  .menu a { padding: 0 11px; font-size: 13px; }
+  .loupe { max-width: 420px; }
 }
 @media (max-width: 1000px) {
-  .menu a { padding: 0 9px; }
+  .menu ul { gap: 6px; }
+  .menu a { padding: 0 8px; letter-spacing: 0.06em; }
   .son-volume { display: none; }
-  .ecoute-texte { padding: 0 10px; }
+  .loupe-champ { gap: 8px; padding: 0 10px; }
 }
 @media (max-width: 820px) {
-  :root { --bandeau-h: 34px; --rang-h: calc(2 * var(--touche-h) + 18px); }   /* deux lignes de touches */
-  .bandeau-texte { font-size: 15px; letter-spacing: 0.1em; }
-  .bandeau-carre { width: 7px; height: 7px; margin: 0 22px; }
-  .top-bar { flex-wrap: wrap; align-content: center; gap: 6px; }
+  :root { --onair-h: 38px; }
   .tete-logo { width: 32px; height: 32px; margin-right: 2px; }
-  .menu { flex: 1; min-width: 0; }
-  .menu ul { gap: 6px; }
-  .menu li { flex: 1 1 auto; }
-  .menu a { justify-content: center; padding: 0 6px; font-size: 12px; letter-spacing: 0.06em; }
-  .lecteur { flex-basis: 100%; gap: 6px; }
-  .ecoute { flex: 1 1 auto; }
-  .ecoute-touche { padding: 0 10px; font-size: 11px; letter-spacing: 0.1em; }
-  .ecoute-texte { gap: 4px; padding: 0 10px; }
-  .ecoute-titre, .ecoute-titre .player-ticker-item { font-size: 12px; }
-  .son { padding: 0 9px; }
-  .source span { padding: 0 9px; font-size: 11px; }
+  .loupe, .menu { display: none; }
+  .tete-touche { display: flex; }
+  .loupe-ouvrir { margin-left: auto; }
+  .loupe-fermer { display: none; }
+  /* la loupe ouverte prend toute la ligne */
+  .tete.loupe-ouverte .loupe { display: flex; gap: 8px; max-width: none; }
+  .tete.loupe-ouverte .loupe-champ { flex: 1 1 auto; min-width: 0; }
+  .tete.loupe-ouverte .loupe-fermer { display: flex; }
+  .tete.loupe-ouverte :is(.tete-logo, .loupe-ouvrir, .sommaire-ouvrir) { display: none; }
+  .loupe-page {
+    position: fixed; left: var(--marge); right: var(--marge); top: calc(var(--barre-h) + var(--ecart));
+    width: auto; max-width: none;
+    max-height: calc(100vh - var(--barre-h) - var(--bas) - var(--ecart));
+  }
+  .lecteur { gap: 8px; }
+  .lecteur .ecoute-touche { padding: 0 10px 0 9px; font-size: 11px; letter-spacing: 0.1em; }
+  .ecoute-morceau { font-size: 13px; letter-spacing: 0.08em; }
+  .ecoute-carre { width: 6px; height: 6px; margin: 0 20px; }
+  .avant-touche, .lecteur > .source { display: none; }
+  .son { padding: 0 8px; }
+  .avant-page { left: var(--marge); width: auto; }
 }
-/* ÉCOUTER n'a plus que son symbole quand la place manque, sur une seule ligne un peu étroite et sur les plus petits
-   téléphones : la place va au titre (le mot reste lu par les lecteurs d'écran) */
-@media (min-width: 821px) and (max-width: 1000px), (max-width: 420px) {
-  .ecoute-touche { gap: 0; padding: 0 12px; }
-  .ecoute-touche :is(.direct-mot-lire, .direct-mot-pause) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@supports (height: 100dvh) {
+  @media (max-width: 820px) { .loupe-page { max-height: calc(100dvh - var(--barre-h) - var(--bas) - var(--ecart)); } }
 }
-@media (max-width: 420px) {
-  .menu a { padding: 0 3px; font-size: 11px; letter-spacing: 0.04em; }
+@media (min-width: 821px) {
+  .sommaire { display: none !important; }   /* le menu est là : pas de sommaire */
 }
