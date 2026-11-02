@@ -36,8 +36,12 @@ export const NOWPLAYING_URL = "/api/direct";
 export const SCHEDULE_URL = "/api/programme";
 export const HISTORY_URL = "/api/historique";
 export const STATION_TIMEZONE = "Europe/Paris"; // les panneaux donnent les heures de la station
-// Le chat (panneau CHAT) : l'intégration de Radio Cult, aux couleurs du site (theme=custom : bc le fond, ptc le texte,
-// stc et primaryColor les accents ; angles droits, layout=flat). "" le cache.
+// Le chat. "antenne" : l'antenne libre (CHAT_EN_DIRECT.md) : les messages défilent dans le bandeau, on y écrit son pseudo
+// puis son message, et la conversation se lit sur la page 888 (src/scripts/antenne.ts) ; la régie modère dans l'admin.
+// "radiocult" : le chat de Radio Cult, dans le panneau CHAT (CHAT_URL), en secours. "" : pas de chat.
+export const CHAT: "antenne" | "radiocult" | "" = "antenne";
+// Le chat de Radio Cult (CHAT = "radiocult"), aux couleurs du site (theme=custom : bc le fond, ptc le texte, stc et
+// primaryColor les accents ; angles droits, layout=flat).
 export const CHAT_URL =
   "https://app.radiocult.fm/embed/chat/parabole-radio-b02d5385?theme=custom&bc=%23000000&ptc=%23ffffff&stc=%23fff039&primaryColor=%23fff039&corners=sharp&layout=flat&hideAppLink=1";
 // HISTORIQUE : un lien « Retrouver » sous chaque morceau que Hopper (hppr.fr) trouve mot pour mot sur les plateformes,

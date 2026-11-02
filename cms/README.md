@@ -249,6 +249,14 @@ erDiagram
 | `background_clip` | Une vidéo du fond du site | Publiée : dans la rotation ; brouillon : mise de côté. `position` donne l'ordre de la liste, et le numéro de chaîne. Le fichier est dans le site (`public/`, les 15 clips d'origine, inscrits par la migration) ou sur Vercel Blob (envoyé depuis l'admin, section 9.7) |
 | `media` | Un fichier envoyé sur Supabase Storage | Sa clé dans le seau, son type, ses dimensions, son texte alternatif, son crédit, ses versions réduites (`[{ "width": 800, "key": "…" }]`) |
 | `member` | Un membre de l'équipe | Relié à un compte Supabase Auth, avec son rôle. Jamais d'auditeurs |
+| `chat_author` | Un pseudo de l'antenne libre (le chat, section 9.9) | Tenu par une session anonyme du site : un jeton dans un cookie, dont la base ne garde que l'empreinte (`token_hash`). `pseudo_key`, la forme comparée, est unique. Les exclusions (`muted_until`) et le bannissement |
+| `chat_message` | Un message de l'antenne | Passé à l'antenne (`visible`), en attente de la régie (`held`), refusé (`refused`) ou brouillé (`removed`). `on_air_at` : son passage, l'envoi plus le différé. Ceux de la régie portent `member_id` |
+| `chat_report` | Un signalement | Un par auditeur et par message, vu ou non par la régie |
+| `chat_term` | La liste de mots de la régie | Refuser, mettre en attente ou masquer ; en mot entier, ou partout (`anywhere`) |
+| `chat_action` | Le journal de l'antenne | Chaque décision : des règles, des signalements, ou de la régie (le membre) |
+| `chat_settings` | Les réglages de l'antenne | Une seule ligne : ouverte, mode lent, différé, mode prudent, messages au bandeau, liens, seuil de signalements, dernier vidage |
+
+Hors de l'API, dans le schéma `private` : `chat_trace`, l'adresse IP de chaque message, gardée un an (section 9.9).
 
 ### Conventions
 
@@ -273,6 +281,8 @@ erDiagram
 | `0006_etiquettes.sql` | drizzle-kit | Les filtres (`facet`), les groupes et leurs étiquettes (`tag_group`, `tag_member`), les étiquettes des artistes et des événements, le mood des shows (`show.energy`) |
 | `0007_etiquettes_donnees.sql` | à la main | Leurs règles d'accès, puis le document « Tags et filtres site web » : 5 filtres, 30 groupes, 351 étiquettes. Et la reprise de l'existant : une étiquette par adresse (un genre et un mood « ambient » n'en font plus qu'une), les catégories d'événements en étiquettes |
 | `0008_etiquettes_fin.sql` | drizzle-kit | Retire ce qui ne sert plus : le type d'une étiquette (`tag.kind`), la catégorie d'un événement (`event.category`) |
+| `0009_antenne.sql` | drizzle-kit | Les tables de l'antenne libre, le chat |
+| `0010_antenne_acces.sql` | à la main | Leurs règles d'accès (l'équipe seulement), la trace des adresses IP, la diffusion par la base sur le canal Realtime, la règle de réception sur `realtime.messages`, la purge |
 
 ---
 
@@ -297,6 +307,7 @@ Le détail des règles :
 - **Les étiquettes**, les filtres et leurs groupes sont publics. Les étiquettes d'un artiste ou d'un événement suivent leur contenu.
 - **Les vidéos de fond** (`background_clip`) : le public ne voit que celles de la rotation (publiées) ; l'équipe voit et modifie tout.
 - **L'équipe** (`member`) : le public n'y a aucun accès. Les membres se voient entre eux ; seul l'admin ajoute, modifie ou retire un membre. La base refuse de laisser l'équipe sans admin : un admin doit en nommer un autre avant de céder sa place. Cela vaut aussi pour la suppression de son compte dans Supabase Auth. Pour une vraie remise à zéro, l'éditeur SQL peut suspendre le déclencheur le temps de l'opération (`alter table member disable trigger keep_an_admin`, puis `enable`).
+- **L'antenne libre** (`chat_*`) : le public n'y a aucun droit, pas même en lecture. Le serveur y écrit en propriétaire, après la modération (`src/chat/`), et la base diffuse elle-même ce qui passe à l'antenne. L'équipe, la régie, lit tout et modère sous son rôle ; elle n'écrit au journal et n'écrit à l'antenne qu'en son propre nom.
 - **Droits des rôles** : Supabase donne d'office tous les droits aux rôles de son API. La migration les réduit : `anon` ne fait que lire, et personne ne vide une table par l'API (`TRUNCATE` échappe à la RLS).
 - **Fonctions des règles** (`private.team_role()`, `private.is_admin()`…) : elles vivent dans le schéma `private`, que l'API de Supabase ne publie pas.
 
@@ -413,6 +424,7 @@ Le modèle est dans `cms/.env.example`. Les variables `PUBLIC_*` peuvent aller d
 | `PUBLIC_MEDIA_URL` | Vercel, `.env` | Adresse publique du seau `media` : `https://<ref>.supabase.co/storage/v1/object/public/media`. Les envois passent par `SUPABASE_SECRET_KEY` |
 | `BLOB_READ_WRITE_TOKEN` | Vercel (posé en reliant le magasin Blob au projet) ; `.env` pour essayer l'envoi en local | Le jeton du magasin Vercel Blob `parabole-fond`, celui des vidéos de fond (section 9.7). Serveur seulement : il signe les envois du navigateur et efface les fichiers devenus inutiles. Sans lui, l'admin gère la liste des vidéos mais n'en envoie aucune |
 | `CRON_SECRET` | Vercel | Une longue chaîne aléatoire : protège l'import quotidien Radio Cult |
+| `PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | Vercel, `.env` | Le widget Turnstile (Cloudflare) de l'antenne libre : la vérification anti-robots au premier message d'un pseudo (section 9.9). Facultatifs : sans eux, l'antenne marche sans cette vérification |
 | `PGLITE_DIR` | `.env`, facultatif | Autre dossier pour la base locale (par défaut `cms/.pglite`) |
 
 Sur Vercel, sans `DATABASE_URL`, `connect()` s'arrête avec un message clair : il n'y a pas de disque durable pour PGlite.
@@ -523,7 +535,7 @@ npm test
 npm run typecheck
 ```
 
-152 tests, sur une base PGlite en mémoire : aucun compte, aucun réseau, une quinzaine de secondes. `npm test` marche aussi depuis la racine du projet. Ils couvrent :
+176 tests, sur une base PGlite en mémoire : aucun compte, aucun réseau, une quinzaine de secondes. `npm test` marche aussi depuis la racine du projet. Ils couvrent :
 
 - **les migrations** : elles passent sur une base vide, et leur relance ne change rien. Chaque table publique a sa RLS et ses règles. Le schéma Drizzle et la base sont d'accord. drizzle-kit n'a plus rien à générer : une migration oubliée fait échouer le test ;
 - **le seed** : il passe, se rejoue sans doublon, se retire sans toucher au reste, et marque bien tout comme exemple ;
@@ -533,6 +545,7 @@ npm run typecheck
 - **les vidéos de fond** : les clips d'origine inscrits par la migration, la liste que lit le site, les règles d'accès, puis l'ajout, le titre, la mise de côté, l'ordre, le remplacement du fichier et la suppression ;
 - **les étiquettes et les filtres** : ce que la migration inscrit (filtres, groupes dans l'ordre du document, étiquettes à deux places, noms en minuscules), la reprise d'une base d'avant (rejouée sur une copie arrêtée à `0006`), la saisie des noms (liste collée en capitales), les menus du site et des listes de l'admin, puis l'ajout, le renommage, les places, l'ordre, la fusion et la suppression des étiquettes et des filtres, et leurs règles d'accès ;
 - **l'admin** : la saisie vérifiée champ par champ, la tracklist collée, les minutages, l'heure de Paris aux changements d'heure ; puis, sous le rôle d'un éditeur, la création d'un show avec un artiste et une étiquette nés à la volée, la publication, la tracklist remplacée, l'enregistrement concurrent, la suppression ; et le refus d'un compte hors de l'équipe.
+- **l'antenne libre** : les contrôles du texte (mots déguisés, faux positifs, liens déguisés, coordonnées, forme, pseudos) ; l'envoi et sa modération (pseudo pris ou réservé, changements de pseudo, liste de mots, mode lent, débit par personne et par adresse, doublons, différé, mode prudent, Turnstile, sanctions automatiques) ; les signalements ; les actions de la régie ; ce que la base diffuse (un faux `realtime.send()` le note) ; les règles d'accès ; la trace des adresses IP et la purge.
 
 PGlite tourne sous Postgres 18, Supabase sous Postgres 17. Pour vérifier aussi le vrai moteur de Supabase, avec ses rôles et ses droits, Docker suffit :
 
@@ -742,3 +755,12 @@ Les étiquettes saisies avant la migration restent, avec leurs shows : celle qui
 
 **Sur le site**, les pages liront `listFacets()` pour leurs menus (section 7) et `listShows({ tags, energy })`, `listArtists({ tag })`, `listEvents({ tag })` pour leurs listes. Les pages Show, Résidents et Événements ne sont pas encore construites.
 
+### 9.9 L'antenne libre (le chat)
+
+Le chat du site, décrit en entier dans `CHAT_EN_DIRECT.md` : les messages défilent dans le bandeau, on écrit dans le bandeau, la conversation se lit sur la page 888, et la régie modère depuis l'écran **Antenne libre** (`/admin/antenne`, rubrique « Site »).
+
+- **Le CMS** : `src/chat/forme.ts` (les contrôles du texte, sans base ni Node : aussi dans le navigateur, `@parabole/cms/antenne`), `src/chat/index.ts` (`createAntenne()` : l'état, l'historique, l'envoi et sa modération, les signalements, avec la connexion du serveur) et `src/admin/chat.ts` (l'écran de la régie, sous son rôle).
+- **La diffusion** : la base envoie elle-même chaque changement sur le canal privé `chat:antenne` de Supabase Realtime (`realtime.send()`, dans les déclencheurs de `0010_antenne_acces.sql`). Les navigateurs l'écoutent avec la seule clé publiable : la règle `chat_antenne_ecoute` sur `realtime.messages` leur permet de recevoir, aucune ne leur permet d'envoyer. Rien à régler dans Supabase pour cela ; éteindre « Allow public access » (Realtime → Settings) ajoute une barrière, si rien d'autre n'utilise de canal public.
+- **Les auditeurs** n'ont pas de compte : une session anonyme du site, un jeton dans un cookie (`parabole_antenne`, réservé aux routes `/api/chat`), dont la base ne garde que l'empreinte.
+- **La purge** : `private.purge_chat()` retire les messages au bout de 30 jours, et le journal, la trace des adresses IP et les pseudos inactifs au bout d'un an. Si pg_cron est allumé au moment de la migration, elle passe chaque nuit ; sinon, l'allumer (Database → Extensions), puis dans l'éditeur SQL : `select cron.schedule('antenne-purge', '17 4 * * *', 'select private.purge_chat()');`.
+- **Pour l'essayer en local**, il faut un Supabase avec Realtime : la recette de « L'admin en local », sans exclure `realtime` au `supabase start`. Sans `PUBLIC_SUPABASE_URL`, le site redemande l'historique toutes les 8 secondes au lieu d'écouter le canal.

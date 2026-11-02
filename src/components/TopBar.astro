@@ -11,6 +11,7 @@
 import logoBarre from "../assets/logo-barre.png";
 import { MENU, type Page } from "../lib/menu";
 import { stream } from "../lib/station";
+import { CHAT } from "../scripts/settings";
 
 interface Props {
   page: Page;
@@ -23,22 +24,52 @@ const COPIES = 6;
 ---
 
 <header class="tete">
-  <!-- Le bandeau qui défile : la première copie se lit, les autres ne sont là que pour la boucle -->
+  <!-- Le bandeau qui défile : la première copie se lit, les autres ne sont là que pour la boucle. Avec l'antenne libre
+       (src/scripts/antenne.ts), un script reprend la piste pour y glisser les messages entre les phrases ; on écrit dans
+       le bandeau même, et la case au bout l'ouvre. Pas sur l'accueil : il n'y garde que ses phrases. -->
   <div class="bandeau">
-    <div class="bandeau-piste">
-      {
-        Array.from({ length: COPIES }, (_, copie) => (
-          <p class="bandeau-texte" aria-hidden={copie > 0 ? "true" : undefined}>
-            {BANDEAU.map((phrase) => (
-              <>
-                <span>{phrase}</span>
-                <i class="bandeau-carre" aria-hidden="true" />
-              </>
-            ))}
-          </p>
-        ))
-      }
+    <div class="bandeau-defile">
+      <div class="bandeau-piste">
+        {
+          Array.from({ length: COPIES }, (_, copie) => (
+            <p class="bandeau-texte" aria-hidden={copie > 0 ? "true" : undefined}>
+              {BANDEAU.map((phrase) => (
+                <>
+                  <span>{phrase}</span>
+                  <i class="bandeau-carre" aria-hidden="true" />
+                </>
+              ))}
+            </p>
+          ))
+        }
+      </div>
     </div>
+    {
+      CHAT === "antenne" && (
+        <>
+          <form id="antenneEcriture" class="bandeau-ecriture" hidden autocomplete="off" novalidate>
+            <label class="ecriture-pseudo">
+              <span class="ecriture-label">Pseudo ▸</span>
+              <input id="antennePseudo" name="pseudo" type="text" maxlength="20" spellcheck="false" autocapitalize="off" placeholder="ton pseudo" />
+            </label>
+            <button id="antenneOk" class="ecriture-touche ecriture-ok" type="button">OK</button>
+            <button id="antenneEtiquette" class="ecriture-etiquette" type="button" aria-label="Changer de pseudo" />
+            <label class="ecriture-message">
+              <span class="ecriture-label">Message ▸</span>
+              <input id="antenneMessage" name="message" type="text" maxlength="160" enterkeyhint="send" placeholder="ton message à l'antenne" />
+            </label>
+            <span id="antenneCompteur" class="ecriture-compteur" aria-live="polite" />
+            <button id="antenneEnvoi" class="ecriture-touche ecriture-envoi" type="submit" disabled>Envoi</button>
+            <div id="antenneFlash" class="ecriture-flash" aria-hidden="true" />
+          </form>
+          <button id="antenneCase" class="bandeau-case" type="button" aria-controls="antennePage" aria-expanded="false">
+            <svg class="icon" aria-hidden="true"><use href="#icon-comment" /></svg>
+            <span class="case-long">Antenne libre</span><span class="case-court">Antenne</span>
+            <span class="case-croix" aria-hidden="true">✕</span>
+          </button>
+        </>
+      )
+    }
   </div>
   <div class="top-bar">
     <a id="logoSquare" class="tete-logo" href="/" aria-label="Parabole Radio, retour au direct">

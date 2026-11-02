@@ -50,4 +50,26 @@ GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+
+-- Supabase Realtime, en imitation : la table des messages diffusés, son sujet, et un realtime.send() qui note ce qu'il
+-- aurait diffusé (l'antenne libre, 0010_antenne_acces.sql). Sur Supabase, Realtime crée et garde ce schéma lui-même.
+CREATE SCHEMA IF NOT EXISTS realtime;
+CREATE TABLE IF NOT EXISTS realtime.messages (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  topic      text NOT NULL,
+  extension  text NOT NULL,
+  event      text,
+  payload    jsonb,
+  private    boolean DEFAULT true,
+  inserted_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE realtime.messages ENABLE ROW LEVEL SECURITY;
+CREATE OR REPLACE FUNCTION realtime.topic() RETURNS text LANGUAGE sql STABLE AS $f$
+  SELECT nullif(current_setting('realtime.topic', true), '')
+$f$;
+CREATE OR REPLACE FUNCTION realtime.send(payload jsonb, event text, topic text, private boolean DEFAULT true) RETURNS void
+  LANGUAGE sql AS $f$
+  INSERT INTO realtime.messages (topic, extension, event, payload, private) VALUES (topic, 'broadcast', event, payload, private)
+$f$;
+GRANT USAGE ON SCHEMA realtime TO anon, authenticated, service_role;
 `;

@@ -6,6 +6,7 @@
  */
 import {
   BookmarkIcon,
+  ChatBubbleIcon,
   CheckIcon,
   DesktopIcon,
   DiscIcon,
@@ -45,7 +46,13 @@ const GROUPS: { label: string; sections: Section[] }[] = [
       { href: "/admin/etiquettes", label: "Étiquettes", icon: BookmarkIcon, screens: ["tags"] },
     ],
   },
-  { label: "Site", sections: [{ href: "/admin/videos", label: "Vidéos de fond", icon: VideoIcon, screens: ["clips"] }] },
+  {
+    label: "Site",
+    sections: [
+      { href: "/admin/videos", label: "Vidéos de fond", icon: VideoIcon, screens: ["clips"] },
+      { href: "/admin/antenne", label: "Antenne libre", icon: ChatBubbleIcon, screens: ["antenne"] },
+    ],
+  },
 ];
 const SECTIONS = [HOME, ...GROUPS.flatMap((group) => group.sections)];
 

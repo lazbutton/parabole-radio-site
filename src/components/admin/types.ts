@@ -4,7 +4,22 @@
  * (src/components/admin/router.tsx). Les dates arrivent déjà écrites à l'heure de Paris : le serveur et le
  * navigateur affichent le même texte.
  */
-import type { AdminFacet, AdminTagUse, ArtistForm, ArtistRole, ContentStatus, FacetScope, FieldErrors, ShowForm, ShowType, TagFilterMenu, TeamRole } from "@parabole/cms";
+import type {
+  AdminChatMessage,
+  AdminChatSettings,
+  AdminChatTerm,
+  AdminFacet,
+  AdminTagUse,
+  ArtistForm,
+  ArtistRole,
+  ContentStatus,
+  FacetScope,
+  FieldErrors,
+  ShowForm,
+  ShowType,
+  TagFilterMenu,
+  TeamRole,
+} from "@parabole/cms";
 
 export type Viewer = { name: string; email: string; role: TeamRole };
 export type Flash = { kind: "success" | "error" | "info"; title: string; description?: string };
@@ -139,6 +154,58 @@ export type TagsData = { facets: FacetView[]; tags: TagRow[]; current: string };
 /** La réponse du serveur à une action de l'écran des étiquettes : le classement à jour, ou les erreurs. */
 export type TagsResponse = { ok: true; data: TagsData; message?: string; description?: string } | { ok: false; errors: FieldErrors };
 export type { FacetScope };
+/** Une couleur de pseudo de l'antenne libre : l'une des sept du télétexte (red, green…). */
+export type ChatColor = AdminChatMessage["color"];
+/** Un message de l'antenne libre, vu par la régie. */
+export type ChatMessageRow = {
+  id: string;
+  pseudo: string;
+  color: ChatColor;
+  body: string;
+  status: AdminChatMessage["status"];
+  /** Pourquoi il ne passe pas, ou plus : la raison lue par son auteur. */
+  reason: string | null;
+  decidedBy: AdminChatMessage["decidedBy"];
+  /** Écrit par la régie (la case PARABOLE). */
+  team: boolean;
+  authorId: string | null;
+  /** « 21:42 », ou « lun. 2 nov., 21:42 » avant aujourd'hui. */
+  time: string;
+  /** Son passage à l'antenne, en millisecondes : plus tard que maintenant, il est encore en différé. */
+  onAir: number;
+  /** Les signalements pas encore vus par la régie. */
+  reports: number;
+  /** Le premier message de ce pseudo. */
+  first: boolean;
+};
+/** Quelqu'un dont l'antenne est coupée : une exclusion en cours (jusqu'à quand), ou un bannissement. */
+export type ChatAuthorRow = {
+  id: string;
+  pseudo: string;
+  color: ChatColor;
+  mutedUntil: string | null;
+  banned: boolean;
+  bannedOn: string | null;
+  bannedReason: string | null;
+  /** « il y a 5 minutes » : son dernier passage. */
+  lastSeen: string;
+};
+/** L'écran de la régie (/admin/antenne). `now` : l'heure du serveur, pour compter le différé. */
+export type AntenneData = {
+  now: number;
+  /** Les durées permises, en secondes (mode lent, différé) et en minutes (exclusion). */
+  choices: { slow: number[]; delay: number[]; mute: number[] };
+  settings: Omit<AdminChatSettings, "clearedAt"> & { cleared: string | null };
+  /** Les derniers messages, du plus récent au plus ancien. */
+  messages: ChatMessageRow[];
+  /** Ce qui attend la régie, du plus ancien au plus récent. */
+  held: ChatMessageRow[];
+  reported: ChatMessageRow[];
+  people: ChatAuthorRow[];
+  terms: AdminChatTerm[];
+};
+/** La réponse du serveur à une action de la régie : l'écran à jour, ou les erreurs. */
+export type AntenneResponse = { ok: true; data: AntenneData; message?: string } | { ok: false; errors: FieldErrors };
 
 /** Un écran de l'application, tel que le serveur le prépare. */
 export type Screen =
@@ -149,6 +216,7 @@ export type Screen =
   | { name: "artist"; title: string; data: ArtistEditorData }
   | { name: "password"; title: string; data: PasswordData }
   | { name: "clips"; title: string; data: ClipsData }
+  | { name: "antenne"; title: string; data: AntenneData }
   | { name: "tags"; title: string; data: TagsData };
 
 /** Ce que la page passe à l'application : la personne connectée, l'adresse affichée et son écran. */

@@ -8,7 +8,7 @@
 import { createServerClient, parseCookieHeader } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { APIContext } from "astro";
-import { PUBLIC_SUPABASE_PUBLISHABLE_KEY, PUBLIC_SUPABASE_URL } from "astro:env/server";
+import { PUBLIC_SUPABASE_PUBLISHABLE_KEY, PUBLIC_SUPABASE_URL } from "astro:env/client";
 
 /** Ce qui manque pour que la connexion marche, ou rien. */
 export const missingAuthSettings = (): string[] =>

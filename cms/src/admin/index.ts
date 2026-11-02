@@ -13,6 +13,22 @@ import { asMember, type Tx } from "../access.ts";
 import type { Db } from "../db.ts";
 import type { FacetScope } from "../schema.ts";
 import { artistChoices, deleteArtist, getArtist, listArtists, saveArtist, type AdminArtistFilters, type ArtistSave } from "./artists.ts";
+import {
+  addChatTerm,
+  antenneOverview,
+  banChatAuthor,
+  clearChat,
+  keepChatMessage,
+  liftChatAuthor,
+  muteChatAuthor,
+  postAsTeam,
+  publishChatMessage,
+  rejectChatMessage,
+  removeChatMessage,
+  removeChatTerm,
+  saveChatSettings,
+  type ChatSettingsChange,
+} from "./chat.ts";
 import { addClip, deleteClip, getClip, listClips, moveClip, replaceClipFile, updateClip, type ClipAdd, type ClipChange } from "./clips.ts";
 import type { NotSaved } from "./common.ts";
 import type { ClipFile, FacetValues } from "./input.ts";
@@ -114,12 +130,40 @@ export function createAdmin(db: Db, userId: string) {
     moveClip: (id: string, direction: "up" | "down") => as((tx) => moveClip(tx, id, direction)),
     /** Supprime une vidéo de fond. Rend les adresses de ses fichiers, à effacer du stockage, ou null. */
     deleteClip: (id: string) => as((tx) => deleteClip(tx, id)),
+    /** L'antenne libre : les réglages, les messages, ce qui attend la régie, les sanctions, la liste de mots. */
+    antenne: (options?: { now?: Date; limit?: number }) => as((tx) => antenneOverview(tx, options)),
+    /** Retire un message : brouillé par la régie chez tout le monde. Faux s'il n'était plus à l'antenne. */
+    removeChatMessage: (id: string) => as((tx) => removeChatMessage(tx, userId, id)),
+    /** Publie un message en attente, ou rend l'antenne à un message brouillé. */
+    publishChatMessage: (id: string) => as((tx) => publishChatMessage(tx, userId, id)),
+    /** Rejette un message en attente. */
+    rejectChatMessage: (id: string) => as((tx) => rejectChatMessage(tx, userId, id)),
+    /** Garde un message signalé : les signalements sont vus. */
+    keepChatMessage: (id: string) => as((tx) => keepChatMessage(tx, userId, id)),
+    /** Exclut un auteur 1 min, 10 min, 1 h ou 24 h ; ses messages de la dernière demi-heure sont brouillés. */
+    muteChatAuthor: (authorId: string, minutes: number) => as((tx) => muteChatAuthor(tx, userId, authorId, minutes)),
+    /** Bannit un auteur ; ses messages de la dernière demi-heure sont brouillés. */
+    banChatAuthor: (authorId: string, reason: string) => as((tx) => banChatAuthor(tx, userId, authorId, reason)),
+    /** Lève une exclusion ou un bannissement. */
+    liftChatAuthor: (authorId: string) => as((tx) => liftChatAuthor(tx, userId, authorId)),
+    /** Vide l'antenne. */
+    clearChat: () => as((tx) => clearChat(tx, userId)),
+    /** Change des réglages de l'antenne. */
+    saveChatSettings: (change: ChatSettingsChange) => as((tx) => saveChatSettings(tx, userId, change)),
+    /** Ajoute un mot à la liste de la régie. */
+    addChatTerm: (term: { term: string; action: string; anywhere?: boolean; note?: string }) => saving(() => as((tx) => addChatTerm(tx, userId, term))),
+    /** Retire un mot de la liste. Rend le mot, ou null. */
+    removeChatTerm: (id: string) => as((tx) => removeChatTerm(tx, userId, id)),
+    /** Écrit à l'antenne en tant que Parabole. */
+    postAsTeam: (text: string) => saving(() => as((tx) => postAsTeam(tx, userId, text))),
   };
 }
 
 export type Admin = ReturnType<typeof createAdmin>;
 
 export type { AdminArtist, AdminArtistFilters, AdminArtistIndex, AdminArtistRow, ArtistSave } from "./artists.ts";
+export { DELAY_CHOICES, MUTE_CHOICES, SLOW_CHOICES } from "./chat.ts";
+export type { AdminAntenne, AdminChatAuthor, AdminChatMessage, AdminChatSettings, AdminChatTerm, ChatSettingsChange } from "./chat.ts";
 export type { AdminClip, ClipAdd, ClipChange, ClipFiles } from "./clips.ts";
 export type { AdminFacet, AdminFacetChoice, AdminTagChoice, AdminTagUse, TagFilterMenu, TagFilterOption, TagPlace, TagsAdded, Taxonomy } from "./tags.ts";
 export type { NotSaved, Saved } from "./common.ts";

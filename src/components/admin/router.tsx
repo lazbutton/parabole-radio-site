@@ -22,6 +22,7 @@ const APP_PATHS = [
   /^\/admin\/artistes\/?$/,
   /^\/admin\/artistes\/[^/]+\/?$/,
   /^\/admin\/videos\/?$/,
+  /^\/admin\/antenne\/?$/,
   /^\/admin\/etiquettes\/?$/,
   /^\/admin\/mot-de-passe\/?$/,
 ];

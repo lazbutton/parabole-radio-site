@@ -11,7 +11,8 @@
     ".": "./src/index.ts",
     "./schema": "./src/schema.ts",
     "./labels": "./src/labels.ts",
-    "./tracklist": "./src/tracklist.ts"
+    "./tracklist": "./src/tracklist.ts",
+    "./antenne": "./src/chat/forme.ts"
   },
   "scripts": {
     "db:generate": "drizzle-kit generate",

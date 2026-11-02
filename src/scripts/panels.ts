@@ -1,17 +1,18 @@
-// ---------- LES PANNEAUX : PROGRAMMATION, HISTORIQUE et CHAT ----------
+// ---------- LES PANNEAUX : PROGRAMMATION, HISTORIQUE, CHAT et la page 888 ----------
 // Une touche ouvre son panneau juste au-dessus de la ligne du bas ; un seul à la fois sur écran étroit. Sur ordinateur,
 // PROGRAMMATION est une fenêtre à part : toujours ouverte sur l'accueil (styles, html[data-page="accueil"]), ouverte à la
 // demande ailleurs, sans fermer HISTORIQUE ni CHAT. Les panneaux sont dans la coque : ils restent ouverts, à leur place,
-// d'une page à l'autre.
+// d'une page à l'autre. La page 888 de l'antenne libre (antenne.ts) en est un aussi, qui s'ouvre depuis le bandeau.
 import { loadHistory } from "./history";
 import { loadSchedule } from "./schedule";
-import { CHAT_URL } from "./settings";
+import { CHAT, CHAT_URL } from "./settings";
 import { finePointer } from "./util";
 
 export const popups = {
   schedule: document.getElementById("schedulePopup")!,
   lastplayed: document.getElementById("lastPlayedPopup")!,
   chat: document.getElementById("chatPopup")!,
+  antenne: document.getElementById("antennePage")!,
 };
 type Which = keyof typeof popups;
 
@@ -43,7 +44,7 @@ export function togglePopup(which: Which) {
     setBandHeight(); // les autres s'ouvrent au-dessus de la ligne du bas (--bas, panneaux.css), s'ils n'ont pas été déplacés
     target.classList.add("open");
     restoreWindow(target);
-    ({ schedule: loadSchedule, lastplayed: loadHistory, chat: loadChat })[which]();
+    ({ schedule: loadSchedule, lastplayed: loadHistory, chat: loadChat, antenne: () => {} })[which]();
   }
 }
 document.getElementById("scheduleToggle")?.addEventListener("click", (e) => {
@@ -58,10 +59,11 @@ document.getElementById("scheduleClose")?.addEventListener("click", () => popups
 document.getElementById("lastPlayedClose")?.addEventListener("click", () => popups.lastplayed.classList.remove("open"));
 document.getElementById("chatClose")?.addEventListener("click", () => popups.chat.classList.remove("open"));
 
-// CHAT : le chat de Radio Cult, dans un cadre créé à la première ouverture (rien de Radio Cult ne se charge avant), puis
-// gardé, pour que la conversation reste telle quelle. Le panneau ne quitte jamais la page : le cadre ne se recharge pas.
+// CHAT : le chat de Radio Cult (CHAT = "radiocult"), dans un cadre créé à la première ouverture (rien de Radio Cult ne
+// se charge avant), puis gardé, pour que la conversation reste telle quelle. Le panneau ne quitte jamais la page : le
+// cadre ne se recharge pas. L'antenne libre, elle, n'a pas de touche en bas : elle s'ouvre depuis le bandeau.
 const chatToggle = document.getElementById("chatToggle");
-if (chatToggle && CHAT_URL) {
+if (chatToggle && CHAT === "radiocult" && CHAT_URL) {
   chatToggle.hidden = false;
   chatToggle.addEventListener("click", (e) => {
     e.stopPropagation();

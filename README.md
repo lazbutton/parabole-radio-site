@@ -1,7 +1,7 @@
 # Parabole Radio — le site
 
-La webradio communautaire de Paris 18 : le direct (lecteur ON AIR, programmation, historique, chat) et bientôt les
-archives, les résidents et les événements. Un site [Astro 7](https://astro.build) en TypeScript, publié sur Vercel.
+La webradio communautaire de Paris 18 : le direct (lecteur ON AIR, programmation, historique, et l'antenne libre, le
+chat) et bientôt les archives, les résidents et les événements. Un site [Astro 7](https://astro.build) en TypeScript, publié sur Vercel.
 
 ## Lancer l'aperçu
 
@@ -24,14 +24,14 @@ Le son ne doit jamais se couper quand on change de page. Le site est donc fait d
 d'un **contenu**, le seul qui change :
 
 - la coque (`src/layouts/Base.astro`) : la vidéo de fond (et la neige du zapping) et le globe, l'en-tête (le bandeau
-  qui défile, puis le logo, le menu tout contre lui et le son : ce qui passe et ÉCOUTER hors de l'accueil, le volume, la
-  touche RADIO / VIDÉO), la ligne du bas (réseaux, contributeurs, touches des panneaux), les panneaux PROGRAMMATION,
-  HISTORIQUE et CHAT, et le mode staff ;
+  qui défile, où passent aussi les messages de l'antenne libre, puis le logo, le menu tout contre lui et le son : ce qui
+  passe et ÉCOUTER hors de l'accueil, le volume, la touche RADIO / VIDÉO), la ligne du bas (réseaux, contributeurs,
+  touches des panneaux), les panneaux PROGRAMMATION et HISTORIQUE, la page 888 de l'antenne libre, et le mode staff ;
 - le contenu : `<main id="page">`, rempli par chaque page de `src/pages/`.
 
 Le `ClientRouter` d'Astro charge les pages sans recharger l'onglet. Une fonction de remplacement maison
 (`src/scripts/router.ts`) ne remplace que le titre, les styles, `<html data-page>` et `<main id="page">` : le son, la
-vidéo et le cadre du chat ne sont jamais déplacés ni recréés.
+vidéo, le bandeau et l'antenne libre ne sont jamais déplacés ni recréés.
 
 Pour une nouvelle page :
 
@@ -47,7 +47,8 @@ Pour une nouvelle page :
 | Chemin | Rôle |
 |---|---|
 | `src/scripts/settings.ts` | **Les réglages** : mot de passe staff, lien et textes du bouton contributeurs, adresses de l'API, chat, Hopper, liste de secours des clips |
-| `src/scripts/` | Les modules de la coque : `audio` (flux, volume, Web Audio), `beat`, `globe`, `background` (playlist et zapping), `neige` (la neige entre deux clips), `panels` (panneaux et fenêtres), `schedule`, `history`, `hopper` (le lien « Retrouver » d'HISTORIQUE et les logos des plateformes sur l'accueil), `nowplaying`, `contributors`, `staff`, `router` |
+| `src/scripts/` | Les modules de la coque : `audio` (flux, volume, Web Audio), `beat`, `globe`, `background` (playlist et zapping), `neige` (la neige entre deux clips), `panels` (panneaux et fenêtres), `schedule`, `history`, `hopper` (le lien « Retrouver » d'HISTORIQUE et les logos des plateformes sur l'accueil), `nowplaying`, `contributors`, `staff`, `router`, et `antenne` (l'antenne libre : le bandeau, l'écriture, la page 888 ; sa source, `antenne-supabase`) |
+| `CHAT_EN_DIRECT.md` | **L'antenne libre**, le chat du site : le cahier des charges, et comment elle marche |
 | `src/components/` | Les morceaux de la coque (`TopBar`, l'en-tête, `BottomBar`, `Panels`, `Background`, `Staff`, `Icons`) et des pages (`Sheet`, `ComingSoon`) |
 | `src/styles/` | Les styles, globaux : une bonne part du balisage est écrite par les scripts ; `tele.css` pour l'univers télé (neige, chaîne affichée, allumage), `tete.css` pour l'en-tête, `ligne-du-bas.css` pour la ligne du bas |
 | `src/pages/` | Accueil, `about`, `show`, `residents`, `event`, 404, et l'API (`api/`) |
@@ -60,7 +61,7 @@ Pour une nouvelle page :
 ## L'admin (`/admin`)
 
 L'espace de l'équipe : les shows et leur tracklist, les artistes, les étiquettes et les filtres du site (`/admin/etiquettes`, `cms/README.md`
-section 9.8), les vidéos de fond. C'est une application React (Radix Themes), hors de
+section 9.8), les vidéos de fond, la régie de l'antenne libre (`/admin/antenne`, section 9.9). C'est une application React (Radix Themes), hors de
 la coque (ni bandeau, ni vidéo), qui marche au téléphone comme à l'ordinateur, en clair comme en sombre ; seule
 l'entrée (connexion, refus, panne) garde le style du site. Le cahier des charges et l'avancement sont dans
 `cms/README.md`, section 9.
@@ -102,6 +103,7 @@ La page ne parle qu'à notre propre API, au format « Radiocompas » (`src/lib/s
 | `GET /api/historique[?limit=N]` | les 20 derniers morceaux | 15 s |
 | `GET /api/hopper?artist=…&title=…` | le lien hppr.fr d'un morceau et ses plateformes | 30 jours (une heure si sa page n'a pas pu être lue ; rien si Hopper est occupé) |
 | `GET /api/fond` | les vidéos de fond de la rotation, dans l'ordre de l'admin (lues dans le CMS, pas à la station) | 30 s sur Vercel ; le navigateur redemande à chaque visite |
+| `GET /api/chat`, `POST /api/chat/messages`, `GET /api/chat/moi`, `POST /api/chat/signalements` | l'antenne libre : son état et ses derniers messages, l'envoi d'un message (le pseudo, puis le message), ce qu'un auditeur sait de lui-même, un signalement (`CHAT_EN_DIRECT.md`, section 9) | aucun |
 
 Les routes lisent la station par son adaptateur, avec un petit cache en mémoire, et le cache de Vercel
 (`s-maxage`) fait le reste : un seul appel à la station pour tous les auditeurs. Le flux, lui, est lu directement par
@@ -128,9 +130,13 @@ réponse porte `platforms`, la route s'en sert directement.
 ## Les panneaux
 
 PROGRAMMATION est toujours ouvert sur l'accueil, sur ordinateur ; ailleurs, et sur téléphone, il s'ouvre par sa
-touche. HISTORIQUE et CHAT s'ouvrent au-dessus de la ligne du bas. Sur ordinateur, on les déplace par leur barre de titre :
-leur place est gardée dans le navigateur, d'une page et d'une visite à l'autre ; un double-clic sur la barre les
+touche. HISTORIQUE s'ouvre au-dessus de la ligne du bas. Sur ordinateur, on le déplace par sa barre de titre :
+sa place est gardée dans le navigateur, d'une page et d'une visite à l'autre ; un double-clic sur la barre le
 remet en place.
+
+L'antenne libre, le chat, n'a pas de touche en bas : la case « ANTENNE LIBRE », au bout du bandeau, ouvre l'écriture
+dans le bandeau et la page 888, sur toute la hauteur libre, à côté de l'image (`CHAT_EN_DIRECT.md`). Le réglage `CHAT`
+de `settings.ts` peut remettre le chat de Radio Cult, dans son ancien panneau, en secours.
 
 ## Avant la mise en ligne
 

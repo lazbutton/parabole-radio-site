@@ -26,10 +26,15 @@ export default defineConfig({
       // (/admin) dit lui-même ce qui lui manque. En local, dans .env ; en ligne, dans les réglages de Vercel.
       // La base Postgres de Supabase. Vide en local : la base PGlite de cms/.pglite.
       DATABASE_URL: envField.string({ context: "server", access: "secret", optional: true }),
-      // Supabase Auth, pour la connexion de l'équipe. L'adresse et la clé publiable ne sont pas secrètes, mais seul
-      // le serveur s'en sert : l'admin n'envoie aucun client Supabase au navigateur.
-      PUBLIC_SUPABASE_URL: envField.string({ context: "server", access: "public", optional: true }),
-      PUBLIC_SUPABASE_PUBLISHABLE_KEY: envField.string({ context: "server", access: "public", optional: true }),
+      // Supabase : la connexion de l'équipe (Auth, côté serveur seulement : l'admin n'envoie aucun client Supabase au
+      // navigateur), et le canal de l'antenne libre, que le bandeau écoute avec la seule clé publiable (Realtime). Ni
+      // l'adresse ni la clé publiable ne sont secrètes.
+      PUBLIC_SUPABASE_URL: envField.string({ context: "client", access: "public", optional: true }),
+      PUBLIC_SUPABASE_PUBLISHABLE_KEY: envField.string({ context: "client", access: "public", optional: true }),
+      // Turnstile (Cloudflare), contre les robots, au premier message d'un pseudo (CHAT_EN_DIRECT.md, 6.3). Sans ces
+      // deux réglages, l'antenne marche sans cette vérification ; les autres limites tiennent.
+      PUBLIC_TURNSTILE_SITE_KEY: envField.string({ context: "client", access: "public", optional: true }),
+      TURNSTILE_SECRET_KEY: envField.string({ context: "server", access: "secret", optional: true }),
       // Le magasin Vercel Blob des vidéos de fond envoyées depuis l'admin : Vercel le pose quand on relie le magasin
       // au projet. Sans lui, l'admin gère la liste mais n'envoie rien (src/lib/admin/blob.ts).
       BLOB_READ_WRITE_TOKEN: envField.string({ context: "server", access: "secret", optional: true }),
