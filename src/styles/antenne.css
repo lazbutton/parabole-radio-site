@@ -2,6 +2,10 @@
    messages défilent dans le bandeau entre les phrases de Parabole (tete.css) ; on écrit dans le bandeau même ; la page
    888, un panneau de la famille de PROGRAMMATION (panneaux.css), donne toute la conversation, en télétexte. */
 
+/* L'accueil n'a pas d'antenne : ni la case, ni l'écriture, ni la page 888, ni le chat de Radio Cult en secours. Son
+   bandeau ne garde que les phrases de Parabole (antenne.ts). */
+html[data-page="accueil"] :is(.bandeau-case, .bandeau-ecriture, .popup-antenne, #chatToggle, #chatPopup) { display: none; }
+
 /* ---------- LE BANDEAU : la piste, ses messages, et la case au bout ---------- */
 .bandeau-defile { flex: 1 1 auto; min-width: 0; height: 100%; display: flex; align-items: center; overflow: hidden; }
 /* le script fait défiler la piste lui-même, à la vitesse de l'animation d'origine, pour y glisser les messages */
@@ -111,7 +115,7 @@
    à sa place sur un écran moyen, sur toute la place libre sur téléphone. */
 .popup-antenne { top: var(--haut); flex-direction: column; overflow: hidden; }
 .popup-antenne.open { display: flex; }
-@media (min-width: 821px) and (max-width: 1099.98px) { body:has(.popup-antenne.open) .popup-schedule { display: none !important; } }
+@media (min-width: 821px) and (max-width: 1099.98px) { html:not([data-page="accueil"]) body:has(.popup-antenne.open) .popup-schedule { display: none !important; } }
 
 /* la ligne du haut : le numéro de la page, son nom, l'antenne en direct ou en différé, l'horloge à la seconde */
 .antenne-tete { flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 14px 14px 12px; border-bottom: 1px dashed rgba(255,240,57,0.45); }

@@ -1,7 +1,8 @@
 ---
 /**
  * L'accueil : le direct. Tout ce qui le fait (vidéo, globe, en-tête et son volume, PROGRAMMATION toujours ouvert sur
- * ordinateur, HISTORIQUE, CHAT) est dans la coque (src/layouts/Base.astro) ; la page y ajoute ce qui passe, affiché
+ * ordinateur, HISTORIQUE) est dans la coque (src/layouts/Base.astro), sans le chat : l'antenne libre n'est pas sur
+ * l'accueil (src/styles/antenne.css). La page y ajoute ce qui passe, affiché
  * comme la chaîne au zapping, avec la touche ÉCOUTER et les logos des plateformes où Hopper trouve le morceau (en bas
  * à gauche, src/styles/tele.css), et son texte micrographique (en haut à droite, sous l'en-tête). Les deux sont
  * remplis par src/scripts/nowplaying.ts ; la touche passe par src/scripts/audio.ts. Ici, l'en-tête n'affiche donc ni

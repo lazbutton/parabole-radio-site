@@ -13,7 +13,8 @@ novembre 2026, et d'essais sur un Supabase local.
 
 **Décidé le 2 novembre 2026** : le chat quitte le panneau CHAT ; pas d'intelligence artificielle pour l'instant, la
 modération automatique se fait par des règles ; les auditeurs ont une session anonyme, sans compte ; le pseudo se tape
-juste avant le message. Ce qui reste à trancher est à la section 14.
+juste avant le message ; **l'accueil n'a pas d'antenne** : ni la case, ni les messages au bandeau, ni la page 888, ni le
+chat de Radio Cult, et pas de connexion. L'antenne vit sur les autres pages. Ce qui reste à trancher est à la section 14.
 
 **Sommaire**
 
@@ -37,8 +38,8 @@ juste avant le message. Ce qui reste à trancher est à la section 14.
 ## 1. Ce qu'on veut
 
 - **Un chat qui fait partie du site**, pas une boîte de chat comme partout. Il parle la langue de la coque (le
-  bandeau, les titres télé, le télétexte, la neige du zapping), et il se voit sur toutes les pages, même quand on ne
-  fait qu'écouter.
+  bandeau, les titres télé, le télétexte, la neige du zapping), et il se voit sur toutes les pages hors de l'accueil,
+  même quand on ne fait qu'écouter.
 - **Le temps réel** : un message arrive chez les autres en moins d'une seconde sur la page 888, et passe dans leur
   bandeau dans les secondes qui suivent.
 - **Sans compte ni inscription** : un pseudo, tapé juste avant son premier message.
@@ -71,7 +72,8 @@ Quatre références, toutes déjà dans l'esprit du site :
   la fin des émissions : deux autres des quatre touches retenues.
 
 **Où il se trouve.** En haut de l'écran, et plus en bas à droite : le panneau CHAT et sa touche dans la ligne du bas
-disparaissent. Sur ordinateur, à l'accueil :
+disparaissent. **Pas sur l'accueil** : son bandeau ne garde que les phrases de Parabole, sans la case ; ni écriture,
+ni page 888. Sur ordinateur, sur une autre page :
 
 ```
 ┌─────────────────────────────────────────────────────────────────┬────────────────────┐
@@ -85,8 +87,8 @@ disparaissent. Sur ordinateur, à l'accueil :
 │                                       │ la conversation,│  │                   │     │
 │                                       │ la plus récente │  └───────────────────┘     │
 │                                       │ en haut         │                            │
-│  ce qui passe                         │                 │                            │
-│  ÉCOUTER                              │ ■ ■ ■ ■ fastext │                            │
+│  la page                              │                 │                            │
+│                                       │ ■ ■ ■ ■ fastext │                            │
 │                                       └─────────────────┘                            │
 │ réseaux · contributeurs · HISTORIQUE                                                 │
 └──────────────────────────────────────────────────────────────────────────────────────┘
@@ -96,7 +98,7 @@ Trois endroits, un seul geste :
 
 | | Où | Pour quoi |
 |---|---|---|
-| **Le bandeau** | En haut de toutes les pages | Lire : les derniers messages y défilent entre les phrases de Parabole |
+| **Le bandeau** | En haut de toutes les pages, sauf l'accueil | Lire : les derniers messages y défilent entre les phrases de Parabole |
 | **Le bandeau en écriture** | Le même, transformé | Écrire : le pseudo, le message, ENVOI |
 | **La page 888** | À côté de l'image : à gauche de PROGRAMMATION sur grand écran, à sa place sur un écran moyen, sur toute la place libre sur téléphone | Tout relire, répondre, signaler |
 
@@ -243,7 +245,7 @@ Un texte court, sous la touche rouge, et rappelé à la première écriture. Une
 2. Pas de harcèlement ni de menaces, envers personne : auditeurs, résidents, invités, équipe.
 3. Pas de coordonnées : ni les tiennes ni celles des autres (téléphone, adresse, e-mail, comptes privés).
 4. Pas de pub ni de spam. Les liens se limitent aux plateformes de musique.
-5. Ce que tu envoies passe à l'antenne : ton pseudo et ton message défilent dans le bandeau, sur toutes les pages, pour
+5. Ce que tu envoies passe à l'antenne : ton pseudo et ton message défilent dans le bandeau, hors de l'accueil, pour
    tous les visiteurs.
 6. Une modération automatique filtre les messages ; la régie peut brouiller un message, couper ton antenne ou te bannir,
    sans préavis.
@@ -442,7 +444,7 @@ sequenceDiagram
 **Lire ne demande aucune session.** L'essai du lot 0 (le 2 novembre, sur un Supabase local avec Realtime) l'a montré :
 un client qui n'a que la clé publiable rejoint le canal privé `chat:antenne` grâce à une règle `TO anon` sur
 `realtime.messages`, et reçoit ce que la base y diffuse. Le faux message qu'il essaie d'y envoyer n'arrive chez
-personne : aucune règle ne permet d'envoyer. Le bandeau se lit donc sur toutes les pages, pour tous les visiteurs, sans
+personne : aucune règle ne permet d'envoyer. Le bandeau se lit donc hors de l'accueil, pour tous les visiteurs, sans
 rien leur ouvrir.
 
 **Écrire passe par une session anonyme tenue par notre serveur**, et non par Supabase Auth : au premier message, le
@@ -460,9 +462,9 @@ utilisateur anonyme à créer ni à purger chez Supabase : rien à régler dans 
 
 - **Le chargement** : `@supabase/supabase-js` arrive à part, par un import dynamique : il ne ralentit ni le premier
   affichage ni le direct.
-- **La connexion** reste ouverte tant que l'onglet est visible. Elle se ferme une minute après qu'il est caché (qui
-  écoute dans un onglet de fond ne la garde pas), et se rouvre à son retour, avec l'historique. Cela ménage les 200
-  connexions simultanées de la formule gratuite.
+- **La connexion** ne s'ouvre pas sur l'accueil, et se ferme quand on y revient. Ailleurs, elle reste ouverte tant que
+  l'onglet est visible. Elle se ferme une minute après qu'il est caché (qui écoute dans un onglet de fond ne la garde
+  pas), et se rouvre à son retour, avec l'historique. Cela ménage les 200 connexions simultanées de la formule gratuite.
 - **Lire sans rien perdre** : rejoindre le canal `chat:antenne` (`private: true`) et mettre de côté ce qui arrive ;
   demander l'historique à `GET /api/chat` (les 50 derniers messages passés à l'antenne depuis le dernier vidage, et
   l'état de l'antenne) ; fusionner les deux par identifiant. Après une coupure, supabase-js se reconnecte seul, et le
@@ -644,7 +646,7 @@ quand la migration passe (sinon : `cms/README.md`, 9.9). PGlite n'a pas pg_cron 
 
 - **Dans la politique de confidentialité** : les données du chat, leurs durées, et les prestataires : Supabase (la
   base, à Londres), Vercel et Cloudflare (Turnstile).
-- **Dans les règles** (3.7) : que tout message passe à l'antenne, sur toutes les pages ; la modération, automatique et
+- **Dans les règles** (3.7) : que tout message passe à l'antenne, hors de l'accueil ; la modération, automatique et
   humaine ; le bouton « Signaler ».
 - **Le stockage dans le navigateur** (le cookie de la session, posé au premier message ; le pseudo, les pseudos
   masqués, le choix du bandeau) ne sert qu'au service demandé : il entre dans l'exemption de consentement de la CNIL
@@ -671,7 +673,7 @@ D'après les tarifs de Supabase, novembre 2026.
 | Messages par mois | 2 millions | 5 millions, puis 2,50 $ le million |
 | Messages par seconde | 100 | 500 |
 
-Avec le bandeau, **chaque onglet visible** est connecté, et plus seulement ceux qui ouvrent le chat. Un message du chat
+Avec le bandeau, **chaque onglet visible hors de l'accueil** est connecté, et plus seulement ceux qui ouvrent le chat. Un message du chat
 compte 1, plus 1 par onglet qui le reçoit : 3 000 messages par mois lus dans 60 onglets font environ 180 000 messages
 Realtime, loin des 2 millions gratuits. Les connexions comptent davantage : au-delà de 200 onglets visibles en même
 temps, les suivants ont un bandeau sans messages (ses phrases seules) et une page 888 « ANTENNE SATURÉE » ; le site et
@@ -712,8 +714,7 @@ Le reste ne coûte rien, ou presque : la base, les fonctions Vercel, Turnstile. 
 - Modérer directement depuis le site quand on est de la régie : les cookies de l'admin valent pour `/admin`, le site
   peut donc appeler `/admin/antenne` et ne montrer les boutons de modération qu'à l'équipe.
 - Les phrases du bandeau tenues dans l'admin, pour y annoncer le programme (« CE SOIR 21 H : … »).
-- Une ligne dans le texte micrographique de l'accueil (« ANTENNE LIBRE · 12 MESSAGES CE SOIR ») ; les dédicaces mises en
-  avant dans le bandeau.
+- Les dédicaces mises en avant dans le bandeau.
 - Un mode « nouveaux pseudos » contre les raids (attendre 10 minutes avant d'écrire) et la détection d'un raid (le même
   message envoyé par plusieurs pseudos).
 - L'écran de la régie en temps réel ; le nombre de personnes connectées.
@@ -756,6 +757,7 @@ Le test des migrations vérifie aussi la RLS de chaque table (`cms/test/migratio
 | Le survol du bandeau ; « réduire les animations » | Le défilement s'arrête ; sans animations, les messages se relaient sur place | |
 | Couper le réseau 30 s | « RECHERCHE DU SIGNAL… », puis les messages manqués | |
 | Changer de page | Le bandeau, la page 888 et la conversation restent | |
+| L'accueil | Ni case, ni écriture, ni page 888, ni messages au bandeau, ni touche CHAT ; pas de connexion, même au retour sur l'onglet. Une autre page les rend | ✓ |
 | Cacher l'onglet une minute, puis revenir | La connexion se ferme, puis se rouvre avec les derniers messages | |
 | Sur téléphone | L'écriture en deux temps dans le bandeau ; le clavier ne cache pas le champ | |
 

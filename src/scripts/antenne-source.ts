@@ -50,6 +50,8 @@ export type Ecoute = {
 
 export type Source = {
   demarrer(ecoute: Ecoute): void;
+  /** En veille sur l'accueil, qui n'a pas d'antenne : la connexion se ferme ; au réveil, l'historique et le canal. */
+  veille(oui: boolean): void;
   /** Le pseudo (nouveau ou changé), puis le message : le serveur décide. */
   envoyer(envoi: { pseudo: string; couleur: Couleur; texte: string }): Promise<Reponse>;
   /** Signaler un message à la régie : la raison d'un refus, ou null. */

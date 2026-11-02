@@ -2,8 +2,9 @@
 // Les messages des auditeurs défilent dans le bandeau, entre les phrases de Parabole ; on écrit dans le bandeau même, son
 // pseudo puis son message ; toute la conversation se lit sur la page 888, une page de télétexte à côté de l'image. Ce
 // module ne fait que l'antenne à l'écran : les messages viennent de sa source (antenne-source.ts), le canal temps réel
-// de Supabase et notre API (antenne-supabase.ts).
-import { cle, COULEURS, lienPermis, type Couleur, type Etat, type Message, type Source } from "./antenne-source";
+// de Supabase et notre API (antenne-supabase.ts). L'accueil n'a pas d'antenne : ni la case, ni les messages au bandeau,
+// ni la page 888 (antenne.css), et pas de connexion.
+import { cle, COULEURS, lienPermis, type Couleur, type Ecoute, type Etat, type Message, type Source } from "./antenne-source";
 import { creerSource } from "./antenne-supabase";
 import { popups, togglePopup } from "./panels";
 import { CHAT, STATION_TIMEZONE } from "./settings";
@@ -29,6 +30,7 @@ function lirePreferences(): Preferences {
 }
 
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null;
+const surAccueil = () => document.documentElement.dataset.page === "accueil";
 /** Un élément et son texte, sans jamais passer par du HTML. */
 function bout<K extends keyof HTMLElementTagNameMap>(balise: K, classe = "", texte = "") {
   const el = document.createElement(balise);
@@ -42,7 +44,7 @@ const REGLES = [
   "Pas de harcèlement ni de menaces, envers personne : auditeurs, résidents, invités, équipe.",
   "Pas de coordonnées : ni les tiennes ni celles des autres (téléphone, adresse, e-mail, comptes privés).",
   "Pas de pub ni de spam. Les liens se limitent aux plateformes de musique.",
-  "Ce que tu envoies passe à l'antenne : ton pseudo et ton message défilent dans le bandeau, sur toutes les pages, pour tous les visiteurs.",
+  "Ce que tu envoies passe à l'antenne : ton pseudo et ton message défilent dans le bandeau, hors de l'accueil, pour tous les visiteurs.",
   "Une modération automatique filtre les messages ; la régie peut brouiller un message, couper ton antenne ou te bannir, sans préavis.",
   "Un message te gêne ? « Signaler ».",
 ];
@@ -98,8 +100,9 @@ function brancher(source: Source) {
   const dejaAuBandeau = new Set<string>();
 
   const masque = (m: Message) => !m.regie && prefs.masques.includes(cle(m.pseudo));
-  // la régie peut retirer les messages du bandeau (ils restent sur la page 888), et chacun le peut pour son navigateur
-  const auBandeau = () => prefs.bandeau && etat.bandeau && etat.signal;
+  // la régie peut retirer les messages du bandeau (ils restent sur la page 888), et chacun le peut pour son navigateur ;
+  // celui de l'accueil n'en a jamais
+  const auBandeau = () => !surAccueil() && prefs.bandeau && etat.bandeau && etat.signal;
   const moiCite = (texte: string) =>
     !!prefs.pseudo && texte.split(/(@[\p{L}\p{N}_.-]+)/u).some((morceau) => morceau.startsWith("@") && cle(morceau.slice(1)) === cle(prefs.pseudo));
 
@@ -686,11 +689,7 @@ function brancher(source: Source) {
   }
 
   // ---------- EN ROUTE ----------
-  champPseudo.value = prefs.pseudo;
-  majToucheBandeau();
-  majPseudo();
-  majEtat();
-  source.demarrer({
+  const ecoute: Ecoute = {
     message: recevoir,
     retrait: retirer,
     vidage: vider,
@@ -699,7 +698,26 @@ function brancher(source: Source) {
       ligneDe(id)?.remove();
       avis(`La régie n'a pas passé ton message : ${raison}`, 9000);
     },
-  });
+  };
+  /** Arrivé sur l'accueil, l'antenne se range et la connexion se met en veille ; ailleurs, elle se rebranche. */
+  let demarree = false;
+  function majPage() {
+    if (surAccueil()) {
+      fermer();
+      page.classList.remove("open");
+      viderBandeau();
+      if (demarree) source.veille(true);
+    } else if (!demarree) {
+      demarree = true;
+      source.demarrer(ecoute);
+    } else source.veille(false);
+  }
+  champPseudo.value = prefs.pseudo;
+  majToucheBandeau();
+  majPseudo();
+  majEtat();
+  majPage();
+  document.addEventListener("astro:after-swap", majPage);
   if (calme) relayer();
   else requestAnimationFrame(defiler);
 }

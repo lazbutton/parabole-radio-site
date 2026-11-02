@@ -3,8 +3,8 @@
 // canal privé « chat:antenne » de Supabase Realtime pour ce qui passe, écouté avec la seule clé publiable : lire ne
 // demande aucune session. Écrire passe par notre serveur, qui tient la session anonyme de l'auditeur (un cookie) et
 // décide. La connexion ne reste ouverte que l'onglet visible : une minute après qu'il est caché, elle se ferme ; elle
-// se rouvre à son retour, avec l'historique. Sans réglages Supabase (en local), l'antenne redemande l'historique toutes
-// les 8 secondes.
+// se rouvre à son retour, avec l'historique. Sur l'accueil, qui n'a pas d'antenne, elle reste fermée (la veille). Sans
+// réglages Supabase (en local), l'antenne redemande l'historique toutes les 8 secondes.
 import { verifierFormePseudo } from "@parabole/cms/antenne";
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { PUBLIC_SUPABASE_PUBLISHABLE_KEY, PUBLIC_SUPABASE_URL, PUBLIC_TURNSTILE_SITE_KEY } from "astro:env/client";
@@ -83,6 +83,8 @@ export function creerSource(): Source {
   let canal: RealtimeChannel | null = null;
   let fermeture: ReturnType<typeof setTimeout> | undefined;
   let releve: ReturnType<typeof setInterval> | undefined;
+  /** Sur l'accueil : ni connexion ni relève. */
+  let enVeille = false;
   /** Ce qu'on a montré : de quoi retirer ce que la régie a brouillé pendant une coupure. */
   const montres = new Map<string, number>();
   /** Ses messages en attente de la régie : on demande à /api/chat/moi ce qu'ils deviennent. */
@@ -130,16 +132,17 @@ export function creerSource(): Source {
   }
 
   async function ecouter() {
-    if (canal) return;
+    if (canal || enVeille) return;
     if (!PUBLIC_SUPABASE_URL || !PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
       // en local sans Supabase : l'historique, toutes les 8 secondes
-      releve ??= setInterval(() => !document.hidden && charger(), 8000);
+      releve ??= setInterval(() => !document.hidden && !enVeille && charger(), 8000);
       return;
     }
     if (!client) {
       const { createClient } = await import("@supabase/supabase-js");
       client = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_PUBLISHABLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
     }
+    if (canal || enVeille) return; // arrivé sur l'accueil pendant le chargement
     canal = client
       .channel("chat:antenne", { config: { private: true } })
       .on("broadcast", { event: "message" }, ({ payload }) => recevoir(payload as Recu))
@@ -166,6 +169,7 @@ export function creerSource(): Source {
   }
   document.addEventListener("visibilitychange", () => {
     clearTimeout(fermeture);
+    if (enVeille || !ecoute) return; // en veille, ou pas encore démarrée (l'accueil)
     if (document.hidden) fermeture = setTimeout(couper, 60_000);
     else if (!canal) {
       charger();
@@ -197,6 +201,15 @@ export function creerSource(): Source {
   return {
     demarrer(e) {
       ecoute = e;
+      charger();
+      ecouter();
+    },
+
+    veille(oui) {
+      if (oui === enVeille) return;
+      enVeille = oui;
+      clearTimeout(fermeture);
+      if (oui) return couper();
       charger();
       ecouter();
     },
