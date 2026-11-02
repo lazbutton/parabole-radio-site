@@ -77,6 +77,8 @@ for (const role of ["resident", "guest"] as ArtistRole[]) {
   }
 }
 const premiereLettre = LETTRES.find((lettre) => lettresVues.has(lettre));
+// tout de suite : les dix premiers portraits affichés ; les autres, et ceux de la liste cachée, au défilement
+const premiers = new Set(vues.slice(0, 10).map((carte) => carte.slug));
 const nommer = (n: number, un: string, plusieurs: string) => `${n} ${n > 1 ? plusieurs : un}`;
 const annonce = etat.q
   ? nommer(vues.length, `artiste pour « ${etat.q} »`, `artistes pour « ${etat.q} »`)
@@ -176,7 +178,7 @@ const annonce = etat.q
                     {mot}
                   </h2>
                   <ul class="grille">
-                    {dansLeRole(role).map((carte, i) => (
+                    {dansLeRole(role).map((carte) => (
                       <li
                         data-slug={carte.slug}
                         data-lettre={carte.lettre}
@@ -186,7 +188,7 @@ const annonce = etat.q
                         id={!etat.q && reperes.has(carte.slug) && carte.role === etat.role ? ancre(carte.lettre) : undefined}
                         hidden={!visible(carte)}
                       >
-                        <Portrait artiste={carte} tot={i < 10} />
+                        <Portrait artiste={carte} tot={premiers.has(carte.slug)} />
                       </li>
                     ))}
                   </ul>

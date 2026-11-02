@@ -101,9 +101,13 @@
 /* Un portrait : la photo en bichromie, puis la plaque du nom ; au survol, la neige, la couleur, et tout s'allume */
 .portrait { display: block; color: #ffffff; text-decoration: none; }
 .portrait:focus-visible { outline: 2px solid #ffffff; outline-offset: 4px; }
+/* en attendant l'image : un écran sans signal, noir et une neige légère ; jamais le bleu qu'une photo sombre prend en
+   bichromie, pour qu'on ne confonde pas une image qui arrive et une image sombre */
 .portrait-image {
   position: relative; display: block; aspect-ratio: 1; overflow: hidden;
-  background: #000dff;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.45 -0.1'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E") 0 0 / 180px 180px,
+    #101010;
   border: 2px solid rgba(255,240,57,0.0);
   transition: border-color 0.15s;
 }
