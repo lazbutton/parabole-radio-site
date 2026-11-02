@@ -19,10 +19,12 @@ export { indexLetter } from "./read/artists.ts";
 export { prefixQuery } from "./read/search.ts";
 export {
   createReader,
+  type Airing,
   type ArtistCard,
   type ArtistDetail,
   type ArtistFilters,
   type ArtistIndex,
+  type ArtistNeighbor,
   type ArtistRef,
   type ClipCard,
   type EventCard,

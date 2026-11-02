@@ -1,0 +1,27 @@
+---
+/**
+ * Une rangée de la page d'un artiste (ÉMISSIONS, ÉVÉNEMENTS) : son titre et son nombre, deux touches ◂ ▸, et ses
+ * vignettes, qui défilent à la souris, au doigt, au clavier (la liste prend le focus) ou avec les touches
+ * (src/scripts/artiste.ts). La vignette suivante dépasse au bord, pour inviter à faire défiler.
+ */
+interface Props {
+  titre: string;
+  /** L'identifiant de la rangée : son titre et sa liste en dérivent. */
+  id: string;
+  nombre: number;
+}
+const { titre, id, nombre } = Astro.props;
+---
+
+<section class="rangee" aria-labelledby={`${id}-titre`}>
+  <div class="rangee-tete">
+    <h2 id={`${id}-titre`} class="rangee-titre">{titre}<span class="rangee-nombre">{nombre}</span></h2>
+    <div class="rangee-fleches">
+      <button class="rangee-fleche" type="button" data-sens="-1" aria-controls={`${id}-liste`} aria-label={`${titre} : revenir en arrière`}>◂</button>
+      <button class="rangee-fleche" type="button" data-sens="1" aria-controls={`${id}-liste`} aria-label={`${titre} : voir la suite`}>▸</button>
+    </div>
+  </div>
+  <ul id={`${id}-liste`} class="rangee-liste" tabindex="0" aria-label={`${titre}, défilement horizontal`}>
+    <slot />
+  </ul>
+</section>

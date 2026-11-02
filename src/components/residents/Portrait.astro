@@ -1,0 +1,51 @@
+---
+/**
+ * Un portrait de la grille des résidents : la photo carrée en bichromie, jaune et bleu (le filtre #bichromie du sprite,
+ * Icons.astro), qui retrouve ses couleurs au survol après un éclair de neige, comme une chaîne qu'on trouve en zappant ;
+ * le nom sur une plaque sombre ; ses activités. Toute la carte est un seul lien. Sans photo, la mire. La pastille
+ * « À l'antenne » s'allume quand l'artiste passe en ce moment (src/scripts/residents.ts).
+ */
+import type { ArtistCard } from "@parabole/cms";
+
+interface Props {
+  artiste: ArtistCard;
+  /** La première rangée se charge tout de suite ; les autres au défilement. */
+  tot?: boolean;
+}
+const { artiste, tot = false } = Astro.props;
+const { photo } = artiste;
+---
+
+<a class="portrait" href={`/residents/${artiste.slug}`}>
+  <span class="portrait-image">
+    {
+      photo ? (
+        <img
+          src={photo.url}
+          srcset={photo.srcset ?? undefined}
+          sizes="(min-width: 1101px) 270px, (min-width: 821px) 22vw, (min-width: 561px) 30vw, 46vw"
+          width={photo.width ?? undefined}
+          height={photo.height ?? undefined}
+          alt=""
+          loading={tot ? "eager" : "lazy"}
+          decoding="async"
+        />
+      ) : (
+        <span class="portrait-mire" aria-hidden="true" />
+      )
+    }
+    <span class="portrait-antenne" hidden>À l'antenne</span>
+  </span>
+  <span class="portrait-plaque">
+    <span class="portrait-nom">{artiste.name}</span>
+    {
+      artiste.tags.length > 0 && (
+        <span class="portrait-activites">
+          {artiste.tags.map((tag) => (
+            <span>{tag.name}</span>
+          ))}
+        </span>
+      )
+    }
+  </span>
+</a>

@@ -4,7 +4,8 @@
 // déplacé se recharge (le chat perdrait sa conversation). Celle-ci ne touche qu'au contenu de la page : la tête du
 // document (titre, styles), les attributs de <html> (data-page) et <main id="page">. Le fond, l'en-tête, la ligne du
 // bas, les panneaux et le chat ne bougent pas d'un pixel ; le son et la vidéo continuent.
-import { swapFunctions, type TransitionBeforeSwapEvent } from "astro:transitions/client";
+import { swapFunctions, type TransitionBeforePreparationEvent, type TransitionBeforeSwapEvent } from "astro:transitions/client";
+import { neige } from "./neige";
 import { refreshNowPlaying } from "./nowplaying";
 import { pageChanged } from "./panels";
 
@@ -30,10 +31,13 @@ document.addEventListener("astro:before-swap", (event) => {
     if (!current || !next) return void location.assign(e.to.href);
     const { deselectScripts, swapRootAttributes, swapHeadElements, saveFocus } = swapFunctions;
     deselectScripts(e.newDocument);
-    // les attributs de <html> viennent de la nouvelle page, sauf son style : la coque y range --band-h (panels.ts)
+    // les attributs de <html> viennent de la nouvelle page, sauf son style (la coque y range --band-h, panels.ts) et le
+    // mode photo du fond, que background.ts garde ou retire selon la page qui arrive
     const rootStyle = document.documentElement.getAttribute("style");
+    const enPhoto = document.documentElement.classList.contains("fond-en-photo");
     swapRootAttributes(e.newDocument);
     if (rootStyle) document.documentElement.setAttribute("style", rootStyle);
+    if (enPhoto) document.documentElement.classList.add("fond-en-photo");
     swapHeadElements(e.newDocument);
     const restoreFocus = saveFocus();
     current.replaceWith(next);
@@ -57,4 +61,45 @@ document.addEventListener("astro:after-swap", () => {
 // Le logo ramène à l'accueil ; déjà sur l'accueil, il ne recharge rien (et un double-clic y ouvre le mode staff).
 document.getElementById("logoSquare")?.addEventListener("click", (e) => {
   if (location.pathname === "/") e.preventDefault();
+});
+
+// ---------- LE RETOUR AU MÊME ENDROIT, ET LA NEIGE VERS UN ARTISTE ----------
+// Les rubriques défilent dans <main id="page">, pas dans la fenêtre : le ClientRouter ne sait pas y retrouver sa place.
+// Avant de quitter une page, on garde sa position (par adresse, le temps de l'onglet) ; au retour arrière ou avant, on
+// la rend. On garde aussi l'adresse de la page qu'on quitte : la page d'un artiste en déduit si « ◂ RÉSIDENTS » peut
+// simplement revenir en arrière (src/scripts/artiste.ts). Vers la page d'un artiste, la neige tombe dès le départ :
+// background.ts la retire quand sa photo est là.
+const POSITIONS = "parabole_defilement";
+export const PAGE_AVANT = "parabole_page_avant";
+const lire = (): Record<string, number> => {
+  try {
+    return JSON.parse(sessionStorage.getItem(POSITIONS) || "{}") || {};
+  } catch (e) {
+    return {};
+  }
+};
+let retour = false;
+document.addEventListener("astro:before-preparation", (event) => {
+  const e = event as TransitionBeforePreparationEvent;
+  // la page qu'on quitte : e.from, car au retour arrière l'adresse de l'onglet est déjà celle d'avant
+  const ici = e.from.pathname + e.from.search;
+  try {
+    const positions = lire();
+    positions[ici] = document.getElementById("page")?.scrollTop ?? 0;
+    sessionStorage.setItem(POSITIONS, JSON.stringify(positions));
+    sessionStorage.setItem(PAGE_AVANT, ici);
+  } catch (err) {
+    /* stockage refusé : on repartira du haut */
+  }
+  retour = e.navigationType === "traverse";
+  const calme = !!window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!calme && /^\/residents\/[^/]+\/?$/.test(e.to.pathname)) neige.allumer();
+});
+document.addEventListener("astro:page-load", () => {
+  if (!retour) return;
+  retour = false;
+  const y = lire()[location.pathname + location.search];
+  const page = document.getElementById("page");
+  // après les scripts de la page, qui peuvent filtrer ce qu'elle montre (residents.ts)
+  if (page && y) requestAnimationFrame(() => (page.scrollTop = y));
 });

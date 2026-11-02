@@ -16,10 +16,18 @@ export type ArtistCard = { slug: string; name: string; role: ArtistRole; photo: 
 /** L'index A–Z : une lettre par groupe, « # » pour les noms qui commencent par un chiffre ou un signe. */
 export type ArtistIndex = { total: number; groups: { letter: string; artists: ArtistCard[] }[] };
 
+/** Un voisin dans l'index : de quoi faire le lien, et charger sa photo d'avance. */
+export type ArtistNeighbor = { slug: string; name: string; photo: Image | null };
+
 export type ArtistDetail = ArtistCard & {
   bio: string | null;
   links: ArtistLink[];
   updatedAt: Date;
+  /**
+   * L'artiste d'avant et celui d'après dans l'index de son rôle (l'ordre de la grille, # à la fin), en boucle comme les
+   * chaînes d'un téléviseur : on zappe de l'un à l'autre. Null s'il est seul.
+   */
+  neighbors: { previous: ArtistNeighbor; next: ArtistNeighbor } | null;
   /** Les étiquettes de ses shows, des plus fréquentes aux plus rares. */
   showTags: TagRef[];
   /** Ses shows publiés, du plus récent au plus ancien. */
@@ -107,11 +115,19 @@ export async function getArtist(tx: Tx, base: string, slug: string): Promise<Art
     .from(event)
     .where(and(eq(event.status, "published"), sql`exists (select 1 from ${eventArtist} ea where ea.event_id = ${outer(event.id)} and ea.artist_id = ${row.id})`))
     .orderBy(desc(event.startsAt), asc(event.title));
+  const order = (await listArtists(tx, base, { role: row.role })).groups.flatMap((group) => group.artists);
+  const at = order.findIndex((card) => card.slug === row.slug);
+  const neighbor = (offset: number): ArtistNeighbor => {
+    // l'artiste est dans l'index de son rôle (at >= 0), qui compte au moins deux noms : l'indice existe
+    const { slug, name, photo } = order[(at + offset + order.length) % order.length]!;
+    return { slug, name, photo };
+  };
   return {
     ...toArtistCard(base, { slug: row.slug, name: row.name, role: row.role, photo: row.photo, tags: row.tags }),
     bio: row.bio,
     links: row.links,
     updatedAt: row.updatedAt,
+    neighbors: order.length > 1 && at >= 0 ? { previous: neighbor(-1), next: neighbor(1) } : null,
     showTags,
     shows: shows.map((show) => toShowCard(base, show)),
     events: events.map((event) => toEventCard(base, event)),

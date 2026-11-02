@@ -32,6 +32,11 @@ async function fetchClips(): Promise<Clip[] | null> {
 /** L'image d'attente : celle que donne la liste, sinon le .jpg posé à côté d'un clip d'origine. */
 const posterOf = (clip: Clip) => clip.poster ?? (/\.mp4$/.test(clip.src) ? clip.src.replace(/\.mp4$/, ".jpg") : "");
 
+/** Le fond montre-t-il la photo d'un artiste (le mode photo, plus bas) ? Les clips se font alors discrets. */
+let enPhoto = false;
+/** On écoute le son des vidéos (RADIO / VIDÉO sur VIDÉO, audio.ts) : la vidéo continue, même cachée. */
+const sonDesVideos = () => document.getElementById("soundToggle")?.dataset.mode === "video";
+
 (async function initBgPlaylist() {
   const v = document.getElementById("backgroundVideo") as HTMLVideoElement | null;
   const root = document.documentElement;
@@ -83,19 +88,21 @@ const posterOf = (clip: Clip) => clip.poster ?? (/\.mp4$/.test(clip.src) ? clip.
       clip = playlist[n],
       from = performance.now();
     current = clip.src;
-    showChannel(n);
-    if (!still) neige.allumer();
+    // derrière la photo d'un artiste, le clip change sans neige ni numéro, et ne joue que si on écoute son son
+    if (!enPhoto) showChannel(n);
+    if (!still && !enPhoto) neige.allumer();
     v!.poster = posterOf(clip);
     v!.src = clip.src;
+    v!.autoplay = !enPhoto || sonDesVideos(); // sinon l'attribut autoplay la relancerait au chargement
     v!.load();
-    v!.play().catch(() => {});
+    if (v!.autoplay) v!.play().catch(() => {});
     return new Promise<void>((resolve) => {
       const ready = () => {
         v!.removeEventListener("playing", ready);
         v!.removeEventListener("error", ready);
         clearTimeout(timer);
         setTimeout(() => {
-          if (id === zap) {
+          if (id === zap && !enPhoto) {
             neige.eteindre();
             // l'image revient en roulant, un peu trop claire, comme un poste qui accroche la chaîne
             if (!still)
@@ -141,6 +148,7 @@ const posterOf = (clip: Clip) => clip.poster ?? (/\.mp4$/.test(clip.src) ? clip.
   document.addEventListener("click", (e) => {
     const target = e.target as Element;
     if (
+      enPhoto || // la photo d'un artiste ne se zappe pas
       e.button !== 0 ||
       target.closest?.("a, button, input, select, textarea, label, iframe, .popup, .float-item, .tete, .overlay-controls, .feuille, .direct")
     )
@@ -149,3 +157,142 @@ const posterOf = (clip: Clip) => clip.poster ?? (/\.mp4$/.test(clip.src) ? clip.
     zapTo(pickRandom());
   });
 })();
+
+// ---------- LE MODE PHOTO : la page d'un artiste prend l'antenne ----------
+// Une page qui porte data-fond-photo (la page d'un artiste, src/pages/residents/[slug].astro) remplace la vidéo par sa
+// photo, comme on change de chaîne : la neige tombe, la photo arrive (sur toute la largeur ; sur un écran en hauteur,
+// entière, la même floutée autour ; sans photo, la mire, Background.astro et socle.css), puis la neige s'en va. Plus
+// haute que la fenêtre, elle défile avec la page (plus bas). La vidéo se met en pause, sauf si on écoute son son. En
+// quittant la page, la neige, puis la vidéo reprend. Avec « réduire les animations », sans neige. Regardé au chargement,
+// puis après chaque navigation.
+type Photo = { src?: string; srcset?: string | null; flou?: string; mire?: boolean };
+let photoMontree = "",
+  demandePhoto = 0;
+const calmePhoto = () => !!window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+async function mettreLaPhoto(photo: Photo) {
+  const fond = document.getElementById("fondPhoto");
+  if (!fond) return;
+  const cle = photo.mire || !photo.src ? "mire" : photo.src;
+  if (enPhoto && cle === photoMontree) return;
+  const id = ++demandePhoto;
+  const still = calmePhoto();
+  if (!still) neige.allumer();
+  const nette = fond.querySelector<HTMLImageElement>(".fond-photo-nette")!;
+  const flou = fond.querySelector<HTMLImageElement>(".fond-photo-flou")!;
+  if (cle !== "mire") {
+    if (photo.srcset) {
+      nette.srcset = photo.srcset;
+      nette.sizes = "100vw";
+    } else nette.removeAttribute("srcset");
+    nette.src = cle;
+    flou.src = photo.flou || cle;
+    // la photo arrive quand elle est prête (1,5 s au plus) : la neige couvre l'attente
+    await Promise.race([nette.decode().catch(() => {}), new Promise((resolve) => setTimeout(resolve, 1500))]);
+    if (id !== demandePhoto) return;
+  }
+  fond.classList.toggle("mire", cle === "mire");
+  enPhoto = true;
+  photoMontree = cle;
+  document.documentElement.classList.add("fond-en-photo");
+  cadrerLaPhoto();
+  const v = document.getElementById("backgroundVideo") as HTMLVideoElement | null;
+  if (v && !sonDesVideos()) {
+    v.autoplay = false;
+    v.pause();
+  }
+  setTimeout(() => id === demandePhoto && neige.eteindre(), still ? 0 : 260);
+}
+
+function retirerLaPhoto() {
+  if (!enPhoto) return;
+  const id = ++demandePhoto;
+  const still = calmePhoto();
+  enPhoto = false;
+  photoMontree = "";
+  if (!still) neige.allumer();
+  document.documentElement.classList.remove("fond-en-photo");
+  cadrerLaPhoto();
+  const v = document.getElementById("backgroundVideo") as HTMLVideoElement | null;
+  if (v) {
+    v.autoplay = true;
+    v.play().catch(() => {});
+  }
+  setTimeout(() => id === demandePhoto && neige.eteindre(), still ? 0 : 320);
+}
+
+function regarderLaPage() {
+  const source = document.querySelector<HTMLElement>("[data-fond-photo]");
+  if (!source) return retirerLaPhoto();
+  let photo: Photo = { mire: true };
+  try {
+    photo = JSON.parse(source.dataset.fondPhoto || "{}");
+  } catch (e) {
+    /* la mire */
+  }
+  mettreLaPhoto(photo);
+}
+
+// ---------- DANS LA PHOTO : descendre dans la page fait défiler la photo ----------
+// Sur un écran en largeur, la photo prend toute la largeur sous l'en-tête. Plus haute que sa place (de plus de SEUIL),
+// elle garde sa hauteur et défile avec la page, en proportion : le haut de la photo en haut de la page, son bas tout en
+// bas, au pixel près, quelle que soit la longueur de la page. Ici, on ne fait que lui donner sa hauteur et dire ce qui
+// dépasse (--debord) : le mouvement est une animation liée au défilement de #page (socle.css, animation-timeline), que
+// le navigateur joue lui-même, au rythme du défilement, sans passer par un script. Un navigateur qui ne la connaît pas
+// suit le défilement en script. Sur un écran en hauteur, ou avec « réduire les animations », la photo ne bouge pas.
+const SEUIL = 40;
+const parLeNavigateur =
+  typeof CSS !== "undefined" && CSS.supports("animation-timeline: --page") && CSS.supports("timeline-scope: --page");
+let debord = 0;
+const enHauteur = () => !!window.matchMedia && window.matchMedia("(orientation: portrait)").matches;
+
+function cadrerLaPhoto() {
+  const nette = document.querySelector<HTMLImageElement>(".fond-photo-nette");
+  if (!nette) return;
+  // d'abord la place que lui font les styles (toute la largeur, sous l'en-tête)…
+  nette.removeAttribute("style");
+  nette.classList.remove("defile");
+  debord = 0;
+  if (enPhoto && photoMontree !== "mire" && !enHauteur() && !calmePhoto() && nette.naturalWidth && nette.naturalHeight) {
+    // …puis sa hauteur à elle, à cette largeur
+    const place = nette.getBoundingClientRect();
+    const hauteur = (place.width * nette.naturalHeight) / nette.naturalWidth;
+    if (hauteur - place.height > SEUIL) {
+      debord = hauteur - place.height;
+      nette.style.height = `${hauteur}px`;
+      nette.style.setProperty("--debord", `${debord}px`);
+      nette.classList.add("defile");
+    }
+  }
+  defilerLaPhoto();
+}
+
+/** Le repli en script : le décalage de la photo, en proportion de l'avancée dans la page. */
+function defilerLaPhoto() {
+  const nette = document.querySelector<HTMLImageElement>(".fond-photo-nette");
+  const page = document.getElementById("page");
+  if (parLeNavigateur || !nette || !page) return;
+  const course = page.scrollHeight - page.clientHeight;
+  const avancee = course > 0 ? Math.min(1, Math.max(0, page.scrollTop / course)) : 0;
+  nette.style.transform = debord ? `translate3d(0, ${-avancee * debord}px, 0)` : "";
+}
+if (!parLeNavigateur) {
+  // à chaque défilement de la rubrique, dans la même image que lui (#page ne fait pas remonter son événement : on
+  // l'écoute à la capture)
+  document.addEventListener(
+    "scroll",
+    (e) => {
+      if (debord && (e.target as Element | null)?.id === "page") defilerLaPhoto();
+    },
+    { capture: true, passive: true },
+  );
+  // une nouvelle page part d'en haut, ou de là où on l'avait laissée : la photo aussi
+  document.addEventListener("astro:page-load", defilerLaPhoto);
+}
+// la place change avec la fenêtre ; la photo peut finir d'arriver après le cadrage, ou changer d'image dans son srcset
+window.addEventListener("resize", cadrerLaPhoto);
+document.querySelector(".fond-photo-nette")?.addEventListener("load", cadrerLaPhoto);
+
+// au chargement, puis après chaque navigation (après les déclarations ci-dessus, dont le cadrage a besoin)
+document.addEventListener("astro:after-swap", regarderLaPage);
+regarderLaPage();

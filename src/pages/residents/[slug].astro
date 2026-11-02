@@ -1,0 +1,237 @@
+---
+/**
+ * La page d'un artiste (/residents/<nom>) : il prend l'antenne. Sa photo remplace la vidéo du fond (le mode photo de
+ * background.ts, par data-fond-photo) ; son nom en très grand, en lettres creuses ; ses activités, et sa prochaine
+ * émission ; l'encart Description (la bio, les étiquettes de ses émissions, ses liens) ; puis ses
+ * émissions et ses événements, en rangées, sans lien tant que leurs rubriques n'existent pas. En haut, ◂ RÉSIDENTS
+ * ramène à la liste, et ◂ ▸ zappent vers l'artiste d'avant ou d'après (src/scripts/artiste.ts). Rendue à la demande,
+ * gardée une minute par le cache de Vercel, comme la liste.
+ */
+import { LABELS, type ArtistDetail, type EventCard, type ShowCard } from "@parabole/cms";
+import Interruption from "../../components/Interruption.astro";
+import Liens from "../../components/residents/Liens.astro";
+import Rangee from "../../components/residents/Rangee.astro";
+import Sheet from "../../components/Sheet.astro";
+import Base from "../../layouts/Base.astro";
+import { reader } from "../../lib/cms";
+import { renderMarkdown } from "../../lib/markdown";
+import { adresseDe } from "../../lib/residents";
+import { STATION_TIMEZONE } from "../../scripts/settings";
+
+export const prerender = false;
+
+let artiste: ArtistDetail | null | undefined;
+try {
+  artiste = await (await reader()).getArtist(Astro.params.slug ?? "");
+} catch (erreur) {
+  console.error("residents : la base ne répond pas", erreur);
+}
+// inconnu ou pas publié : « Pas de signal », comme la page 404 du site (statique : on ne peut pas s'y réécrire d'ici)
+if (artiste !== undefined) {
+  if (!artiste) Astro.response.status = 404;
+  Astro.response.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
+  Astro.response.headers.set("Vercel-CDN-Cache-Control", "max-age=60, stale-while-revalidate=600");
+} else {
+  Astro.response.status = 503;
+  Astro.response.headers.set("Cache-Control", "no-store");
+}
+
+const maintenant = Date.now();
+const jour = new Intl.DateTimeFormat("fr-FR", { timeZone: STATION_TIMEZONE, day: "numeric", month: "short", year: "numeric" });
+/** Le temps d'un show : de sa diffusion à sa fin, quand sa durée est connue. */
+const fin = (show: ShowCard) => show.broadcastAt.getTime() + (show.durationSeconds ?? 0) * 1000;
+const dejaDiffusees = (artiste?.shows ?? []).filter((show) => fin(show) <= maintenant);
+// les débuts de ses prochaines émissions : le navigateur annonce la plus proche, à la minute (artiste.ts)
+const prochaines = (artiste?.shows ?? [])
+  .filter((show) => show.broadcastAt.getTime() > maintenant)
+  .map((show) => show.broadcastAt.toISOString())
+  .sort();
+const aVenir = (evenement: EventCard) => (evenement.endsAt ?? evenement.startsAt).getTime() > maintenant;
+const evenements = [
+  ...(artiste?.events ?? []).filter(aVenir).sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()),
+  ...(artiste?.events ?? []).filter((evenement) => !aVenir(evenement)),
+];
+
+const photo = artiste?.photo ?? null;
+/** La plus petite version de la photo : celle qu'on floute autour, et qu'on charge d'avance pour zapper. */
+const petite = (srcset: string | null | undefined, url: string) => srcset?.split(",")[0]?.trim().split(/\s+/)[0] || url;
+const fond = photo ? { src: photo.url, srcset: photo.srcset, flou: petite(photo.srcset, photo.url) } : { mire: true };
+const bio = artiste?.bio ? renderMarkdown(artiste.bio) : "";
+const etiquettes = (artiste?.showTags ?? []).slice(0, 6);
+const role = artiste?.role === "guest" ? "Invités" : "Résidents";
+// la description de l'aperçu : le début de la bio, sans Markdown
+const texte = (artiste?.bio ?? "")
+  .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+  .replace(/[*_`#>~]/g, "")
+  .replace(/\s+/g, " ")
+  .trim();
+const description = texte
+  ? texte.length > 155
+    ? texte.slice(0, 154).replace(/\s+\S*$/, "") + "…"
+    : texte
+  : `${artiste?.name ?? "Un artiste"}, ${artiste?.role === "guest" ? "invité" : "résident"} de Parabole Radio.`;
+const longueur = !artiste ? undefined : artiste.name.length > 26 ? "tres-long" : artiste.name.length > 14 ? "long" : undefined;
+const voisins = artiste?.neighbors;
+---
+
+<Base page="residents" title={artiste?.name ?? (artiste === null ? "Page introuvable" : "Résidents")} description={description} image={photo?.url}>
+  {
+    artiste === null ? (
+      <Sheet title="Page introuvable" meta="erreur 404">
+        <div class="bientot">
+          <p class="bientot-titre">Pas de signal</p>
+          <p>
+            Cet artiste n’est pas, ou plus, sur Parabole. Le direct, lui, continue : <a href="/residents">voir tous les résidents</a>.
+          </p>
+        </div>
+      </Sheet>
+    ) : !artiste ? (
+      <div class="residents">
+        <Interruption quoi="Cette page ne peut pas s'afficher pour le moment." />
+      </div>
+    ) : (
+      <article class="artiste" data-artiste data-fond-photo={JSON.stringify(fond)}>
+        <div class="artiste-haut">
+          <a class="artiste-retour" href={adresseDe({ role: artiste.role, activite: "", q: "" })} data-retour>
+            <span aria-hidden="true">◂</span> {role}
+          </a>
+          {voisins && (
+            <nav class="artiste-zapping" aria-label="Zapper d'un artiste à l'autre">
+              <a
+                href={`/residents/${voisins.previous.slug}`}
+                data-zap="precedent"
+                data-astro-prefetch="load"
+                data-photo={voisins.previous.photo ? petite(voisins.previous.photo.srcset, voisins.previous.photo.url) : undefined}
+                aria-label={`Artiste précédent : ${voisins.previous.name}`}
+              >
+                <span aria-hidden="true">◂</span>
+                <span class="zap-nom">{voisins.previous.name}</span>
+              </a>
+              <a
+                href={`/residents/${voisins.next.slug}`}
+                data-zap="suivant"
+                data-astro-prefetch="load"
+                data-photo={voisins.next.photo ? petite(voisins.next.photo.srcset, voisins.next.photo.url) : undefined}
+                aria-label={`Artiste suivant : ${voisins.next.name}`}
+              >
+                <span class="zap-nom">{voisins.next.name}</span>
+                <span aria-hidden="true">▸</span>
+              </a>
+            </nav>
+          )}
+        </div>
+
+        <div class="artiste-une">
+          <div class="artiste-titre">
+            <h1 class="artiste-nom" data-longueur={longueur}>
+              {artiste.name}
+            </h1>
+            {photo?.alt && <p class="sr-only">Photo : {photo.alt}</p>}
+            {artiste.tags.length > 0 && (
+              <ul class="artiste-activites" aria-label="Activités">
+                {artiste.tags.map((tag) => (
+                  <li>
+                    <a href={adresseDe({ role: artiste!.role, activite: tag.slug, q: "" })}>{tag.name}</a>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p class="artiste-antenne" data-prochaines={JSON.stringify(prochaines)} hidden />
+
+          </div>
+
+          {(bio || etiquettes.length > 0 || artiste.links.length > 0) && (
+            <aside class="artiste-description" aria-labelledby="artisteDescription">
+              <h2 id="artisteDescription" class="artiste-description-titre">
+                Description
+              </h2>
+              {bio && (
+                <>
+                  <div class="artiste-bio" data-bio set:html={bio} />
+                  <button class="artiste-suite" type="button" aria-expanded="false" hidden>
+                    Lire la suite ▾
+                  </button>
+                </>
+              )}
+              {etiquettes.length > 0 && (
+                <>
+                  <p class="artiste-groupe">Dans ses émissions</p>
+                  <ul class="artiste-etiquettes">
+                    {etiquettes.map((tag) => (
+                      <li>{tag.name}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <Liens liens={artiste.links} nom={artiste.name} />
+            </aside>
+          )}
+          {photo?.credit && <p class="artiste-credit">Photo {photo.credit}</p>}
+        </div>
+
+        {dejaDiffusees.length > 0 && (
+          <Rangee titre="Émissions" id="emissions" nombre={dejaDiffusees.length}>
+            {dejaDiffusees.map((show) => (
+              <li class="vignette">
+                <span class="vignette-image">
+                  {show.cover ? (
+                    <img
+                      src={show.cover.url}
+                      srcset={show.cover.srcset ?? undefined}
+                      sizes="(min-width: 821px) 220px, 42vw"
+                      width={show.cover.width ?? undefined}
+                      height={show.cover.height ?? undefined}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ) : (
+                    <span class="portrait-mire" aria-hidden="true" />
+                  )}
+                </span>
+                <span class="vignette-titre">{show.title}</span>
+                <span class="vignette-quoi">
+                  {jour.format(show.broadcastAt)} · {LABELS.showType[show.type]}
+                </span>
+                {show.tags.length > 0 && (
+                  <span class="vignette-etiquettes">
+                    {show.tags.slice(0, 2).map((tag) => (
+                      <span>{tag.name}</span>
+                    ))}
+                  </span>
+                )}
+              </li>
+            ))}
+          </Rangee>
+        )}
+        {evenements.length > 0 && (
+          <Rangee titre="Événements" id="evenements" nombre={evenements.length}>
+            {evenements.map((evenement) => (
+              <li class="vignette vignette-evenement">
+                <span class="vignette-image">
+                  {evenement.visual ? (
+                    <img
+                      src={evenement.visual.url}
+                      srcset={evenement.visual.srcset ?? undefined}
+                      sizes="(min-width: 821px) 300px, 60vw"
+                      width={evenement.visual.width ?? undefined}
+                      height={evenement.visual.height ?? undefined}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ) : (
+                    <span class="portrait-mire" aria-hidden="true" />
+                  )}
+                  {aVenir(evenement) && <span class="vignette-a-venir">À venir</span>}
+                </span>
+                <span class="vignette-titre">{evenement.title}</span>
+                <span class="vignette-quoi">{[jour.format(evenement.startsAt), evenement.venue].filter(Boolean).join(" · ")}</span>
+              </li>
+            ))}
+          </Rangee>
+        )}
+      </article>
+    )
+  }
+</Base>
