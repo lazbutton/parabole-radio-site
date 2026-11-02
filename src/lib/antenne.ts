@@ -64,23 +64,29 @@ export async function corpsDe(context: APIContext): Promise<Record<string, unkno
   }
 }
 
+/** L'action du widget de l'antenne (src/scripts/antenne-supabase.ts) : un jeton d'un autre widget ne vaut rien ici. */
+export const ACTION_TURNSTILE = "antenne";
+
 /**
  * La vérification Turnstile d'un nouveau pseudo, si le site en a une (TURNSTILE_SECRET_KEY) : rend la fonction que
- * l'antenne appelle, ou undefined. Une panne de Cloudflare laisse passer : les limites de débit tiennent derrière.
+ * l'antenne appelle, ou undefined. Le jeton doit venir du widget de l'antenne, sur la page même qui l'envoie : `hote`,
+ * celui de la requête (la page et l'API sont sur la même origine, memeOrigine). Un jeton fait sur localhost ne passe
+ * donc pas en ligne. Une panne de Cloudflare refuse : seul un nouveau pseudo attend, les autres écrivent.
  */
-export function verificationHumaine(jeton: unknown, ip: string | null): (() => Promise<boolean>) | undefined {
+export function verificationHumaine(jeton: unknown, ip: string | null, hote: string): (() => Promise<boolean>) | undefined {
   if (!TURNSTILE_SECRET_KEY) return undefined;
   return async () => {
-    if (typeof jeton !== "string" || !jeton) return false;
+    if (typeof jeton !== "string" || !jeton || jeton.length > 2048) return false;
     const corps = new URLSearchParams({ secret: TURNSTILE_SECRET_KEY!, response: jeton });
     if (ip) corps.set("remoteip", ip);
     try {
-      const reponseCloudflare = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", body: corps, signal: AbortSignal.timeout(5000) });
-      if (!reponseCloudflare.ok) return true;
-      return Boolean(((await reponseCloudflare.json()) as { success?: boolean }).success);
+      const reponseCloudflare = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", body: corps, signal: AbortSignal.timeout(10_000) });
+      if (!reponseCloudflare.ok) throw new Error(`siteverify ${reponseCloudflare.status}`);
+      const verdict = (await reponseCloudflare.json()) as { success?: boolean; action?: string; hostname?: string };
+      return verdict.success === true && verdict.action === ACTION_TURNSTILE && verdict.hostname === hote;
     } catch (panne) {
-      console.error("antenne : Turnstile ne répond pas, le pseudo passe sans vérification", panne);
-      return true;
+      console.error("antenne : Turnstile ne répond pas, le nouveau pseudo attend", panne);
+      return false;
     }
   };
 }

@@ -25,7 +25,7 @@ export const POST: APIRoute = async (context) => {
       pseudo: corps.pseudo.slice(0, 60),
       couleur: estCouleur(corps.couleur) ? corps.couleur : "white",
       texte: corps.texte.slice(0, 1000),
-      humain: verificationHumaine(corps.turnstile, ip),
+      humain: verificationHumaine(corps.turnstile, ip, context.url.hostname),
     });
     if (issue.jeton) poserJeton(context, issue.jeton);
     const { jeton: _jeton, ...rendu } = issue;

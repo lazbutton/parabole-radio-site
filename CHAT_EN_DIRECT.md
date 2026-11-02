@@ -453,8 +453,11 @@ JavaScript, réservé aux routes `/api/chat`, jamais envoyé par un autre site).
 à ce pseudo que s'attachent le mode lent, les exclusions et les bannissements. Ni e-mail, ni mot de passe, et aucun
 utilisateur anonyme à créer ni à purger chez Supabase : rien à régler dans Supabase Auth.
 
-- **Les robots** : au premier message d'un pseudo, le serveur vérifie Turnstile (Cloudflare) lui-même. Sans réglages
-  Turnstile, l'antenne marche sans cette vérification ; les limites de débit tiennent toujours.
+- **Les robots** : au premier message d'un pseudo, le serveur vérifie Turnstile (Cloudflare) lui-même. Le jeton doit
+  venir du widget de l'antenne (l'action `antenne`), sur la page même qui l'envoie (son nom de domaine) : un jeton fait
+  sur `localhost` ne passe pas en ligne. Si Cloudflare ne répond pas, le nouveau pseudo attend ; les autres écrivent.
+  Sans réglages Turnstile (les aperçus, le développement), l'antenne marche sans cette vérification ; les limites de
+  débit tiennent toujours.
 - **Vider ses données de navigateur** fait perdre son pseudo : il faudra en choisir un autre (l'ancien reste réservé
   une semaine).
 
@@ -506,9 +509,9 @@ tenir compte des retraits : l'historique passe donc par notre API.
 | Où | Quoi |
 |---|---|
 | `astro.config.mjs` | `PUBLIC_SUPABASE_URL` et `PUBLIC_SUPABASE_PUBLISHABLE_KEY` sont en `context: "client"` : le bandeau en a besoin dans le navigateur. Elles ne sont pas secrètes. L'admin garde son fonctionnement : sa session en cookies `httpOnly`, et aucun client Supabase dans son navigateur |
-| Vercel, et `.env` | `PUBLIC_TURNSTILE_SITE_KEY` (publique) et `TURNSTILE_SECRET_KEY` (secrète), facultatives |
+| Vercel, et `.env` | `PUBLIC_TURNSTILE_SITE_KEY` (publique) et `TURNSTILE_SECRET_KEY` (secrète, marquée sensible), en Production seulement depuis le 2 novembre : chaque aperçu a sa propre adresse, que le widget ne connaît pas, et les aperçus écrivent donc sans vérification. Facultatives en local |
 | Supabase | Rien d'obligatoire. Database → Extensions : **pg_cron**, pour la purge de nuit (`cms/README.md`, 9.9). Realtime → Settings : éteindre **Allow public access** ajoute une barrière, si rien d'autre n'utilise de canal public |
-| Cloudflare | Un widget Turnstile pour le domaine du site (et `localhost` pour le développement) |
+| Cloudflare | Le widget Turnstile « Parabole Radio - antenne libre » (mode Managed, clé publique `0x4AAAAAAFwp8my4glRliN4Z`), pour `parabole-radio-site.vercel.app`, ses deux autres adresses de production, `localhost` et `127.0.0.1`. Un nouveau domaine (un nom à Parabole, par exemple) se déclare dans Cloudflare → Turnstile |
 | Vercel | La région des fonctions : Londres (`lhr1`) depuis le 1er novembre, près de la base. À Washington, la région par défaut de Vercel, chaque aller-retour vers la base traverserait l'Atlantique |
 
 ### 6.7 Mettre en ligne
@@ -517,7 +520,7 @@ tenir compte des retraits : l'historique passe donc par notre API.
    2 novembre 2026**, par `npm run db:migrate` depuis `cms/`, avec la chaîne Session pooler (`cms/README.md`, 4.4).
    Elles ne font qu'ajouter : le site d'avant ne les voit pas. La diffusion y est vérifiée : un client qui n'a que la
    clé publiable reçoit ce que la base diffuse, et ce qu'il envoie lui-même n'arrive chez personne.
-2. **Turnstile** (conseillé avant d'ouvrir au public) : un widget chez Cloudflare, puis ses deux clés dans Vercel.
+2. **Turnstile** : **en place le 2 novembre 2026**, le widget chez Cloudflare et ses deux clés dans Vercel (6.6).
 3. **pg_cron**, pour la purge (`cms/README.md`, 9.9) : il n'est pas allumé sur le projet.
 4. **La liste de mots de départ**, dans l'écran Antenne libre de l'admin, avant d'ouvrir. L'admin de l'aperçu de la
    branche suffit : les aperçus et la production partagent la même base.
@@ -691,7 +694,7 @@ Le reste ne coûte rien, ou presque : la base, les fonctions Vercel, Turnstile. 
 
 - Le canal privé, la règle de réception : une règle `TO anon` suffit à un client sans session (6.3) ; un
   `channel.send()` depuis le navigateur n'arrive chez personne.
-- La région des fonctions Vercel : Londres (`lhr1`), près de la base. Reste à faire : le widget Turnstile (6.6).
+- La région des fonctions Vercel : Londres (`lhr1`), près de la base. Le widget Turnstile : en place (6.6).
 
 **Lot 1 — Ouvrir l'antenne** (construit)
 

@@ -65,6 +65,7 @@ async function preuveHumaine(): Promise<string | null> {
     };
     id = api.render(caseTurnstile, {
       sitekey: PUBLIC_TURNSTILE_SITE_KEY,
+      action: "antenne", // vérifiée par le serveur (src/lib/antenne.ts)
       appearance: "interaction-only",
       theme: "dark",
       language: "fr",
