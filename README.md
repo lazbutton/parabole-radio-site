@@ -47,11 +47,11 @@ Pour une nouvelle page :
 | Chemin | Rôle |
 |---|---|
 | `src/scripts/settings.ts` | **Les réglages** : mot de passe staff, lien et textes du bouton contributeurs, adresses de l'API, chat, Hopper, liste de secours des clips |
-| `src/scripts/` | Les modules de la coque : `audio` (flux, volume, Web Audio), `beat`, `globe`, `background` (playlist et zapping), `neige` (la neige entre deux clips), `panels` (panneaux et fenêtres), `schedule`, `history`, `hopper` (le lien « Retrouver » d'HISTORIQUE et les logos des plateformes sur l'accueil), `nowplaying`, `contributors`, `staff`, `router`, et `antenne` (l'antenne libre : le bandeau, l'écriture, la page 888 ; sa source, `antenne-supabase`) |
+| `src/scripts/` | Les modules de la coque : `audio` (flux, volume, Web Audio), `beat`, `globe`, `background` (playlist et zapping), `neige` (la neige entre deux clips), `panels` (panneaux et fenêtres), `schedule`, `history`, `hopper` (le lien « Retrouver » d'HISTORIQUE et les logos des plateformes), `nowplaying` (ce qui passe : la ligne ON AIR et l'accueil), `juste-avant` (le morceau d'avant, dans la ligne ON AIR), `recherche` (la loupe), `sommaire` (le menu des téléphones), `teletexte` (l'heure des pages de télétexte), `contributors`, `staff`, `router`, et `antenne` (l'antenne libre, éteinte à l'écran pour l'instant ; sa source, `antenne-supabase`) |
 | `CHAT_EN_DIRECT.md` | **L'antenne libre**, le chat du site : le cahier des charges, et comment elle marche |
 | `src/components/` | Les morceaux de la coque (`TopBar`, l'en-tête, `BottomBar`, `Panels`, `Background`, `Staff`, `Icons`) et des pages (`Sheet`, `ComingSoon`) |
 | `src/styles/` | Les styles, globaux : une bonne part du balisage est écrite par les scripts ; `tele.css` pour l'univers télé (neige, chaîne affichée, allumage), `tete.css` pour l'en-tête, `ligne-du-bas.css` pour la ligne du bas |
-| `src/pages/` | Accueil, `about`, `show`, `residents`, `event`, 404, et l'API (`api/`) |
+| `src/pages/` | Accueil, `emissions`, `residents`, `evenements`, `a-propos` (les anciennes adresses `/show`, `/event`, `/about` y redirigent, `astro.config.mjs`), 404, et l'API (`api/`, dont `recherche`, la loupe) |
 | `src/lib/station/` | **L'adaptateur de la station** : Radio Cult aujourd'hui |
 | `src/lib/menu.ts` | Les rubriques du menu |
 | `cms/` | **Le CMS** : modèle de données, base Supabase, lectures du site, écritures de l'admin (son `README.md`) |
