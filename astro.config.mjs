@@ -25,6 +25,10 @@ export default defineConfig({
     schema: {
       // Clé partenaire de Hopper (facultative) : 60 recherches par minute au lieu de 10. Réglage Vercel, jamais dans le dépôt.
       HOPPER_KEY: envField.string({ context: "server", access: "secret", optional: true }),
+      // Clé publishable de Radio Cult (pk_…, page « API key » de son tableau de bord), facultative. Elle n'ouvre que la
+      // lecture et peut aller dans la page : le direct y arrive en temps réel, la programmation nomme ses artistes, et
+      // les pages des résidents annoncent leurs passages. Sans elle, le site marche comme avant. Jamais la clé secrète.
+      PUBLIC_RADIOCULT_KEY: envField.string({ context: "client", access: "public", optional: true }),
       // Le CMS (cms/README.md, section 5). Facultatifs pour que le site public se construise sans eux : l'admin
       // (/admin) dit lui-même ce qui lui manque. En local, dans .env ; en ligne, dans les réglages de Vercel.
       // La base Postgres de Supabase. Vide en local : la base PGlite de cms/.pglite.

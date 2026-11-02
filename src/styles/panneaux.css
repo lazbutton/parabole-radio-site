@@ -123,6 +123,7 @@ html:not([data-page="accueil"]) .sched-head { padding-right: 56px; }
 .sched-row:last-child .sched-rail::before { bottom: auto; height: 14px; }
 .sched-body { align-self: start; min-width: 0; padding: 10px 14px 12px 8px; }   /* colle à son texte ; la ligne court sur toute la rangée */
 .sched-name { color: #ffffff; font-size: 14px; font-weight: 700; line-height: 1.2; letter-spacing: 0.04em; overflow-wrap: anywhere; }
+.sched-artists { margin-top: 3px; color: rgba(255,255,255,0.8); font-size: 11px; letter-spacing: 0.04em; overflow-wrap: anywhere; }
 .sched-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; font-size: 9px; font-weight: 700; letter-spacing: 0.14em; opacity: 0.7; }
 .sched-tag { padding: 2px 5px; border: 1px solid #fff039; color: #fff039; box-shadow: -1px 0 rgba(255,0,72,0.5), 1px 0 rgba(0,200,255,0.45); }
 .sched-live { font-weight: 700; }

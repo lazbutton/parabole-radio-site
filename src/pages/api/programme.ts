@@ -1,6 +1,6 @@
 /**
  * GET /api/programme : la programmation de la veille à dans 7 jours, au format Radiocompas
- * ({timezone, items: [{starts_at, ends_at, title, kind}]}). Gardée une minute.
+ * ({timezone, items: [{starts_at, ends_at, title, kind, artists?}]}). Gardée une minute.
  */
 import type { APIRoute } from "astro";
 import { cached, json } from "../../lib/cache";
