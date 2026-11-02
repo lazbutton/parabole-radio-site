@@ -71,10 +71,10 @@
 }
 .loupe-champ input::placeholder { color: #fff039; opacity: 0.7; }
 .loupe-champ input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
-/* en train d'écrire : le cadre passe au bleu et s'illumine, sans le contour blanc des autres touches */
+/* en train d'écrire : le cadre lui-même passe au blanc et s'illumine, sans le contour décalé des autres touches */
 .loupe-champ:focus-within {
-  border-color: #000dff;
-  box-shadow: -2px 0 rgba(255,0,72,0.5), 2px 0 rgba(0,200,255,0.45), 0 0 10px 1px rgba(0,13,255,0.85);
+  border-color: #ffffff;
+  box-shadow: -2px 0 rgba(255,0,72,0.5), 2px 0 rgba(0,200,255,0.45), 0 0 10px 1px rgba(255,255,255,0.45);
 }
 
 /* Le menu : ÉMISSIONS · RÉSIDENTS · ÉVÉNEMENTS · À PROPOS, à droite. La rubrique ouverte est allumée, et chaque touche
