@@ -37,8 +37,8 @@
 }
 .tete .icon { filter: drop-shadow(-1.5px 0 rgba(255,0,72,0.6)) drop-shadow(1.5px 0 rgba(0,200,255,0.55)); }
 
-/* ---------- LIGNE 1 : le logo, la loupe, le menu ; un pointillé la sépare de la ligne ON AIR ---------- */
-.top-bar { display: flex; align-items: center; gap: 8px; height: var(--rang-h); padding: 0 var(--marge); border-bottom: 1px dashed rgba(255,240,57,0.35); }
+/* ---------- LIGNE 1 : le logo, la loupe, le menu ---------- */
+.top-bar { display: flex; align-items: center; gap: 8px; height: var(--rang-h); padding: 0 var(--marge); }
 
 /* Le logo : il ramène à l'accueil ; un double-clic ouvre le mode staff. Blanc comme le logo d'une chaîne dans le coin
    de l'image, ses couleurs bavent ; il s'allume au survol. Rond, un peu plus haut que les touches pour paraître aussi
