@@ -7,9 +7,10 @@ import type { Tx } from "../access.ts";
 import { indexLetter } from "../read/artists.ts";
 import { coveredTagIds, frenchOrder, oneOf, outer } from "../read/common.ts";
 import { escapeLike, prefixQuery } from "../read/search.ts";
-import { artist, artistRole, artistTag, contentStatus, eventArtist, media, SEARCH_CONFIG, show, showArtist, tag, type ArtistLink, type ArtistRole, type ContentStatus, type ShowType } from "../schema.ts";
+import { artist, artistRole, artistTag, contentStatus, eventArtist, SEARCH_CONFIG, show, showArtist, tag, type ArtistLink, type ArtistRole, type ContentStatus, type ShowType } from "../schema.ts";
 import { freeSlug, versionOf, type NotSaved, type Saved } from "./common.ts";
 import { isUuid, type ArtistValues } from "./input.ts";
+import { getMedia, type AdminMedia } from "./media.ts";
 import { tagChoices, type AdminFacetChoice, type AdminTagChoice } from "./tags.ts";
 
 export type AdminArtistRow = {
@@ -98,7 +99,7 @@ export type AdminArtist = {
   updatedAt: Date;
   /** Jeton de version (src/admin/common.ts), à renvoyer avec la fiche. */
   version: string;
-  photo: { key: string; alt: string } | null;
+  photo: AdminMedia | null;
   /** Ses étiquettes (ce qu'il fait : podcast, playlist, DJ), dans l'ordre alphabétique. */
   tags: { id: string; name: string }[];
   /** Ses shows, brouillons compris, du plus récent au plus ancien. */
@@ -131,7 +132,7 @@ export async function getArtist(tx: Tx, id: string): Promise<AdminArtist | null>
     .limit(1);
   if (!row) return null;
   const { photoId, ...fields } = row;
-  const [photo] = photoId ? await tx.select({ key: media.key, alt: media.alt }).from(media).where(eq(media.id, photoId)) : [];
+  const photo = await getMedia(tx, photoId);
   const shows = await tx
     .select({ id: show.id, title: show.title, type: show.type, status: show.status, broadcastAt: show.broadcastAt })
     .from(showArtist)
@@ -145,7 +146,7 @@ export async function getArtist(tx: Tx, id: string): Promise<AdminArtist | null>
       .innerJoin(tag, eq(tag.id, artistTag.tagId))
       .where(eq(artistTag.artistId, id))
   ).sort((a, b) => frenchOrder.compare(a.name, b.name));
-  return { ...fields, photo: photo ?? null, tags, shows };
+  return { ...fields, photo, tags, shows };
 }
 
 /** Les filtres des artistes et leurs étiquettes, à proposer dans la fiche d'un artiste. */
@@ -203,9 +204,12 @@ export async function saveArtist(tx: Tx, { id, version, values, status }: Artist
   return { ok: true, id: created!.id, slug, newArtists: [], newTags: [] };
 }
 
-/** Supprime un artiste : il disparaît des shows et des événements qui le citaient. Rend son nom. */
-export async function deleteArtist(tx: Tx, id: string): Promise<{ name: string } | null> {
+/**
+ * Supprime un artiste : il disparaît des shows et des événements qui le citaient. Rend son nom, et sa photo, à retirer
+ * si elle ne sert plus (releaseMedia).
+ */
+export async function deleteArtist(tx: Tx, id: string): Promise<{ name: string; photoId: string | null } | null> {
   if (!isUuid(id)) return null;
-  const [removed] = await tx.delete(artist).where(eq(artist.id, id)).returning({ name: artist.name });
+  const [removed] = await tx.delete(artist).where(eq(artist.id, id)).returning({ name: artist.name, photoId: artist.photoId });
   return removed ?? null;
 }

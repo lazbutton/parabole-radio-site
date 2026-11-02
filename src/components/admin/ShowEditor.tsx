@@ -4,6 +4,7 @@
  * mood —, la description et la tracklist ; à côté, la pochette, le son et les informations. Enregistrer, Publier et
  * Dépublier envoient la fiche sans quitter l'écran : le serveur vérifie, écrit sous le rôle de la personne connectée,
  * et renvoie la fiche à jour ; une erreur s'affiche à côté du champ fautif. Une fiche modifiée retient la navigation.
+ * La pochette, elle, se met en place dès son envoi (ImageField).
  *
  * Les étiquettes se choisissent à la souris, filtre par filtre : ceux du type du show (Genre et Géographie pour un DJ
  * set ou une playlist, Thème pour un podcast), en pastilles (FacetPicker). Une étiquette hors des filtres se tape dans
@@ -17,12 +18,13 @@ import { useEffect, useMemo, useState } from "react";
 import { forgetRecent, rememberRecent } from "./recents";
 import { useBlocker, useRouter } from "./router";
 import { FacetPicker } from "./FacetPicker";
-import { Field, filledPlaces, FormError, MediaSlot, mergeSaved, placeErrors, postForm, Property, Section, SheetBar, SidePanel, TitleInput, useSheetKeys, type Intent, type SaveIntent } from "./sheet";
+import { ImageField, placeImage } from "./ImageField";
+import { Field, filledPlaces, FormError, mergeSaved, placeErrors, postForm, Property, Section, SheetBar, SidePanel, TitleInput, useSheetKeys, type Intent, type SaveIntent } from "./sheet";
 import { TextEditor } from "./TextEditor";
 import { useNotify } from "./toast";
 import { TokenPicker } from "./TokenPicker";
 import { trackRow, TracklistEditor, type TrackRow } from "./TracklistEditor";
-import type { Choice, SaveResponse, ShowEditorData, ShowSheet } from "./types";
+import type { Choice, MediaView, SaveResponse, ShowEditorData, ShowSheet } from "./types";
 
 type EditorForm = Omit<ShowForm, "tracks"> & { tracks: TrackRow[] };
 
@@ -137,6 +139,15 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
     if ("version" in result && result.version) setSheet((current) => ({ ...current, version: result.version! }));
     notify({ kind: "error", title: "La fiche n'est pas enregistrée", description: result.errors.form ?? "Corrige les champs signalés." });
     return false;
+  }
+
+  /** Met une image à la place de la pochette, ou la retire : tout de suite, sans enregistrer le reste de la fiche. */
+  async function placeCover(image: MediaView | null): Promise<string | null> {
+    const result = await placeImage(url, "cover", image, sheet.version);
+    if (!result.ok) return result.errors.form ?? result.errors.image ?? "Le serveur a refusé.";
+    setSheet((current) => ({ ...current, cover: result.image, version: result.version ?? current.version, updated: result.updated ?? current.updated }));
+    router.invalidate();
+    return null;
   }
 
   async function remove() {
@@ -342,7 +353,16 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
 
           <aside className="admin-sheet-side" aria-label="Pochette, son et informations">
             <SidePanel title="Pochette">
-              <MediaSlot media={sheet.cover} kind="pochette" />
+              <ImageField
+                image={sheet.cover}
+                kind="pochette"
+                shape="square"
+                suggestion={form.title.trim() ? `Pochette de « ${form.title.trim()} »` : ""}
+                uploads={sheet.uploads}
+                blocked={sheet.id ? undefined : "Enregistre d'abord la fiche : sa pochette s'ajoute ensuite."}
+                onPlace={placeCover}
+                onDescribed={(cover) => setSheet((current) => ({ ...current, cover }))}
+              />
             </SidePanel>
             <SidePanel title="Son">
               <Field label="Piste SoundCloud" htmlFor="soundcloudUrl" optional error={errors.soundcloudUrl}>

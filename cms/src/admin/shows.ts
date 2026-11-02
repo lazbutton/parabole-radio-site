@@ -7,10 +7,11 @@ import { and, asc, desc, eq, inArray, ne, or, sql, type SQL } from "drizzle-orm"
 import type { Tx } from "../access.ts";
 import { coveredTagIds, frenchOrder, oneOf, outer, paging, type Paged } from "../read/common.ts";
 import { escapeLike, prefixQuery } from "../read/search.ts";
-import { artist, contentStatus, media, SEARCH_CONFIG, show, showArtist, showTag, showType, tag, track, type ContentStatus, type ShowType } from "../schema.ts";
+import { artist, contentStatus, SEARCH_CONFIG, show, showArtist, showTag, showType, tag, track, type ContentStatus, type ShowType } from "../schema.ts";
 import { slugify } from "../slug.ts";
 import { freeSlug, versionOf, type NotSaved, type Saved } from "./common.ts";
 import { isUuid, type ArtistPick, type ShowValues, type TagPick } from "./input.ts";
+import { getMedia, type AdminMedia } from "./media.ts";
 import { tagChoices, type AdminFacetChoice, type AdminTagChoice } from "./tags.ts";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -144,7 +145,7 @@ export type AdminShow = {
   updatedAt: Date;
   /** Jeton de version (src/admin/common.ts), à renvoyer avec la fiche. */
   version: string;
-  cover: { key: string; alt: string } | null;
+  cover: AdminMedia | null;
   artists: AdminShowArtist[];
   tags: AdminTag[];
   tracks: { artist: string; title: string; startSeconds: number | null; hopperUrl: string | null }[];
@@ -177,7 +178,7 @@ export async function getShow(tx: Tx, id: string): Promise<AdminShow | null> {
     .limit(1);
   if (!row) return null;
   const { coverId, ...fields } = row;
-  const [cover] = coverId ? await tx.select({ key: media.key, alt: media.alt }).from(media).where(eq(media.id, coverId)) : [];
+  const cover = await getMedia(tx, coverId);
   const artists = await tx
     .select({ id: artist.id, name: artist.name, status: artist.status })
     .from(showArtist)
@@ -196,7 +197,7 @@ export async function getShow(tx: Tx, id: string): Promise<AdminShow | null> {
     .from(track)
     .where(eq(track.showId, id))
     .orderBy(asc(track.position));
-  return { ...fields, cover: cover ?? null, artists, tags, tracks };
+  return { ...fields, cover, artists, tags, tracks };
 }
 
 /**
@@ -346,9 +347,12 @@ export async function saveShow(tx: Tx, { id, version, values, status }: ShowSave
   return { ok: true, id: showId, slug, newArtists: artists.created, newTags: tags.created };
 }
 
-/** Supprime un show, avec sa tracklist et ses liens (pas sa pochette, qui reste dans les fichiers). Rend son titre. */
-export async function deleteShow(tx: Tx, id: string): Promise<{ title: string } | null> {
+/**
+ * Supprime un show, avec sa tracklist et ses liens. Rend son titre, et sa pochette, à retirer si elle ne sert plus
+ * (releaseMedia).
+ */
+export async function deleteShow(tx: Tx, id: string): Promise<{ title: string; coverId: string | null } | null> {
   if (!isUuid(id)) return null;
-  const [removed] = await tx.delete(show).where(eq(show.id, id)).returning({ title: show.title });
+  const [removed] = await tx.delete(show).where(eq(show.id, id)).returning({ title: show.title, coverId: show.coverId });
   return removed ?? null;
 }

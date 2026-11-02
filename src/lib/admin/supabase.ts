@@ -1,6 +1,7 @@
 /**
  * Supabase Auth pour l'admin, côté serveur seulement : la connexion de l'équipe (adresse et mot de passe) et sa
- * session, gardée en cookies par @supabase/ssr. Le navigateur ne parle jamais à Supabase : il n'a ni client ni clé.
+ * session, gardée en cookies par @supabase/ssr. Le navigateur n'a ni client ni clé Supabase : il ne parle au Storage
+ * que pour y déposer une image, à l'adresse que le serveur a signée pour elle (storage.ts).
  *
  * Les cookies de session ne valent que pour /admin (le site public n'en reçoit aucun), ne se lisent pas en
  * JavaScript (httpOnly) et ne partent pas vers un autre site (SameSite=Lax).

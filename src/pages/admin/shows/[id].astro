@@ -3,14 +3,17 @@
  * La fiche d'un show : la créer (/admin/shows/nouveau) ou la modifier (cms/README.md, 9.2). En GET, l'écran (HTML au
  * premier affichage, JSON quand l'application navigue). En POST, la fiche envoyée par l'écran (ShowEditor) : le
  * serveur vérifie la saisie (readShowForm), écrit sous le rôle de la personne connectée (Astro.locals.admin), puis
- * répond en JSON : la fiche à jour, les erreurs par champ, ou la liste où revenir après une suppression.
+ * répond en JSON : la fiche à jour, les erreurs par champ, ou la liste où revenir après une suppression. La pochette se
+ * change à part (« cover »), comme la photo d'un artiste.
  */
 import { readShowForm, type AdminShow } from "@parabole/cms";
-import type { Screen } from "../../../components/admin/types";
+import type { PlaceResponse, Screen } from "../../../components/admin/types";
 import Admin from "../../../layouts/Admin.astro";
+import { parisDateTime } from "../../../lib/admin/format";
 import { intentOf, showFormFrom } from "../../../lib/admin/forms";
 import { seeOther } from "../../../lib/admin/paths";
-import { json, showSheet, wantsJson } from "../../../lib/admin/views";
+import { removeImages } from "../../../lib/admin/storage";
+import { json, mediaView, showSheet, wantsJson } from "../../../lib/admin/views";
 
 export const prerender = false;
 
@@ -22,10 +25,19 @@ if (!isNew && !show) return posted ? json({ ok: false, errors: { form: "Ce show 
 
 if (posted) {
   const data = await Astro.request.formData();
+  if (data.get("intent") === "cover") {
+    if (!show) return json({ ok: false, errors: { form: "Enregistre d'abord la fiche, puis ajoute sa pochette." } }, 400);
+    const placed = await admin.placeMedia("cover", { id: show.id, mediaId: String(data.get("media") ?? "") || null, version: String(data.get("version") ?? "") });
+    if (!placed.ok) return json(placed, 422);
+    await removeImages(await admin.releaseMedia([placed.previous]));
+    const fresh = await admin.getShow(show.id);
+    return json({ ok: true, image: mediaView(fresh?.cover ?? null), version: placed.version, updated: fresh ? parisDateTime(fresh.updatedAt) : null } satisfies PlaceResponse);
+  }
   const intent = intentOf(data);
   if (intent === "delete") {
     if (!show) return json({ ok: false, errors: { form: "Ce show n'est pas encore créé." } }, 400);
     const removed = await admin.deleteShow(show.id);
+    await removeImages(await admin.releaseMedia([removed?.coverId]));
     return json({ ok: true, redirect: "/admin/shows", message: `« ${removed?.title ?? show.title} » supprimé` });
   }
   // Publier, ou enregistrer un show déjà publié : il lui faut une date de diffusion.

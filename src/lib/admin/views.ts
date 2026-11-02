@@ -8,6 +8,7 @@ import {
   emptyArtistForm,
   emptyShowForm,
   formatTimecode,
+  mediaUrl,
   MUTE_CHOICES,
   SLOW_CHOICES,
   type Admin,
@@ -15,6 +16,7 @@ import {
   type AdminArtist,
   type AdminChatMessage,
   type AdminClip,
+  type AdminMedia,
   type AdminShow,
   type TeamMember,
   type Taxonomy,
@@ -25,15 +27,28 @@ import {
   type ArtistSheet,
   type ChatMessageRow,
   type ClipsData,
+  type MediaView,
   type ShowSheet,
   type TagsData,
   type Viewer,
 } from "../../components/admin/types";
+import { mediaBaseUrl } from "../cms";
 import { blobReady, MAX_VIDEO_BYTES } from "./blob";
 import { artistFormOf, showFormOf } from "./forms";
 import { megabytes, parisDateTime, parisDay, parisShortDay, parisTime, since } from "./format";
+import { MAX_IMAGE_BYTES, storageReady } from "./storage";
 
 export const viewerOf = (member: TeamMember): Viewer => ({ name: member.name, email: member.email, role: member.role });
+
+/** Une image à montrer dans une fiche : ses adresses dans le seau « media », l'aperçu en version réduite (400 px). */
+export function mediaView(file: AdminMedia | null): MediaView | null {
+  if (!file) return null;
+  const url = (key: string) => mediaUrl(mediaBaseUrl, key);
+  return { id: file.id, url: url(file.key), thumb: url(file.variants[0]?.key ?? file.key), width: file.width, height: file.height, alt: file.alt, credit: file.credit };
+}
+
+/** L'envoi des images, pour les fiches. */
+const uploads = () => ({ ready: storageReady(), maxBytes: MAX_IMAGE_BYTES });
 
 /**
  * Une fiche de show à afficher (vide pour un nouveau show), avec les artistes et les étiquettes à proposer. Une
@@ -50,7 +65,8 @@ export async function showSheet(admin: Admin, show: AdminShow | null): Promise<S
     created: show ? parisDateTime(show.createdAt) : null,
     updated: show ? parisDateTime(show.updatedAt) : null,
     form: show ? showFormOf(show) : emptyShowForm(),
-    cover: show?.cover ?? null,
+    cover: mediaView(show?.cover ?? null),
+    uploads: uploads(),
     radiocultEventId: show?.radiocultEventId ?? null,
     artists: choices.artists,
     tags: [...choices.tags, ...others],
@@ -68,7 +84,8 @@ export async function artistSheet(admin: Admin, artist: AdminArtist | null): Pro
     created: artist ? parisDateTime(artist.createdAt) : null,
     updated: artist ? parisDateTime(artist.updatedAt) : null,
     form: artist ? artistFormOf(artist) : emptyArtistForm(),
-    photo: artist?.photo ?? null,
+    photo: mediaView(artist?.photo ?? null),
+    uploads: uploads(),
     radiocultArtistId: artist?.radiocultArtistId ?? null,
     shows: (artist?.shows ?? []).map((show) => ({ id: show.id, title: show.title, type: show.type, status: show.status, date: show.broadcastAt ? parisDay(show.broadcastAt) : "sans date" })),
     events: artist?.events ?? 0,

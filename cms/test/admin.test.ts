@@ -395,7 +395,7 @@ describe("les shows dans l'admin", () => {
   it("supprime un show et sa tracklist", async () => {
     const created = await saveForm(editor, { title: "À supprimer", pasted: "0:00 A - Un" });
     if (!created.ok) throw new Error("création refusée");
-    expect(await editor.deleteShow(created.id)).toEqual({ title: "À supprimer" });
+    expect(await editor.deleteShow(created.id)).toEqual({ title: "À supprimer", coverId: null });
     expect(await editor.getShow(created.id)).toBeNull();
     expect(await connection.db.select().from(track).where(eq(track.showId, created.id))).toEqual([]);
     expect(await editor.deleteShow(created.id)).toBeNull();
@@ -481,7 +481,7 @@ describe("les artistes dans l'admin", () => {
     expect((await editor.listArtists({ tag: podcast!.id, q: "nouvelle" })).total).toBe(1);
     expect(await editor.saveArtist({ id: created.id, version: loaded!.version, values: { ...values, slug: loaded!.slug, slugFromTitle: false }, status: "published" })).toMatchObject({ ok: true });
     expect(await publicReader().getArtist("nouvelle-residente")).toMatchObject({ name: "Nouvelle Résidente", tags: [{ slug: "podcast", name: "Podcast" }] });
-    expect(await editor.deleteArtist(created.id)).toEqual({ name: "Nouvelle Résidente" });
+    expect(await editor.deleteArtist(created.id)).toEqual({ name: "Nouvelle Résidente", photoId: null });
     expect(await publicReader().getArtist("nouvelle-residente")).toBeNull();
   });
 
@@ -497,7 +497,8 @@ describe("les artistes dans l'admin", () => {
     const typed = readArtistForm({ name: "Ana", slug: "exemple-bastien-ocre", role: "guest", bio: "", links: [], tags: [] }).values;
     expect(await editor.saveArtist({ id: ana!.id, values: typed })).toEqual({ ok: false, errors: { slug: "Cette adresse sert déjà à « Bastien Ocre (exemple) »." } });
     expect(await stranger.deleteArtist(ana!.id)).toBeNull();
-    expect(await editor.deleteArtist(ana!.id)).toEqual({ name: "Ana Brouillon (exemple)" });
+    // Sa photo est rendue, pour être retirée si elle ne sert plus.
+    expect(await editor.deleteArtist(ana!.id)).toEqual({ name: "Ana Brouillon (exemple)", photoId: expect.any(String) });
     const carte = (await editor.listShows({ q: "Carte blanche" })).items[0]!;
     expect(carte.artists).toEqual(["Yaya Kossi (exemple)"]);
   });

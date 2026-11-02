@@ -62,7 +62,8 @@ Pour une nouvelle page :
 ## L'admin (`/admin`)
 
 L'espace de l'équipe : les shows et leur tracklist, les artistes, les étiquettes et les filtres du site (`/admin/etiquettes`, `cms/README.md`
-section 9.8), les vidéos de fond, la régie de l'antenne libre (`/admin/antenne`, section 9.9). C'est une application React (Radix Themes), hors de
+section 9.8), les vidéos de fond, la régie de l'antenne libre (`/admin/antenne`, section 9.9). La photo d'un artiste et la pochette d'un show
+s'envoient depuis leur fiche, directement du navigateur vers Supabase Storage (section 9.3). C'est une application React (Radix Themes), hors de
 la coque (ni bandeau, ni vidéo), qui marche au téléphone comme à l'ordinateur, en clair comme en sombre ; seule
 l'entrée (connexion, refus, panne) garde le style du site. Le cahier des charges et l'avancement sont dans
 `cms/README.md`, section 9.
@@ -88,7 +89,8 @@ l'entrée (connexion, refus, panne) garde le style du site. Le cahier des charge
   React n'est chargé que par l'admin : le site public n'en charge rien.
 - **Les réglages** : `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_PUBLISHABLE_KEY` et `DATABASE_URL`, dans `.env` en
   local et dans Vercel en ligne (`cms/README.md`, section 5). S'il en manque un, l'admin le dit ; le site public
-  n'en a pas besoin.
+  n'en a pas besoin. Pour envoyer des images, la clé secrète `SUPABASE_SECRET_KEY`, côté serveur seulement : sans
+  elle, les fiches disent que l'envoi n'est pas branché.
 - **En local** : `npm run dev`, puis http://localhost:4321/admin. Avec le `.env` du projet en ligne, on travaille
   sur la vraie base ; pour essayer sans rien toucher en ligne, un Supabase local (`cms/README.md`, « L'admin en
   local »).

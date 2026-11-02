@@ -27,6 +27,9 @@ const CONSTRAINTS: Record<string, [field: string, message: string]> = {
   background_clip_video_url_unique: ["video", "Cette vidéo est déjà dans la liste."],
   background_clip_video_url: ["video", "L'adresse de la vidéo n'est pas valable."],
   background_clip_poster_url: ["video", "L'adresse de l'image d'attente n'est pas valable."],
+  media_key_unique: ["image", "Ce fichier est déjà inscrit. Recommence l'envoi."],
+  artist_photo_id_media_id_fk: ["image", "Cette image n'existe plus : envoie-la de nouveau."],
+  show_cover_id_media_id_fk: ["image", "Cette image n'existe plus : envoie-la de nouveau."],
 };
 
 /** L'erreur Postgres derrière un échec : Drizzle l'enveloppe (« Failed query… ») et garde l'originale dans « cause ». */

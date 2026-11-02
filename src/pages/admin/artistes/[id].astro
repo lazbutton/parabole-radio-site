@@ -2,14 +2,17 @@
 /**
  * La fiche d'un artiste : la créer (/admin/artistes/nouveau) ou la modifier (cms/README.md, 9.2). Même contrat que la
  * fiche d'un show : l'écran en GET (HTML ou JSON), la fiche envoyée par l'écran (ArtistEditor) en POST, et une
- * réponse en JSON.
+ * réponse en JSON. La photo se change à part (« photo ») : une image déjà envoyée (/admin/api/media) prend sa place
+ * tout de suite, et l'ancienne est retirée du Storage si rien d'autre ne s'en sert.
  */
 import { readArtistForm, type AdminArtist } from "@parabole/cms";
-import type { Screen } from "../../../components/admin/types";
+import type { PlaceResponse, Screen } from "../../../components/admin/types";
 import Admin from "../../../layouts/Admin.astro";
+import { parisDateTime } from "../../../lib/admin/format";
 import { artistFormFrom, intentOf } from "../../../lib/admin/forms";
 import { seeOther } from "../../../lib/admin/paths";
-import { artistSheet, json, wantsJson } from "../../../lib/admin/views";
+import { removeImages } from "../../../lib/admin/storage";
+import { artistSheet, json, mediaView, wantsJson } from "../../../lib/admin/views";
 
 export const prerender = false;
 
@@ -21,10 +24,19 @@ if (!isNew && !artist) return posted ? json({ ok: false, errors: { form: "Cet ar
 
 if (posted) {
   const data = await Astro.request.formData();
+  if (data.get("intent") === "photo") {
+    if (!artist) return json({ ok: false, errors: { form: "Enregistre d'abord la fiche, puis ajoute sa photo." } }, 400);
+    const placed = await admin.placeMedia("photo", { id: artist.id, mediaId: String(data.get("media") ?? "") || null, version: String(data.get("version") ?? "") });
+    if (!placed.ok) return json(placed, 422);
+    await removeImages(await admin.releaseMedia([placed.previous]));
+    const fresh = await admin.getArtist(artist.id);
+    return json({ ok: true, image: mediaView(fresh?.photo ?? null), version: placed.version, updated: fresh ? parisDateTime(fresh.updatedAt) : null } satisfies PlaceResponse);
+  }
   const intent = intentOf(data);
   if (intent === "delete") {
     if (!artist) return json({ ok: false, errors: { form: "Cet artiste n'est pas encore créé." } }, 400);
     const removed = await admin.deleteArtist(artist.id);
+    await removeImages(await admin.releaseMedia([removed?.photoId]));
     return json({ ok: true, redirect: "/admin/artistes", message: `« ${removed?.name ?? artist.name} » supprimé` });
   }
   const read = readArtistForm(artistFormFrom(data));
