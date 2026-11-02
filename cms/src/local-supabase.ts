@@ -52,7 +52,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authen
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
 
 -- Supabase Realtime, en imitation : la table des messages diffusés, son sujet, et un realtime.send() qui note ce qu'il
--- aurait diffusé (l'antenne libre, 0007_antenne_acces.sql). Sur Supabase, Realtime crée et garde ce schéma lui-même.
+-- aurait diffusé (l'antenne libre, 0010_antenne_acces.sql). Sur Supabase, Realtime crée et garde ce schéma lui-même.
 CREATE SCHEMA IF NOT EXISTS realtime;
 CREATE TABLE IF NOT EXISTS realtime.messages (
   id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

@@ -9,7 +9,7 @@ import { ChevronLeftIcon, ChevronRightIcon, DiscIcon, ListBulletIcon, PlusIcon, 
 import { Badge, Button, Card, Flex, Link, Select, Table, Text, Tooltip } from "@radix-ui/themes";
 import { Fragment } from "react";
 import { PageHeader } from "./AdminShell";
-import { FilterPill, listHref, SearchField, useListFilters } from "./filters";
+import { FilterPill, listHref, SearchField, TagFilterPill, useListFilters } from "./filters";
 import { StatusBadge, TypeTile } from "./marks";
 import { useRouter } from "./router";
 import { counted } from "./text";
@@ -39,7 +39,6 @@ export function ShowsList({ rows, total, page, pages, filters, artists, tags }: 
   const { loading } = useRouter();
   const { shown, set, goToPage, query } = useListFilters(filters, hrefOf);
   const filtered = Boolean(filters.q || filters.status || filters.type || filters.tag || filters.artist || filters.missing);
-  const tagKinds = (["genre", "mood", "theme"] as const).map((kind) => ({ kind, tags: tags.filter((tag) => tag.kind === kind) })).filter((group) => group.tags.length);
 
   return (
     <div className="admin-page">
@@ -68,19 +67,7 @@ export function ShowsList({ rows, total, page, pages, filters, artists, tags }: 
               </Select.Item>
             ))}
           </FilterPill>
-          <FilterPill label="Étiquette" allLabel="Toutes les étiquettes" value={shown.tag} valueLabel={tags.find((tag) => tag.id === shown.tag)?.name} onChange={(tag) => set({ tag })}>
-            {tagKinds.map((group, index) => (
-              <Select.Group key={group.kind}>
-                {index > 0 && <Select.Separator />}
-                <Select.Label>{LABELS.tagKind[group.kind]}</Select.Label>
-                {group.tags.map((tag) => (
-                  <Select.Item key={tag.id} value={tag.id}>
-                    {tag.name}
-                  </Select.Item>
-                ))}
-              </Select.Group>
-            ))}
-          </FilterPill>
+          {tags.length > 0 && <TagFilterPill label="Étiquette" allLabel="Toutes les étiquettes" menu={tags} value={shown.tag} onChange={(tag) => set({ tag })} />}
           <FilterPill label="Artiste" allLabel="Tous les artistes" value={shown.artist} valueLabel={artists.find((artist) => artist.id === shown.artist)?.name} onChange={(artist) => set({ artist })}>
             {artists.map((artist) => (
               <Select.Item key={artist.id} value={artist.id}>

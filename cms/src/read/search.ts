@@ -17,8 +17,8 @@ import { and, asc, desc, eq, sql, type SQL } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import type { Tx } from "../access.ts";
 import { artist, event, eventArtist, show, showArtist, showTag, tag, track, SEARCH_CONFIG } from "../schema.ts";
-import { mediaJson, outer, toImage } from "./common.ts";
-import type { ArtistCard } from "./artists.ts";
+import { outer } from "./common.ts";
+import { artistCardFields, toArtistCard, type ArtistCard } from "./artists.ts";
 import { eventCardFields, toEventCard, type EventCard } from "./events.ts";
 import { showCardFields, toShowCard, type ShowCard } from "./shows.ts";
 
@@ -83,7 +83,7 @@ export async function search(tx: Tx, base: string, input: string, { limit = 10 }
 
   const artistRank = sql`${rank(artist.search)} + ${bonus(startsWith(artist.name), 1)}`;
   const artists = await tx
-    .select({ slug: artist.slug, name: artist.name, role: artist.role, photo: mediaJson(artist.photoId) })
+    .select(artistCardFields)
     .from(artist)
     .where(and(eq(artist.status, "published"), sql`(${matches(artist.search)} or ${contains(artist.name)})`))
     .orderBy(desc(artistRank), asc(artist.name))
@@ -103,7 +103,7 @@ export async function search(tx: Tx, base: string, input: string, { limit = 10 }
   return {
     query,
     shows: shows.map((row) => toShowCard(base, row)),
-    artists: artists.map((row) => ({ ...row, photo: toImage(base, row.photo) })),
+    artists: artists.map((row) => toArtistCard(base, row)),
     events: events.map((row) => toEventCard(base, row)),
   };
 }

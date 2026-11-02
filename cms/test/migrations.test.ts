@@ -97,13 +97,19 @@ describe("seed", () => {
       // Un vrai contenu, saisi par l'équipe : le seed ne doit jamais y toucher.
       await db.insert(schema.page).values({ slug: "a-propos", title: "À propos", body: "Le vrai texte.", status: "published" });
       const first = await seedExamples(db, { now: NOW });
-      expect(first).toEqual({ media: 15, tags: 11, artists: 8, shows: 9, tracks: 16, events: 7, pages: 2 });
+      expect(first).toEqual({ media: 15, tags: 2, artists: 8, shows: 9, tracks: 16, events: 7, pages: 2 });
       await seedExamples(db, { now: NOW });
-      expect(await countExamples(db)).toEqual({ shows: 9, artists: 8, events: 7, pages: 2, tags: 11, media: 15 });
+      expect(await countExamples(db)).toEqual({ shows: 9, artists: 8, events: 7, pages: 2, tags: 2, media: 15 });
       await removeExamples(db);
       expect(await countExamples(db)).toEqual({ shows: 0, artists: 0, events: 0, pages: 0, tags: 0, media: 0 });
-      const left = rows<{ n: number }>(await db.execute(sql`select (select count(*) from track) + (select count(*) from show_tag) + (select count(*) from event_photo) as n`));
+      const left = rows<{ n: number }>(
+        await db.execute(sql`select (select count(*) from track) + (select count(*) from show_tag) + (select count(*) from artist_tag)
+          + (select count(*) from event_tag) + (select count(*) from event_photo) as n`),
+      );
       expect(Number(left[0]!.n)).toBe(0);
+      // Les vraies étiquettes, que les exemples portaient, restent à leur place.
+      const tags = rows<{ n: number }>(await db.execute(sql`select count(*)::int as n from tag`));
+      expect(tags[0]!.n).toBe(351);
       const [real] = await db.select().from(schema.page).where(eq(schema.page.slug, "a-propos"));
       expect(real?.body).toBe("Le vrai texte.");
     } finally {
@@ -120,7 +126,8 @@ describe("seed", () => {
           union all select 'artist ' || slug from artist where name not like '%(exemple)' or slug not like 'exemple-%'
           union all select 'event ' || slug from event where title not like '%(exemple)' or slug not like 'exemple-%'
           union all select 'page ' || slug from page where title not like '%(exemple)' or slug not like 'exemple-%'
-          union all select 'tag ' || slug from tag where name not like '%(exemple)' or slug not like 'exemple-%'
+          union all select 'tag ' || slug from tag t where (name not like '%(exemple)' or slug not like 'exemple-%')
+            and not exists (select 1 from tag_group g where g.tag_id = t.id) and not exists (select 1 from tag_member m where m.tag_id = t.id)
           union all select 'media ' || key from media where key not like 'exemples/%' or alt not like '%exemple%'`),
       );
       expect(unmarked).toEqual([]);

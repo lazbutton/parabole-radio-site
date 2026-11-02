@@ -5,6 +5,9 @@
  * « exemple- », les clés des fichiers par « exemples/ » (ces fichiers n'existent pas dans le Storage). removeExamples() les
  * retire tous, sans toucher au reste. Les dates partent de `now` : un événement « à venir » le reste.
  *
+ * Les contenus portent les vraies étiquettes des filtres (« house », « dj », « fete » : la migration 0007 les inscrit),
+ * plus deux étiquettes d'exemple sans place, « à classer ». Une vraie étiquette supprimée entre-temps est sautée.
+ *
  * Écrit par le propriétaire des tables, que les règles d'accès laissent passer.
  */
 import { like, sql } from "drizzle-orm";
@@ -12,9 +15,11 @@ import type { Db } from "../src/db.ts";
 import { startOfParisDay } from "../src/read/common.ts";
 import {
   artist,
+  artistTag,
   event,
   eventArtist,
   eventPhoto,
+  eventTag,
   media,
   page,
   show,
@@ -24,10 +29,8 @@ import {
   track,
   type ArtistRole,
   type ContentStatus,
-  type EventCategory,
   type MediaVariant,
   type ShowType,
-  type TagKind,
 } from "../src/schema.ts";
 
 export const EXAMPLE_SLUG_PREFIX = "exemple-";
@@ -36,8 +39,19 @@ export const EXAMPLE_MEDIA_PREFIX = "exemples/";
 const HOUR = 3_600_000;
 
 type ExampleMedia = { ref: string; key: string; width?: number; height?: number; alt: string; credit?: string; variants?: MediaVariant[] };
-type ExampleTag = { ref: string; kind: TagKind; name: string; slug: string };
-type ExampleArtist = { ref: string; slug: string; name: string; role: ArtistRole; status: ContentStatus; bio?: string; photo?: string; links?: { label: string; url: string }[] };
+type ExampleTag = { name: string; slug: string };
+type ExampleArtist = {
+  ref: string;
+  slug: string;
+  name: string;
+  role: ArtistRole;
+  status: ContentStatus;
+  bio?: string;
+  photo?: string;
+  links?: { label: string; url: string }[];
+  /** Les adresses de ses étiquettes (ce qu'il fait). */
+  tags?: string[];
+};
 type ExampleTrack = { artist: string; title: string; at?: string; hopper?: string };
 type ExampleShow = {
   slug: string;
@@ -47,17 +61,21 @@ type ExampleShow = {
   /** Jours depuis `now` (négatif : passé). */
   day: number;
   minutes?: number;
+  /** Le mood, de 1 (calme) à 5 (énergique). */
+  energy?: number;
   description?: string;
   cover?: string;
   soundcloud?: string;
   artists: string[];
+  /** Les adresses de ses étiquettes. */
   tags: string[];
   tracks?: ExampleTrack[];
 };
 type ExampleEvent = {
   slug: string;
   title: string;
-  category: EventCategory;
+  /** Les adresses de ses étiquettes (sa catégorie). */
+  tags: string[];
   status: ContentStatus;
   /** Heures depuis `now`. */
   startsIn: number;
@@ -102,21 +120,10 @@ export const EXAMPLE_MEDIA: ExampleMedia[] = [
   landscape("fichier-pas-encore-utilise", "Image envoyée mais pas encore placée (image d'exemple)"),
 ];
 
-const exampleTag = (kind: TagKind, name: string, slug: string): ExampleTag => ({ ref: `${kind}:${slug}`, kind, name: `${name} (exemple)`, slug: `${EXAMPLE_SLUG_PREFIX}${slug}` });
-
+/** Deux étiquettes d'exemple, sans place dans les filtres : « à classer », comme celles créées depuis une fiche. */
 export const EXAMPLE_TAGS: ExampleTag[] = [
-  exampleTag("genre", "House", "house"),
-  exampleTag("genre", "Techno", "techno"),
-  exampleTag("genre", "Ambient", "ambient"),
-  exampleTag("genre", "Jazz", "jazz"),
-  exampleTag("genre", "Musiques électroniques", "musiques-electroniques"),
-  exampleTag("mood", "Dansant", "dansant"),
-  exampleTag("mood", "Calme", "calme"),
-  exampleTag("mood", "Mélancolique", "melancolique"),
-  // Même slug qu'un genre : un mood et un genre ne se confondent pas.
-  exampleTag("mood", "Ambient", "ambient"),
-  exampleTag("theme", "Quartier", "quartier"),
-  exampleTag("theme", "Écologie", "ecologie"),
+  { name: "Quartier (exemple)", slug: `${EXAMPLE_SLUG_PREFIX}quartier` },
+  { name: "Écologie (exemple)", slug: `${EXAMPLE_SLUG_PREFIX}ecologie` },
 ];
 
 const links = (name: string) => [
@@ -134,6 +141,7 @@ export const EXAMPLE_ARTISTS: ExampleArtist[] = [
     photo: "portrait-eloise-vachon",
     links: links("eloise-vachon"),
     bio: "Résidente inventée pour l'exemple. Elle mixe de la **house** le dimanche et anime un podcast sur l'écologie au quotidien.",
+    tags: ["dj", "podcast"],
   },
   {
     ref: "bastien",
@@ -144,6 +152,7 @@ export const EXAMPLE_ARTISTS: ExampleArtist[] = [
     photo: "portrait-bastien-ocre",
     links: links("bastien-ocre"),
     bio: "Résident inventé pour l'exemple : techno de minuit et longues transitions.",
+    tags: ["dj"],
   },
   {
     ref: "collectif",
@@ -152,10 +161,19 @@ export const EXAMPLE_ARTISTS: ExampleArtist[] = [
     role: "resident",
     status: "published",
     bio: "Collectif inventé pour l'exemple : des voix et des musiques du quartier.",
+    tags: ["podcast", "playlist"],
   },
-  { ref: "yaya", slug: "exemple-yaya-kossi", name: "Yaya Kossi (exemple)", role: "guest", status: "published", bio: "Invitée inventée pour l'exemple." },
-  { ref: "zelie", slug: "exemple-zelie-marteau", name: "Zélie Marteau (exemple)", role: "guest", status: "published", bio: "Invitée inventée pour l'exemple, entre ambient et jazz." },
-  { ref: "crew", slug: "exemple-404-crew", name: "404 Crew (exemple)", role: "guest", status: "published", bio: "Équipe inventée pour l'exemple." },
+  { ref: "yaya", slug: "exemple-yaya-kossi", name: "Yaya Kossi (exemple)", role: "guest", status: "published", bio: "Invitée inventée pour l'exemple.", tags: ["dj"] },
+  {
+    ref: "zelie",
+    slug: "exemple-zelie-marteau",
+    name: "Zélie Marteau (exemple)",
+    role: "guest",
+    status: "published",
+    bio: "Invitée inventée pour l'exemple, entre ambient et jazz.",
+    tags: ["playlist"],
+  },
+  { ref: "crew", slug: "exemple-404-crew", name: "404 Crew (exemple)", role: "guest", status: "published", bio: "Équipe inventée pour l'exemple.", tags: ["dj"] },
   // Un nom fait de mots vides : la recherche le trouve quand même.
   { ref: "ellelui", slug: "exemple-elle-et-lui", name: "Elle & Lui (exemple)", role: "guest", status: "published", bio: "Duo inventé pour l'exemple." },
   {
@@ -166,6 +184,7 @@ export const EXAMPLE_ARTISTS: ExampleArtist[] = [
     status: "draft",
     photo: "portrait-ana-brouillon",
     bio: "Fiche en brouillon : invisible sur le site.",
+    tags: ["dj"],
   },
 ];
 
@@ -182,8 +201,9 @@ export const EXAMPLE_SHOWS: ExampleShow[] = [
     description: "Un DJ set inventé pour l'exemple : deux heures de house et de musiques électroniques pour finir le week-end.",
     cover: "pochette-dimanche-house",
     soundcloud: "1000000001",
+    energy: 4,
     artists: ["eloise"],
-    tags: ["genre:house", "mood:dansant", "genre:musiques-electroniques"],
+    tags: ["house", "deep-house"],
     tracks: [
       { artist: "Orchestre Imaginaire", title: "Lumière de Barbès", at: "0:00", hopper: hopper("lumiere-de-barbes") },
       { artist: "Les Fictifs", title: "Boulevard de la Chapelle", at: "6:12" },
@@ -202,8 +222,9 @@ export const EXAMPLE_SHOWS: ExampleShow[] = [
     description: "Un b2b inventé pour l'exemple, techno sombre et rapide.",
     cover: "pochette-techno-de-minuit",
     soundcloud: "1000000002",
+    energy: 5,
     artists: ["bastien", "yaya"],
-    tags: ["genre:techno", "mood:dansant", "genre:musiques-electroniques"],
+    tags: ["techno", "detroit-techno"],
     tracks: [
       { artist: "Machine Fictive", title: "Minuit pile", at: "0:00" },
       { artist: "Les Fictifs", title: "Tunnel", at: "7:30", hopper: hopper("tunnel") },
@@ -221,8 +242,9 @@ export const EXAMPLE_SHOWS: ExampleShow[] = [
     description: "Une playlist inventée pour l'exemple, pour se réveiller doucement.",
     cover: "pochette-matin-calme",
     soundcloud: "1000000003",
+    energy: 1,
     artists: ["zelie"],
-    tags: ["genre:ambient", "mood:calme"],
+    tags: ["ambient"],
     tracks: [
       { artist: "Brume Fictive", title: "Rosée", at: "0:00" },
       { artist: "Échos Inventés", title: "Toits de Paris", at: "9:10" },
@@ -237,8 +259,9 @@ export const EXAMPLE_SHOWS: ExampleShow[] = [
     day: -20,
     minutes: 75,
     description: "Une playlist inventée pour l'exemple : du jazz pour les après-midi pluvieux.",
+    energy: 2,
     artists: ["collectif"],
-    tags: ["genre:jazz", "mood:melancolique", "mood:ambient"],
+    tags: ["jazz"],
     tracks: [
       { artist: "Quartet Imaginaire", title: "Pluie sur Château Rouge", at: "0:00" },
       { artist: "Trio Fictif", title: "Ballade du 18e", at: "8:20" },
@@ -254,7 +277,7 @@ export const EXAMPLE_SHOWS: ExampleShow[] = [
     minutes: 45,
     description: "Un podcast inventé pour l'exemple : les habitantes et les habitants racontent l'histoire du quartier.",
     artists: ["collectif"],
-    tags: ["theme:quartier"],
+    tags: ["diasporas", "exemple-quartier"],
   },
   {
     slug: "exemple-ecologie-au-quotidien",
@@ -265,7 +288,7 @@ export const EXAMPLE_SHOWS: ExampleShow[] = [
     minutes: 40,
     description: "Un podcast inventé pour l'exemple : jardins partagés, réparation et vélo dans le 18e.",
     artists: ["eloise", "zelie"],
-    tags: ["theme:ecologie"],
+    tags: ["militantisme", "exemple-ecologie"],
   },
   {
     slug: "exemple-carte-blanche",
@@ -275,8 +298,9 @@ export const EXAMPLE_SHOWS: ExampleShow[] = [
     day: -2,
     minutes: 60,
     description: "Un DJ set inventé pour l'exemple, avec une invitée dont la fiche est encore en brouillon.",
+    energy: 4,
     artists: ["yaya", "ana"],
-    tags: ["genre:techno"],
+    tags: ["techno", "amapiano"],
   },
   {
     slug: "exemple-session-a-venir",
@@ -287,7 +311,7 @@ export const EXAMPLE_SHOWS: ExampleShow[] = [
     minutes: 120,
     description: "Un show inventé pour l'exemple, annoncé avant sa diffusion : pas encore de son.",
     artists: ["crew"],
-    tags: ["genre:house"],
+    tags: ["house"],
   },
   {
     slug: "exemple-set-non-publie",
@@ -299,7 +323,7 @@ export const EXAMPLE_SHOWS: ExampleShow[] = [
     description: "Un brouillon inventé pour l'exemple : invisible sur le site, comme sa pochette et sa tracklist.",
     cover: "pochette-brouillon",
     artists: ["ana"],
-    tags: ["genre:techno"],
+    tags: ["techno"],
     tracks: [{ artist: "Artiste Secret", title: "Morceau confidentiel", at: "0:00" }],
   },
 ];
@@ -308,7 +332,7 @@ export const EXAMPLE_EVENTS: ExampleEvent[] = [
   {
     slug: "exemple-nuit-parabole",
     title: "Nuit Parabole (exemple)",
-    category: "parabole",
+    tags: ["fete"],
     status: "published",
     startsIn: 7 * 24 + 8,
     hours: 6,
@@ -322,7 +346,7 @@ export const EXAMPLE_EVENTS: ExampleEvent[] = [
   {
     slug: "exemple-rencontre-radios-de-quartier",
     title: "Rencontre : radios de quartier (exemple)",
-    category: "talk",
+    tags: ["rencontre-talk"],
     status: "published",
     startsIn: 14 * 24 + 6,
     venue: "Bibliothèque imaginaire",
@@ -333,7 +357,7 @@ export const EXAMPLE_EVENTS: ExampleEvent[] = [
     // Commencé il y a deux heures, sans heure de fin : encore « à venir » jusqu'à minuit (heure de Paris).
     slug: "exemple-atelier-du-jour",
     title: "Atelier du jour (exemple)",
-    category: "art_ensemble",
+    tags: ["live-session-art-ensemble"],
     status: "published",
     startsIn: -2,
     sameDay: true,
@@ -344,7 +368,7 @@ export const EXAMPLE_EVENTS: ExampleEvent[] = [
   {
     slug: "exemple-expo-sonore",
     title: "Expo sonore (exemple)",
-    category: "art_ensemble",
+    tags: ["live-session-art-ensemble"],
     status: "published",
     startsIn: -40 * 24,
     hours: 10 * 24,
@@ -361,7 +385,7 @@ export const EXAMPLE_EVENTS: ExampleEvent[] = [
   {
     slug: "exemple-soiree-speciale-anniversaire",
     title: "Soirée spéciale anniversaire (exemple)",
-    category: "special",
+    tags: ["evenement-special", "fete"],
     status: "published",
     startsIn: -60 * 24,
     hours: 6,
@@ -373,7 +397,7 @@ export const EXAMPLE_EVENTS: ExampleEvent[] = [
   {
     slug: "exemple-talk-ecologie-sonore",
     title: "Talk : écologie sonore (exemple)",
-    category: "talk",
+    tags: ["rencontre-talk"],
     status: "published",
     startsIn: -5 * 24,
     venue: "Bibliothèque imaginaire",
@@ -383,7 +407,7 @@ export const EXAMPLE_EVENTS: ExampleEvent[] = [
   {
     slug: "exemple-evenement-brouillon",
     title: "Événement en brouillon (exemple)",
-    category: "parabole",
+    tags: ["fete"],
     status: "draft",
     startsIn: 20 * 24,
     description: "Un brouillon inventé pour l'exemple : invisible sur le site.",
@@ -442,14 +466,10 @@ export async function seedExamples(db: Db, { now = new Date() }: { now?: Date } 
       .returning({ id: media.id, key: media.key });
     const fileId = (ref: string) => files.find((file) => file.key === `${EXAMPLE_MEDIA_PREFIX}${ref}.webp`)!.id;
 
-    const tags = await tx
-      .insert(tag)
-      .values(EXAMPLE_TAGS.map(({ kind, name, slug }) => ({ kind, name, slug })))
-      .returning({ id: tag.id, kind: tag.kind, slug: tag.slug });
-    const tagId = (ref: string) => {
-      const [kind, slug] = ref.split(":");
-      return tags.find((row) => row.kind === kind && row.slug === `${EXAMPLE_SLUG_PREFIX}${slug}`)!.id;
-    };
+    const tags = await tx.insert(tag).values(EXAMPLE_TAGS).returning({ id: tag.id });
+    // Les étiquettes par adresse : celles d'exemple, et les vraies des filtres.
+    const tagIds = new Map((await tx.select({ id: tag.id, slug: tag.slug }).from(tag)).map((row) => [row.slug, row.id]));
+    const tagged = (slugs: string[] | undefined) => (slugs ?? []).flatMap((slug) => (tagIds.has(slug) ? [tagIds.get(slug)!] : []));
 
     const artists = await tx
       .insert(artist)
@@ -466,6 +486,8 @@ export async function seedExamples(db: Db, { now = new Date() }: { now?: Date } 
       )
       .returning({ id: artist.id, slug: artist.slug });
     const artistId = (ref: string) => artists.find((row) => row.slug === EXAMPLE_ARTISTS.find((example) => example.ref === ref)!.slug)!.id;
+    const artistTags = EXAMPLE_ARTISTS.flatMap((example) => tagged(example.tags).map((tagId) => ({ artistId: artistId(example.ref), tagId })));
+    if (artistTags.length) await tx.insert(artistTag).values(artistTags);
 
     let tracks = 0;
     for (const example of EXAMPLE_SHOWS) {
@@ -478,6 +500,7 @@ export async function seedExamples(db: Db, { now = new Date() }: { now?: Date } 
           status: example.status,
           broadcastAt: at(example.day * 24),
           durationSeconds: example.minutes ? example.minutes * 60 : undefined,
+          energy: example.energy,
           description: example.description,
           coverId: example.cover ? fileId(example.cover) : undefined,
           soundcloudUrl: example.soundcloud ? `https://soundcloud.com/parabole-radio/${example.slug}` : undefined,
@@ -486,7 +509,8 @@ export async function seedExamples(db: Db, { now = new Date() }: { now?: Date } 
         .returning({ id: show.id });
       const id = row!.id;
       if (example.artists.length) await tx.insert(showArtist).values(example.artists.map((ref, position) => ({ showId: id, artistId: artistId(ref), position })));
-      if (example.tags.length) await tx.insert(showTag).values(example.tags.map((ref) => ({ showId: id, tagId: tagId(ref) })));
+      const showTags = tagged(example.tags);
+      if (showTags.length) await tx.insert(showTag).values(showTags.map((tagId) => ({ showId: id, tagId })));
       if (example.tracks?.length) {
         await tx.insert(track).values(
           example.tracks.map((item, index) => ({
@@ -509,7 +533,6 @@ export async function seedExamples(db: Db, { now = new Date() }: { now?: Date } 
         .values({
           slug: example.slug,
           title: example.title,
-          category: example.category,
           status: example.status,
           startsAt,
           endsAt: example.hours ? new Date(startsAt.getTime() + example.hours * HOUR) : undefined,
@@ -522,6 +545,8 @@ export async function seedExamples(db: Db, { now = new Date() }: { now?: Date } 
         .returning({ id: event.id });
       const id = row!.id;
       if (example.artists.length) await tx.insert(eventArtist).values(example.artists.map((ref, position) => ({ eventId: id, artistId: artistId(ref), position })));
+      const eventTags = tagged(example.tags);
+      if (eventTags.length) await tx.insert(eventTag).values(eventTags.map((tagId) => ({ eventId: id, tagId })));
       if (example.photos?.length) {
         await tx.insert(eventPhoto).values(example.photos.map((photo, position) => ({ eventId: id, mediaId: fileId(photo.ref), position, caption: photo.caption })));
       }

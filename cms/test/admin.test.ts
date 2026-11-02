@@ -160,10 +160,18 @@ describe("la fiche d'un show, vérifiée", () => {
   it("lit les artistes et les étiquettes choisis, nouveaux compris, sans doublon", () => {
     const id = "6f1c1f0e-8c2a-4b8e-9a51-0d1c2b3a4f5e";
     const { values } = readShowForm(
-      showForm({ title: "Choix", artists: [id, "nouveau:  Nouvelle   Voix ", id.toUpperCase(), "nouveau:", "n'importe quoi"], tags: ["nouveau:genre:Afro House", "nouveau:genre:afro-house", "nouveau:couleur:Bleu", id] }),
+      showForm({ title: "Choix", artists: [id, "nouveau:  Nouvelle   Voix ", id.toUpperCase(), "nouveau:", "n'importe quoi"], tags: ["nouveau:Afro House", "nouveau:afro-house", "nouveau:  ", id, "rouge"] }),
     );
     expect(values.artists).toEqual([{ id }, { name: "Nouvelle Voix" }]);
-    expect(values.tags).toEqual([{ kind: "genre", name: "Afro House" }, { id }]);
+    expect(values.tags).toEqual([{ name: "Afro House" }, { id }]);
+  });
+
+  it("lit le mood d'un DJ set ou d'une playlist, pas celui d'un podcast", () => {
+    expect(readShowForm(showForm({ title: "Mood", energy: "4" })).values.energy).toBe(4);
+    expect(readShowForm(showForm({ title: "Mood", energy: "" })).values.energy).toBeNull();
+    expect(readShowForm(showForm({ title: "Mood", type: "podcast", energy: "4" })).values.energy).toBeNull();
+    expect(readShowForm(showForm({ title: "Mood", energy: "9" })).errors.energy).toBe("Un cran de 1 à 5.");
+    expect(readShowForm(showForm({ title: "Mood", energy: "2.5" })).errors.energy).toBe("Un cran de 1 à 5.");
   });
 });
 
@@ -251,8 +259,11 @@ describe("les shows dans l'admin", () => {
     expect((await editor.listShows({ q: "confidentiel" })).items.map((row) => row.slug)).toEqual(["exemple-set-non-publie"]);
     const [anArtist] = await connection.db.select({ id: artist.id }).from(artist).where(eq(artist.slug, "exemple-yaya-kossi"));
     expect((await editor.listShows({ artist: anArtist!.id })).total).toBe(2);
-    const [techno] = await connection.db.select({ id: tag.id }).from(tag).where(eq(tag.slug, "exemple-techno"));
+    const [techno] = await connection.db.select({ id: tag.id }).from(tag).where(eq(tag.slug, "techno"));
     expect((await editor.listShows({ tag: techno!.id })).total).toBe(3);
+    // Un groupe vaut pour ses étiquettes : House / techno trouve aussi les shows House, Deep house, Detroit techno.
+    const [houseTechno] = await connection.db.select({ id: tag.id }).from(tag).where(eq(tag.slug, "house-techno"));
+    expect((await editor.listShows({ tag: houseTechno!.id })).total).toBe(5);
     // Une valeur inconnue dans l'adresse ne casse rien.
     expect((await editor.listShows({ status: "perdu", type: "?", tag: "pas-un-id" })).total).toBe(9);
     const row = all.items.find((item) => item.slug === "exemple-techno-de-minuit")!;
@@ -276,19 +287,23 @@ describe("les shows dans l'admin", () => {
       duration: "2:00:00",
       description: "Une **description**.",
       artists: [eloise!.id, "nouveau:Invitée Toute Neuve"],
-      tags: ["nouveau:genre:Afro House"],
+      tags: ["nouveau:Bouillon de genres"],
+      energy: "3",
       pasted: "0:00 Orchestre Imaginaire – Ouverture\n5:00 Les Fictifs - Suite https://hppr.fr/suite",
     });
-    expect(saved).toMatchObject({ ok: true, slug: "essai-de-l-admin", newArtists: ["Invitée Toute Neuve"], newTags: ["Afro House"] });
+    expect(saved).toMatchObject({ ok: true, slug: "essai-de-l-admin", newArtists: ["Invitée Toute Neuve"], newTags: ["Bouillon de genres"] });
     if (!saved.ok) return;
     const loaded = await editor.getShow(saved.id);
-    expect(loaded).toMatchObject({ title: "Essai de l'admin", status: "draft", durationSeconds: 7200, description: "Une **description**." });
+    expect(loaded).toMatchObject({ title: "Essai de l'admin", status: "draft", durationSeconds: 7200, energy: 3, description: "Une **description**." });
     expect(loaded!.broadcastAt?.toISOString()).toBe("2026-06-20T18:00:00.000Z");
     expect(loaded!.artists.map((one) => [one.name, one.status])).toEqual([
       ["Éloïse Vachon (exemple)", "published"],
       ["Invitée Toute Neuve", "draft"],
     ]);
-    expect(loaded!.tags).toEqual([{ id: expect.any(String), kind: "genre", name: "Afro House" }]);
+    expect(loaded!.tags).toEqual([{ id: expect.any(String), name: "Bouillon de genres" }]);
+    // La nouvelle étiquette n'a pas encore de place dans les filtres : elle est à classer.
+    const { tags: choices } = await editor.showChoices();
+    expect(choices.find((one) => one.name === "Bouillon de genres")).toMatchObject({ places: [] });
     expect(loaded!.tracks).toEqual([
       { artist: "Orchestre Imaginaire", title: "Ouverture", startSeconds: 0, hopperUrl: null },
       { artist: "Les Fictifs", title: "Suite", startSeconds: 300, hopperUrl: "https://hppr.fr/suite" },
@@ -301,19 +316,16 @@ describe("les shows dans l'admin", () => {
   });
 
   it("retrouve un artiste et une étiquette existants sous un nom tapé autrement, sans doublon", async () => {
-    // Par le nom, sans accents ni majuscules : l'étiquette « House (exemple) » a pour adresse exemple-house.
-    const saved = await saveForm(editor, { title: "Retrouvailles", artists: ["nouveau:eloise VACHON (exemple)"], tags: ["nouveau:genre:house (EXEMPLE)", "nouveau:mood:Ambient (exemple)"] });
+    // Par le nom, sans accents ni majuscules : « coupe decale » retrouve « Coupé-décalé », « QUARTIER (exemple) » l'étiquette d'exemple.
+    const saved = await saveForm(editor, { title: "Retrouvailles", artists: ["nouveau:eloise VACHON (exemple)"], tags: ["nouveau:COUPE-DECALE", "nouveau:quartier (EXEMPLE)"] });
     expect(saved).toMatchObject({ ok: true, newArtists: [], newTags: [] });
     if (!saved.ok) return;
     const loaded = await editor.getShow(saved.id);
     expect(loaded!.artists.map((one) => one.name)).toEqual(["Éloïse Vachon (exemple)"]);
-    expect(loaded!.tags.map((one) => [one.kind, one.name])).toEqual([
-      ["genre", "House (exemple)"],
-      ["mood", "Ambient (exemple)"],
-    ]);
+    expect(loaded!.tags.map((one) => one.name)).toEqual(["Coupé-décalé", "Quartier (exemple)"]);
     // Par l'adresse : « disco  TROPICAL » retrouve « Disco tropical ».
-    const first = await saveForm(editor, { title: "Disco 1", tags: ["nouveau:genre:Disco tropical"] });
-    const second = await saveForm(editor, { title: "Disco 2", tags: ["nouveau:genre:disco  TROPICAL"] });
+    const first = await saveForm(editor, { title: "Disco 1", tags: ["nouveau:Disco tropical"] });
+    const second = await saveForm(editor, { title: "Disco 2", tags: ["nouveau:disco  TROPICAL"] });
     expect([first, second]).toMatchObject([{ newTags: ["Disco tropical"] }, { newTags: [] }]);
   });
 
@@ -389,12 +401,34 @@ describe("les shows dans l'admin", () => {
     expect(await editor.deleteShow(created.id)).toBeNull();
   });
 
-  it("propose tous les artistes et toutes les étiquettes, dans l'ordre alphabétique", async () => {
-    const { artists, tags } = await editor.showChoices();
+  it("propose tous les artistes dans l'ordre alphabétique, et les étiquettes des shows avec leurs places", async () => {
+    const { artists, tags, facets } = await editor.showChoices();
     const names = artists.map((one) => one.name);
     expect(names).toContain("Ana Brouillon (exemple)");
     expect(names).toEqual([...names].sort(frenchOrder.compare));
-    expect(tags.filter((one) => one.name === "Ambient (exemple)").map((one) => one.kind).sort()).toEqual(["genre", "mood"]);
+    expect(facets.map((one) => [one.name, one.showTypes, one.groups.length])).toEqual([
+      ["Thème", ["podcast"], 3],
+      ["Genre", ["dj_set", "playlist"], 14],
+      ["Géographie", ["dj_set", "playlist"], 5],
+    ]);
+    // De quoi choisir à la souris : les groupes dans l'ordre, leurs étiquettes dans l'ordre alphabétique.
+    const nameOf = (id: string) => tags.find((one) => one.id === id)?.name;
+    const theme = facets[0]!;
+    expect(theme.groups.map((group) => nameOf(group.tagId))).toEqual(["Culture", "Société", "Musique"]);
+    expect(theme.groups[2]!.members.map(nameOf)).toEqual(["Actualité musicale", "Histoire de la musique"]);
+    // Dans l'ordre des filtres et de leurs groupes : Thème › Culture et ses étiquettes d'abord.
+    const tagNames = tags.map((one) => one.name);
+    expect(tagNames.slice(0, 4)).toEqual(["Culture", "Architecture", "Art", "Cinéma"]);
+    // Amapiano a deux places ; Club est un groupe ; les activités des artistes et les catégories d'événements n'y sont pas.
+    const facetOf = (name: string) => facets.find((one) => one.name === name)!.id;
+    const amapiano = tags.find((one) => one.name === "Amapiano")!;
+    const club = tags.find((one) => one.name === "Club")!;
+    expect(amapiano.places).toEqual(expect.arrayContaining([{ facetId: facetOf("Genre"), groupId: club.id }, expect.objectContaining({ facetId: facetOf("Géographie") })]));
+    expect(club.places).toEqual([{ facetId: facetOf("Genre"), groupId: null }]);
+    expect(tagNames).not.toContain("DJ");
+    expect(tagNames).not.toContain("Fête");
+    // Les étiquettes à classer sont proposées aussi, sans place.
+    expect(tags.find((one) => one.name === "Quartier (exemple)")).toMatchObject({ places: [] });
   });
 });
 
@@ -419,7 +453,7 @@ describe("les artistes dans l'admin", () => {
     expect(withoutPhoto.every((one) => !one.hasPhoto)).toBe(true);
     const before = await rows("bio");
     expect(before.some((one) => one.slug.startsWith("exemple-"))).toBe(false);
-    const { values } = readArtistForm({ name: "Sans Bio", slug: "", role: "guest", bio: "   ", links: [] });
+    const { values } = readArtistForm({ name: "Sans Bio", slug: "", role: "guest", bio: "   ", links: [], tags: [] });
     const created = await editor.saveArtist({ values });
     const after = await rows("bio");
     expect(after.length).toBe(before.length + 1);
@@ -428,15 +462,25 @@ describe("les artistes dans l'admin", () => {
     if (created.ok) await editor.deleteArtist(created.id);
   });
 
-  it("créent, publient et suppriment une fiche, liens compris", async () => {
-    const { values } = readArtistForm({ name: "Nouvelle Résidente", slug: "", role: "resident", bio: "Une bio.", links: [{ label: "", url: "https://soundcloud.com/nouvelle" }] });
+  it("créent, publient et suppriment une fiche, liens et étiquettes compris", async () => {
+    const [podcast] = await connection.db.select({ id: tag.id }).from(tag).where(eq(tag.slug, "podcast"));
+    const { values } = readArtistForm({
+      name: "Nouvelle Résidente",
+      slug: "",
+      role: "resident",
+      bio: "Une bio.",
+      links: [{ label: "", url: "https://soundcloud.com/nouvelle" }],
+      tags: [podcast!.id, "pas-un-id", podcast!.id],
+    });
     const created = await editor.saveArtist({ values });
     expect(created).toMatchObject({ ok: true, slug: "nouvelle-residente" });
     if (!created.ok) return;
     const loaded = await editor.getArtist(created.id);
     expect(loaded).toMatchObject({ name: "Nouvelle Résidente", role: "resident", status: "draft", links: [{ label: "SoundCloud", url: "https://soundcloud.com/nouvelle" }], shows: [], events: 0 });
+    expect(loaded!.tags).toEqual([{ id: podcast!.id, name: "Podcast" }]);
+    expect((await editor.listArtists({ tag: podcast!.id, q: "nouvelle" })).total).toBe(1);
     expect(await editor.saveArtist({ id: created.id, version: loaded!.version, values: { ...values, slug: loaded!.slug, slugFromTitle: false }, status: "published" })).toMatchObject({ ok: true });
-    expect(await publicReader().getArtist("nouvelle-residente")).toMatchObject({ name: "Nouvelle Résidente" });
+    expect(await publicReader().getArtist("nouvelle-residente")).toMatchObject({ name: "Nouvelle Résidente", tags: [{ slug: "podcast", name: "Podcast" }] });
     expect(await editor.deleteArtist(created.id)).toEqual({ name: "Nouvelle Résidente" });
     expect(await publicReader().getArtist("nouvelle-residente")).toBeNull();
   });
@@ -450,7 +494,7 @@ describe("les artistes dans l'admin", () => {
         ["Carte blanche (exemple)", "published"],
       ]),
     );
-    const typed = readArtistForm({ name: "Ana", slug: "exemple-bastien-ocre", role: "guest", bio: "", links: [] }).values;
+    const typed = readArtistForm({ name: "Ana", slug: "exemple-bastien-ocre", role: "guest", bio: "", links: [], tags: [] }).values;
     expect(await editor.saveArtist({ id: ana!.id, values: typed })).toEqual({ ok: false, errors: { slug: "Cette adresse sert déjà à « Bastien Ocre (exemple) »." } });
     expect(await stranger.deleteArtist(ana!.id)).toBeNull();
     expect(await editor.deleteArtist(ana!.id)).toEqual({ name: "Ana Brouillon (exemple)" });

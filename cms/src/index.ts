@@ -12,8 +12,8 @@ export * from "./admin/index.ts";
 export { createAntenne, type Antenne, type EtatAntenne, type Envoi, type Issue, type MessageAntenne, type Moi } from "./chat/index.ts";
 export { COULEURS as CHAT_COLORS, estCouleur } from "./chat/forme.ts";
 export { connect, type ConnectOptions, type Connection, type Db } from "./db.ts";
-export { LABELS } from "./labels.ts";
-export { mediaUrl, startOfParisDay } from "./read/common.ts";
+export { ENERGY, LABELS } from "./labels.ts";
+export { coveredTags, mediaUrl, startOfParisDay } from "./read/common.ts";
 export { fromParisInput, STATION_TIME_ZONE, toParisInput } from "./paris.ts";
 export { indexLetter } from "./read/artists.ts";
 export { prefixQuery } from "./read/search.ts";
@@ -21,6 +21,7 @@ export {
   createReader,
   type ArtistCard,
   type ArtistDetail,
+  type ArtistFilters,
   type ArtistIndex,
   type ArtistRef,
   type ClipCard,
@@ -28,6 +29,10 @@ export {
   type EventDetail,
   type EventFilters,
   type EventPhoto,
+  type FacetFilters,
+  type FacetGroup,
+  type FacetMenu,
+  type FacetTag,
   type Image,
   type PageContent,
   type Paged,
@@ -38,7 +43,6 @@ export {
   type ShowDetail,
   type ShowFilters,
   type ShowTrack,
-  type TagCount,
   type TagRef,
 } from "./read/index.ts";
 export * as schema from "./schema.ts";
@@ -49,13 +53,15 @@ export type {
   BackgroundClip,
   ContentStatus,
   Event,
-  EventCategory,
+  Facet,
+  FacetScope,
   Media,
   MediaVariant,
   Member,
   NewArtist,
   NewBackgroundClip,
   NewEvent,
+  NewFacet,
   NewMedia,
   NewMember,
   NewPage,
@@ -66,7 +72,6 @@ export type {
   Show,
   ShowType,
   Tag,
-  TagKind,
   TeamRole,
   Track,
 } from "./schema.ts";

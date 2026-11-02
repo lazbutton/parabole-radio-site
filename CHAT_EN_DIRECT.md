@@ -482,8 +482,8 @@ tenir compte des retraits : l'historique passe donc par notre API.
 | Chemin | Rôle |
 |---|---|
 | `cms/src/schema.ts` | Les tables de l'antenne (section 7) |
-| `cms/drizzle/0006_antenne.sql` | Écrite par drizzle-kit : les types, les tables, les index |
-| `cms/drizzle/0007_antenne_acces.sql` | À la main : les règles d'accès et les droits, la trace des adresses IP, les déclencheurs de diffusion, la règle sur `realtime.messages`, la purge |
+| `cms/drizzle/0009_antenne.sql` | Écrite par drizzle-kit : les types, les tables, les index |
+| `cms/drizzle/0010_antenne_acces.sql` | À la main : les règles d'accès et les droits, la trace des adresses IP, les déclencheurs de diffusion, la règle sur `realtime.messages`, la purge |
 | `cms/src/chat/forme.ts` | Les contrôles du texte : nettoyage, forme, liens, coordonnées, liste de mots, pseudos. Sans base ni Node : aussi dans le navigateur, `@parabole/cms/antenne` |
 | `cms/src/chat/index.ts` | `createAntenne()` : l'état, l'historique, l'envoi (le pseudo, puis la modération de la section 4.2), les signalements, la session anonyme. Avec la connexion du serveur |
 | `cms/src/admin/chat.ts` | Les lectures et les actions de la régie, sous son rôle (`asMember`), branchées dans `createAdmin()` |
@@ -505,17 +505,17 @@ tenir compte des retraits : l'historique passe donc par notre API.
 |---|---|
 | `astro.config.mjs` | `PUBLIC_SUPABASE_URL` et `PUBLIC_SUPABASE_PUBLISHABLE_KEY` sont en `context: "client"` : le bandeau en a besoin dans le navigateur. Elles ne sont pas secrètes. L'admin garde son fonctionnement : sa session en cookies `httpOnly`, et aucun client Supabase dans son navigateur |
 | Vercel, et `.env` | `PUBLIC_TURNSTILE_SITE_KEY` (publique) et `TURNSTILE_SECRET_KEY` (secrète), facultatives |
-| Supabase | Rien d'obligatoire. Database → Extensions : **pg_cron**, pour la purge de nuit (`cms/README.md`, 9.8). Realtime → Settings : éteindre **Allow public access** ajoute une barrière, si rien d'autre n'utilise de canal public |
+| Supabase | Rien d'obligatoire. Database → Extensions : **pg_cron**, pour la purge de nuit (`cms/README.md`, 9.9). Realtime → Settings : éteindre **Allow public access** ajoute une barrière, si rien d'autre n'utilise de canal public |
 | Cloudflare | Un widget Turnstile pour le domaine du site (et `localhost` pour le développement) |
 | Vercel | La région des fonctions (Settings → Functions). La base est à Londres : si les fonctions tournent à Washington, la région par défaut de Vercel, chaque aller-retour vers la base traverse l'Atlantique. Les mettre à Londres ou à Paris |
 
 ### 6.7 Mettre en ligne
 
-1. **Les migrations** `0006_antenne.sql` et `0007_antenne_acces.sql` sur la base de Supabase :
+1. **Les migrations** `0009_antenne.sql` et `0010_antenne_acces.sql` sur la base de Supabase :
    `npm run db:migrate` depuis `cms/`, avec la chaîne Session pooler (`cms/README.md`, 4.4). Elles ne font qu'ajouter :
    le site d'aujourd'hui ne les voit pas. Sans elles, le bandeau garde ses phrases et la page 888 cherche le signal.
 2. **Turnstile** (conseillé avant d'ouvrir au public) : un widget chez Cloudflare, puis ses deux clés dans Vercel.
-3. **pg_cron**, pour la purge (`cms/README.md`, 9.8).
+3. **pg_cron**, pour la purge (`cms/README.md`, 9.9).
 4. **La liste de mots de départ**, dans l'écran Antenne libre de l'admin, avant d'ouvrir.
 
 Le réglage `CHAT = "radiocult"` de `src/scripts/settings.ts` remet le chat de Radio Cult en secours.
@@ -633,7 +633,7 @@ avis juridique.
 | Le journal | 1 an | La trace des décisions |
 
 Une fonction `private.purge_chat()` fait tout cela ; pg_cron la lance chaque nuit sur Supabase, si l'extension est là
-quand la migration passe (sinon : `cms/README.md`, 9.8). PGlite n'a pas pg_cron : la fonction s'y teste seule.
+quand la migration passe (sinon : `cms/README.md`, 9.9). PGlite n'a pas pg_cron : la fonction s'y teste seule.
 
 ### 10.2 Ce qu'il faut dire aux auditeurs
 

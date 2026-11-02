@@ -2,7 +2,7 @@
  * L'antenne libre, côté serveur (CHAT_EN_DIRECT.md) : ce que lit tout le monde (l'état de l'antenne, l'historique), et ce
  * qu'un auditeur envoie, son pseudo puis son message, passé par la modération (section 4.2) avant d'exister pour les
  * autres. Tout se fait avec la connexion du serveur, en propriétaire des tables : le public n'y a aucun droit
- * (0007_antenne_acces.sql). La base diffuse elle-même ce qui passe à l'antenne.
+ * (0010_antenne_acces.sql). La base diffuse elle-même ce qui passe à l'antenne.
  *
  * L'auditeur n'a pas de compte : une session anonyme, un jeton dans un cookie que le site pose, dont la base ne garde
  * que l'empreinte.

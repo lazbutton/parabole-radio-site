@@ -1,7 +1,7 @@
 /**
  * L'antenne libre dans l'admin, l'écran de la régie (/admin/antenne) : les réglages, les messages, ce qui attend la régie
  * (les messages en attente, les signalés), les exclusions et les bannissements, la liste de mots. Tout se lit et s'écrit
- * sous le rôle de la personne connectée : 0007_antenne_acces.sql réserve ces tables à l'équipe. Chaque décision va au
+ * sous le rôle de la personne connectée : 0010_antenne_acces.sql réserve ces tables à l'équipe. Chaque décision va au
  * journal, au nom du membre ; la base diffuse elle-même ce qui change à l'antenne (un retrait, un message publié,
  * l'état, le vidage).
  */

@@ -33,10 +33,10 @@ if (posted) {
   const version = String(data.get("version") ?? "");
   const result = await admin.saveArtist({ id: artist?.id, version: artist ? version : undefined, values: read.values, status });
   if (!result.ok) return json({ ok: false, errors: result.errors, version: result.version }, 422);
-  return json({ ok: true, created: isNew, sheet: artistSheet(await admin.getArtist(result.id)) });
+  return json({ ok: true, created: isNew, sheet: await artistSheet(admin, await admin.getArtist(result.id)) });
 }
 
-const screen: Screen = { name: "artist", title: artist?.name ?? "Nouvel artiste", data: { sheet: artistSheet(artist) } };
+const screen: Screen = { name: "artist", title: artist?.name ?? "Nouvel artiste", data: { sheet: await artistSheet(admin, artist) } };
 if (wantsJson(Astro.request)) return json(screen);
 ---
 

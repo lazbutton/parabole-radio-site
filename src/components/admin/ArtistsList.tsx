@@ -1,14 +1,14 @@
 /**
- * Les artistes : l'index A–Z, brouillons compris, avec la recherche et les filtres en pastilles — rôle, statut, ce
- * qui manque (photo, bio) — appliqués sans recharger la page (cms/README.md, 9.2). Les lettres en haut mènent à leur
- * groupe.
+ * Les artistes : l'index A–Z, brouillons compris, avec la recherche et les filtres en pastilles — rôle, activité (les
+ * étiquettes des filtres des artistes), statut, ce qui manque (photo, bio) — appliqués sans recharger la page
+ * (cms/README.md, 9.2). Les lettres en haut mènent à leur groupe.
  */
 import { LABELS } from "@parabole/cms/labels";
 import { PersonIcon, PlusIcon } from "@radix-ui/react-icons";
 import { Avatar, Badge, Button, Card, Flex, Link, Select, Table, Text } from "@radix-ui/themes";
 import { Fragment } from "react";
 import { PageHeader } from "./AdminShell";
-import { FilterPill, listHref, SearchField, useListFilters } from "./filters";
+import { FilterPill, listHref, SearchField, TagFilterPill, useListFilters } from "./filters";
 import { StatusBadge } from "./marks";
 import { useRouter } from "./router";
 import { counted, initial } from "./text";
@@ -26,10 +26,12 @@ function jumpTo(letter: string) {
   document.getElementById(anchor(letter))?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
 }
 
-export function ArtistsList({ groups, total, filters }: ArtistsListData) {
+export function ArtistsList({ groups, total, filters, tags }: ArtistsListData) {
   const { loading } = useRouter();
   const { shown, set, query } = useListFilters(filters, hrefOf);
-  const filtered = Boolean(filters.q || filters.role || filters.status || filters.missing);
+  const filtered = Boolean(filters.q || filters.role || filters.status || filters.tag || filters.missing);
+  // Un seul filtre d'artistes (Activité) : la pastille prend son nom.
+  const tagLabel = tags.length === 1 ? tags[0]!.facet : "Étiquette";
 
   return (
     <div className="admin-page">
@@ -51,6 +53,9 @@ export function ArtistsList({ groups, total, filters }: ArtistsListData) {
             <Select.Item value="resident">Résidents</Select.Item>
             <Select.Item value="guest">Invités</Select.Item>
           </FilterPill>
+          {tags.length > 0 && (
+            <TagFilterPill label={tagLabel} allLabel={tags.length === 1 ? "Toutes les activités" : "Toutes les étiquettes"} menu={tags} value={shown.tag} onChange={(tag) => set({ tag })} />
+          )}
           <FilterPill label="Statut" allLabel="Tous les statuts" value={shown.status} valueLabel={shown.status === "draft" ? "Brouillons" : "Publiés"} onChange={(status) => set({ status })}>
             <Select.Item value="published">Publiés</Select.Item>
             <Select.Item value="draft">Brouillons</Select.Item>
@@ -128,6 +133,7 @@ export function ArtistsList({ groups, total, filters }: ArtistsListData) {
                               </Link>
                               <Text size="1" color="gray">
                                 {LABELS.artistRole[artist.role]}
+                                {artist.tags.length > 0 && ` · ${artist.tags.join(", ")}`}
                                 <span className="admin-show-mobile"> · {artist.shows ? counted(artist.shows, "show") : "aucun show"}</span>
                               </Text>
                             </Flex>

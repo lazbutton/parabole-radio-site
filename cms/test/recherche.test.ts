@@ -20,9 +20,9 @@ const found = async (query: string) => {
 
 describe("recherche en français", () => {
   it("ramène les mots à leur racine : le singulier trouve le pluriel", async () => {
-    const { shows } = await found("musique électronique");
-    // « musiques électroniques » dans une description, et dans le nom d'une étiquette.
-    expect(shows).toEqual(expect.arrayContaining(["exemple-dimanche-house-a-la-chapelle", "exemple-techno-de-minuit"]));
+    // « musiques électroniques » dans une description, « Diasporas » dans le nom d'une étiquette.
+    expect((await found("musique électronique")).shows).toEqual(["exemple-dimanche-house-a-la-chapelle"]);
+    expect((await found("diaspora")).shows).toEqual(["exemple-voix-de-la-goutte-d-or"]);
   });
 
   it("ignore les accents et les majuscules", async () => {
@@ -52,7 +52,8 @@ describe("recherche en français", () => {
   it("trouve un show par sa tracklist et par ses étiquettes", async () => {
     expect((await found("Orchestre Imaginaire")).shows).toEqual(["exemple-dimanche-house-a-la-chapelle"]);
     expect((await found("tunnel")).shows).toEqual(["exemple-techno-de-minuit"]);
-    expect((await found("mélancolique")).shows).toEqual(["exemple-jazz-du-marche-dejean"]);
+    expect((await found("detroit")).shows).toEqual(["exemple-techno-de-minuit"]);
+    expect((await found("militantisme")).shows).toEqual(["exemple-ecologie-au-quotidien"]);
   });
 
   it("trouve un événement par son lieu", async () => {

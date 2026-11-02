@@ -1,5 +1,5 @@
 /**
- * L'antenne libre (drizzle/0006_antenne.sql, 0007_antenne_acces.sql, src/chat/, src/admin/chat.ts) : les contrôles du
+ * L'antenne libre (drizzle/0009_antenne.sql, 0010_antenne_acces.sql, src/chat/, src/admin/chat.ts) : les contrôles du
  * texte, l'envoi d'un auditeur et sa modération, l'historique, les signalements, les actions de la régie, la diffusion
  * par la base (le faux realtime.send() de local-supabase.ts note ce qui serait parti), les règles d'accès et la purge.
  */

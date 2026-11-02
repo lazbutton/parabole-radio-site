@@ -2,8 +2,9 @@
  * Modèle de données du CMS de Parabole Radio, dans le Postgres de Supabase (schéma public).
  *
  * Les contenus des croquis : les shows (épisodes archivés ou à venir) et leur tracklist, les artistes (résidents et
- * invités), les événements et leur galerie, les étiquettes typées des shows, les pages simples, les fichiers envoyés
- * sur Supabase Storage. Et l'équipe qui les remplit : les membres, admin ou éditeur, reliés aux comptes de Supabase Auth.
+ * invités), les événements et leur galerie, les étiquettes et les filtres du site qui les rangent, les pages simples,
+ * les fichiers envoyés sur Supabase Storage. Et l'équipe qui les remplit : les membres, admin ou éditeur, reliés aux
+ * comptes de Supabase Auth.
  *
  * Ce fichier décrit les tables ; drizzle-kit en tire les migrations (drizzle/). Ce qu'il ne sait pas écrire est dans
  * des migrations écrites à la main : l'extension unaccent et la configuration de recherche française avant les
@@ -17,7 +18,7 @@
  *   - colonne « search » : le vecteur de la recherche plein texte, calculé par Postgres, jamais écrit à la main.
  */
 import { relations, sql, type SQL } from "drizzle-orm";
-import { bigint, boolean, check, customType, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, unique, uuid, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { bigint, boolean, check, customType, foreignKey, index, integer, jsonb, pgEnum, pgTable, primaryKey, smallint, text, timestamp, unique, uuid, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { authUsers } from "drizzle-orm/supabase";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -26,10 +27,10 @@ import { authUsers } from "drizzle-orm/supabase";
 
 export const contentStatus = pgEnum("content_status", ["draft", "published"]);
 export const showType = pgEnum("show_type", ["dj_set", "playlist", "podcast"]);
-export const tagKind = pgEnum("tag_kind", ["genre", "mood", "theme"]);
 export const artistRole = pgEnum("artist_role", ["resident", "guest"]);
-export const eventCategory = pgEnum("event_category", ["art_ensemble", "parabole", "special", "talk"]);
 export const teamRole = pgEnum("team_role", ["admin", "editor"]);
+/** Ce que range un filtre : des shows, des artistes ou des événements. */
+export const facetScope = pgEnum("facet_scope", ["show", "artist", "event"]);
 /** L'antenne libre : les sept couleurs du télétexte, le sort d'un message, qui l'a décidé, ce que fait un mot interdit. */
 export const chatColor = pgEnum("chat_color", ["red", "green", "yellow", "blue", "magenta", "cyan", "white"]);
 export const chatStatus = pgEnum("chat_status", ["visible", "held", "refused", "removed"]);
@@ -39,10 +40,9 @@ export const chatLinks = pgEnum("chat_links", ["none", "music", "all"]);
 
 export type ContentStatus = (typeof contentStatus.enumValues)[number];
 export type ShowType = (typeof showType.enumValues)[number];
-export type TagKind = (typeof tagKind.enumValues)[number];
 export type ArtistRole = (typeof artistRole.enumValues)[number];
-export type EventCategory = (typeof eventCategory.enumValues)[number];
 export type TeamRole = (typeof teamRole.enumValues)[number];
+export type FacetScope = (typeof facetScope.enumValues)[number];
 export type ChatColor = (typeof chatColor.enumValues)[number];
 export type ChatStatus = (typeof chatStatus.enumValues)[number];
 export type ChatDecider = (typeof chatDecider.enumValues)[number];
@@ -116,20 +116,93 @@ export const media = pgTable(
 // Étiquettes
 // ---------------------------------------------------------------------------------------------------------------
 
-/** Une étiquette de show : un genre (house), un mood (calme) ou un thème (quartier). Toujours publique. */
+/**
+ * Une étiquette : un genre (Amapiano), une région (Caraïbes), un thème (Cinéma), une activité (DJ), une catégorie
+ * d'événement (Fête). Elle se pose sur les shows, les artistes ou les événements, et se range dans les filtres du site
+ * (facet, tag_group, tag_member) : une étiquette sans place est « à classer ». Toujours publique.
+ */
 export const tag = pgTable(
   "tag",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    kind: tagKind("kind").notNull(),
     name: text("name").notNull(),
-    /** Unique dans son type : un genre et un mood peuvent tous deux s'appeler « ambient ». */
-    slug: text("slug").notNull(),
+    /** Une adresse par étiquette, quelle que soit sa place : « /show?genre=amapiano » comme « ?geographie=amapiano ». */
+    slug: text("slug").notNull().unique(),
     search: searchVector(weighted("name", "B")),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [unique("tag_kind_slug").on(t.kind, t.slug), slugFormat("tag", t.slug), index("tag_search").using("gin", t.search)],
+  (t) => [slugFormat("tag", t.slug), index("tag_search").using("gin", t.search)],
+).enableRLS();
+
+/**
+ * Un filtre du site : un classement d'étiquettes (le genre, la géographie, le thème…) pour les shows, les artistes ou
+ * les événements. Ses groupes sont dans tag_group, et les étiquettes de chaque groupe dans tag_member.
+ */
+export const facet = pgTable(
+  "facet",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Le nom du filtre dans les adresses du site : « /show?genre=club ». */
+    slug: text("slug").notNull().unique(),
+    name: text("name").notNull(),
+    scope: facetScope("scope").notNull(),
+    /** Pour les shows : les types qu'il range (les podcasts ; les DJ sets et les playlists). Vide : tous. */
+    showTypes: showType("show_types").array().notNull().default(sql`'{}'`),
+    /** Une aide pour l'équipe, montrée dans l'admin. */
+    description: text("description"),
+    /** 1, 2, 3… : l'ordre des filtres, dans l'admin et sur le site. */
+    position: integer("position").notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    slugFormat("facet", t.slug),
+    check("facet_position", sql`${t.position} >= 1`),
+    check("facet_show_types", sql`${t.scope} = 'show' or cardinality(${t.showTypes}) = 0`),
+  ],
+).enableRLS();
+
+/**
+ * Un groupe d'un filtre : une étiquette rangée au premier niveau (Club dans Genre, Caraïbes dans Géographie). Elle se
+ * choisit comme les autres (un show « Jazz », sans plus de précision) et vaut, sur le site, pour tout son groupe.
+ */
+export const tagGroup = pgTable(
+  "tag_group",
+  {
+    facetId: uuid("facet_id")
+      .notNull()
+      .references(() => facet.id, { onDelete: "cascade" }),
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => tag.id, { onDelete: "cascade" }),
+    /** 1, 2, 3… : l'ordre des groupes dans leur filtre. */
+    position: integer("position").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.facetId, t.tagId] }), check("tag_group_position", sql`${t.position} >= 1`), index("tag_group_tag").on(t.tagId)],
+).enableRLS();
+
+/**
+ * Une étiquette rangée dans un groupe : Amapiano dans Club. Une étiquette peut avoir plusieurs places (Amapiano est
+ * aussi dans Afrique / Moyen-Orient). Les étiquettes d'un groupe se montrent dans l'ordre alphabétique.
+ */
+export const tagMember = pgTable(
+  "tag_member",
+  {
+    facetId: uuid("facet_id").notNull(),
+    /** L'étiquette du groupe. */
+    groupId: uuid("group_id").notNull(),
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => tag.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.facetId, t.groupId, t.tagId] }),
+    // Le groupe doit exister dans ce filtre ; le retirer retire ses étiquettes de ce groupe (pas de la base).
+    foreignKey({ name: "tag_member_group_fk", columns: [t.facetId, t.groupId], foreignColumns: [tagGroup.facetId, tagGroup.tagId] }).onDelete("cascade"),
+    check("tag_member_not_its_group", sql`${t.groupId} <> ${t.tagId}`),
+    index("tag_member_tag").on(t.tagId),
+  ],
 ).enableRLS();
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -167,6 +240,20 @@ export const artist = pgTable(
   ],
 ).enableRLS();
 
+/** Les étiquettes d'un artiste : ce qu'il fait (podcast, playlist, DJ), le filtre de la page Résidents. */
+export const artistTag = pgTable(
+  "artist_tag",
+  {
+    artistId: uuid("artist_id")
+      .notNull()
+      .references(() => artist.id, { onDelete: "cascade" }),
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => tag.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.artistId, t.tagId] }), index("artist_tag_tag").on(t.tagId)],
+).enableRLS();
+
 // ---------------------------------------------------------------------------------------------------------------
 // Shows
 // ---------------------------------------------------------------------------------------------------------------
@@ -186,6 +273,8 @@ export const show = pgTable(
     /** Date et heure de diffusion. Obligatoire pour publier : les listes sont triées par elle. */
     broadcastAt: timestamp("broadcast_at", { withTimezone: true }),
     durationSeconds: integer("duration_seconds"),
+    /** Le mood d'un DJ set ou d'une playlist, sur l'échelle du site : de 1 (calme) à 5 (énergique). */
+    energy: smallint("energy"),
     /** Markdown. */
     description: text("description"),
     /** Image carrée (vignette et pochette). */
@@ -204,6 +293,7 @@ export const show = pgTable(
     slugFormat("show", t.slug),
     check("show_published_has_date", sql`${t.status} = 'draft' or ${t.broadcastAt} is not null`),
     check("show_duration", sql`${t.durationSeconds} is null or ${t.durationSeconds} > 0`),
+    check("show_energy", sql`${t.energy} is null or ${t.energy} between 1 and 5`),
     check("show_soundcloud_url", sql`${t.soundcloudUrl} is null or ${t.soundcloudUrl} ~ '^https://([a-z]+\\.)?soundcloud\\.com/'`),
     check("show_soundcloud_track_id", sql`${t.soundcloudTrackId} is null or ${t.soundcloudTrackId} ~ '^[0-9]+$'`),
     index("show_status_broadcast").on(t.status, t.broadcastAt),
@@ -273,14 +363,16 @@ export const track = pgTable(
 // Événements
 // ---------------------------------------------------------------------------------------------------------------
 
-/** Une soirée, une expo, une rencontre : à venir tant qu'elle n'est pas finie. */
+/**
+ * Une soirée, une expo, une rencontre : à venir tant qu'elle n'est pas finie. Sa catégorie (Fête, Rencontre/Talk…) est
+ * une étiquette (event_tag).
+ */
 export const event = pgTable(
   "event",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     slug: text("slug").notNull().unique(),
     title: text("title").notNull(),
-    category: eventCategory("category").notNull(),
     status: contentStatus("status").notNull().default("draft"),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     /** Fin, si elle est connue. Sans fin, l'événement passe dans « passés » à son début. */
@@ -304,6 +396,20 @@ export const event = pgTable(
     index("event_visual").on(t.visualId),
     index("event_search").using("gin", t.search),
   ],
+).enableRLS();
+
+/** Les étiquettes d'un événement : sa catégorie (Fête, Rencontre/Talk…), montrée sous l'événement. */
+export const eventTag = pgTable(
+  "event_tag",
+  {
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => event.id, { onDelete: "cascade" }),
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => tag.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.eventId, t.tagId] }), index("event_tag_tag").on(t.tagId)],
 ).enableRLS();
 
 export const eventArtist = pgTable(
@@ -429,7 +535,7 @@ export const member = pgTable(
 // L'antenne libre : le chat du site (CHAT_EN_DIRECT.md)
 // ---------------------------------------------------------------------------------------------------------------
 // Le public n'a aucun droit sur ces tables, pas même en lecture : le serveur y écrit en propriétaire, après la
-// modération, et la base diffuse elle-même ce qui passe à l'antenne (0007_antenne_acces.sql). L'équipe, la régie, les
+// modération, et la base diffuse elle-même ce qui passe à l'antenne (0010_antenne_acces.sql). L'équipe, la régie, les
 // lit et les modère sous son rôle.
 
 /**
@@ -583,12 +689,37 @@ export const chatSettings = pgTable(
 
 export const mediaRelations = relations(media, ({ many }) => ({ eventPhotos: many(eventPhoto) }));
 
-export const tagRelations = relations(tag, ({ many }) => ({ shows: many(showTag) }));
+export const tagRelations = relations(tag, ({ many }) => ({
+  shows: many(showTag),
+  artists: many(artistTag),
+  events: many(eventTag),
+  groups: many(tagGroup),
+  memberships: many(tagMember),
+}));
+
+export const facetRelations = relations(facet, ({ many }) => ({ groups: many(tagGroup) }));
+
+export const tagGroupRelations = relations(tagGroup, ({ one, many }) => ({
+  facet: one(facet, { fields: [tagGroup.facetId], references: [facet.id] }),
+  tag: one(tag, { fields: [tagGroup.tagId], references: [tag.id] }),
+  members: many(tagMember),
+}));
+
+export const tagMemberRelations = relations(tagMember, ({ one }) => ({
+  group: one(tagGroup, { fields: [tagMember.facetId, tagMember.groupId], references: [tagGroup.facetId, tagGroup.tagId] }),
+  tag: one(tag, { fields: [tagMember.tagId], references: [tag.id] }),
+}));
 
 export const artistRelations = relations(artist, ({ one, many }) => ({
   photo: one(media, { fields: [artist.photoId], references: [media.id] }),
   shows: many(showArtist),
   events: many(eventArtist),
+  tags: many(artistTag),
+}));
+
+export const artistTagRelations = relations(artistTag, ({ one }) => ({
+  artist: one(artist, { fields: [artistTag.artistId], references: [artist.id] }),
+  tag: one(tag, { fields: [artistTag.tagId], references: [tag.id] }),
 }));
 
 export const showRelations = relations(show, ({ one, many }) => ({
@@ -614,6 +745,12 @@ export const eventRelations = relations(event, ({ one, many }) => ({
   visual: one(media, { fields: [event.visualId], references: [media.id] }),
   artists: many(eventArtist),
   photos: many(eventPhoto),
+  tags: many(eventTag),
+}));
+
+export const eventTagRelations = relations(eventTag, ({ one }) => ({
+  event: one(event, { fields: [eventTag.eventId], references: [event.id] }),
+  tag: one(tag, { fields: [eventTag.tagId], references: [tag.id] }),
 }));
 
 export const eventArtistRelations = relations(eventArtist, ({ one }) => ({
@@ -634,6 +771,8 @@ export type Media = typeof media.$inferSelect;
 export type NewMedia = typeof media.$inferInsert;
 export type Tag = typeof tag.$inferSelect;
 export type NewTag = typeof tag.$inferInsert;
+export type Facet = typeof facet.$inferSelect;
+export type NewFacet = typeof facet.$inferInsert;
 export type Artist = typeof artist.$inferSelect;
 export type NewArtist = typeof artist.$inferInsert;
 export type Show = typeof show.$inferSelect;

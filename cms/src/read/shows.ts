@@ -1,12 +1,13 @@
 /**
- * Les shows pour le site : la liste filtrée (type, genre, mood, thème, artiste), un show avec sa tracklist et ses
- * artistes, les étiquettes qui servent de filtres.
+ * Les shows pour le site : la liste filtrée (type, étiquettes, mood, artiste, période), un show avec sa tracklist et
+ * ses artistes. Les menus des filtres sont dans facets.ts.
  */
-import { and, asc, desc, eq, gt, lte, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, lte, sql, type SQL } from "drizzle-orm";
 import type { Tx } from "../access.ts";
-import { artist, show, showArtist, showTag, showType, tag, tagKind, track, type ShowType, type TagKind } from "../schema.ts";
+import { ENERGY } from "../labels.ts";
+import { artist, show, showArtist, showTag, showType, tag, track, type ShowType } from "../schema.ts";
 import { isSlug } from "../slug.ts";
-import { emptyPage, frenchOrder, mediaJson, oneOf, outer, paging, toImage, type ArtistRef, type Image, type MediaRow, type Paged, type TagRef } from "./common.ts";
+import { coveredTags, emptyPage, mediaJson, oneOf, outer, paging, toImage, type ArtistRef, type Image, type MediaRow, type Paged, type TagRef } from "./common.ts";
 
 /** Une vignette de show : ce que montrent les grilles et les rangées (titre, artistes, date, étiquettes). */
 export type ShowCard = {
@@ -15,6 +16,8 @@ export type ShowCard = {
   type: ShowType;
   broadcastAt: Date;
   durationSeconds: number | null;
+  /** Le mood, de 1 (calme) à 5 (énergique) ; null s'il n'est pas renseigné. */
+  energy: number | null;
   cover: Image | null;
   artists: ArtistRef[];
   tags: TagRef[];
@@ -34,10 +37,13 @@ export type ShowDetail = ShowCard & {
 
 export type ShowFilters = {
   type?: ShowType;
-  /** Slugs d'étiquettes : un par type d'étiquette. */
-  genre?: string;
-  mood?: string;
-  theme?: string;
+  /**
+   * Des adresses d'étiquettes, toutes exigées (« club » et « afrique-moyen-orient ») : une étiquette de groupe vaut
+   * pour tout son groupe (cms/src/read/common.ts, coveredTags).
+   */
+  tags?: string[];
+  /** Le mood, de 1 (calme) à 5 (énergique) : les shows dans cette fourchette, bornes comprises. */
+  energy?: { min?: number; max?: number };
   /** Slug d'artiste. */
   artist?: string;
   /** Déjà diffusés (les archives), ou à venir. Sans période : tous. */
@@ -54,7 +60,7 @@ const showArtists = sql<ArtistRef[]>`coalesce((
     from ${showArtist} sa join ${artist} a on a.id = sa.artist_id
     where sa.show_id = ${outer(show.id)} and a.status = 'published'), '[]'::json)`;
 const showTags = sql<TagRef[]>`coalesce((
-    select json_agg(json_build_object('kind', t.kind, 'slug', t.slug, 'name', t.name) order by t.kind, t.name)
+    select json_agg(json_build_object('slug', t.slug, 'name', t.name) order by t.name)
     from ${showTag} st join ${tag} t on t.id = st.tag_id
     where st.show_id = ${outer(show.id)}), '[]'::json)`;
 
@@ -65,12 +71,23 @@ export const showCardFields = {
   type: show.type,
   broadcastAt: show.broadcastAt,
   durationSeconds: show.durationSeconds,
+  energy: show.energy,
   cover: mediaJson(show.coverId),
   artists: showArtists,
   tags: showTags,
 };
 
-type ShowCardRow = { slug: string; title: string; type: ShowType; broadcastAt: Date | null; durationSeconds: number | null; cover: MediaRow | null; artists: ArtistRef[]; tags: TagRef[] };
+type ShowCardRow = {
+  slug: string;
+  title: string;
+  type: ShowType;
+  broadcastAt: Date | null;
+  durationSeconds: number | null;
+  energy: number | null;
+  cover: MediaRow | null;
+  artists: ArtistRef[];
+  tags: TagRef[];
+};
 
 export const toShowCard = (base: string, row: ShowCardRow): ShowCard => ({
   slug: row.slug,
@@ -79,13 +96,14 @@ export const toShowCard = (base: string, row: ShowCardRow): ShowCard => ({
   // Un show publié a toujours une date (contrainte show_published_has_date).
   broadcastAt: row.broadcastAt as Date,
   durationSeconds: row.durationSeconds,
+  energy: row.energy,
   cover: toImage(base, row.cover),
   artists: row.artists,
   tags: row.tags,
 });
 
-const hasTag = (kind: TagKind, slug: string) =>
-  sql`exists (select 1 from ${showTag} st join ${tag} t on t.id = st.tag_id where st.show_id = ${outer(show.id)} and t.kind = ${kind} and t.slug = ${slug})`;
+/** Un show qui porte cette étiquette, ou une étiquette de son groupe. */
+const hasTag = (slug: string) => sql`exists (select 1 from ${showTag} st where st.show_id = ${outer(show.id)} and st.tag_id in ${coveredTags(slug)})`;
 /** Un show de cet artiste (par l'identifiant ou le slug d'un artiste publié). */
 export const hasArtist = (by: { id: string } | { slug: string }) =>
   "id" in by
@@ -99,11 +117,15 @@ function showConditions(filters: ShowFilters): SQL[] | null {
     if (!oneOf(showType.enumValues, filters.type)) return null;
     conditions.push(eq(show.type, filters.type));
   }
-  for (const kind of tagKind.enumValues) {
-    const slug = filters[kind];
-    if (slug === undefined) continue;
+  for (const slug of filters.tags ?? []) {
     if (!isSlug(slug)) return null;
-    conditions.push(hasTag(kind, slug));
+    conditions.push(hasTag(slug));
+  }
+  if (filters.energy) {
+    const { min = ENERGY.min, max = ENERGY.max } = filters.energy;
+    if (!Number.isInteger(min) || !Number.isInteger(max) || min > max) return null;
+    if (min > ENERGY.min) conditions.push(gte(show.energy, min));
+    if (max < ENERGY.max) conditions.push(lte(show.energy, max));
   }
   if (filters.artist !== undefined) {
     if (!isSlug(filters.artist)) return null;
@@ -158,23 +180,4 @@ export async function getShow(tx: Tx, base: string, slug: string): Promise<ShowD
     updatedAt: row.updatedAt,
     tracks,
   };
-}
-
-export type TagCount = TagRef & { shows: number };
-
-/**
- * Les étiquettes portées par au moins un show publié, avec leur nombre de shows : les menus de tri des pages Show
- * (genre et mood pour les DJ sets et les playlists, thème pour les podcasts).
- */
-export async function listTags(tx: Tx, { kind, type }: { kind?: TagKind; type?: ShowType } = {}): Promise<TagCount[]> {
-  if ((kind !== undefined && !oneOf(tagKind.enumValues, kind)) || (type !== undefined && !oneOf(showType.enumValues, type))) return [];
-  const rows = await tx
-    .select({ kind: tag.kind, slug: tag.slug, name: tag.name, shows: sql<number>`count(distinct ${show.id})`.mapWith(Number) })
-    .from(tag)
-    .innerJoin(showTag, eq(showTag.tagId, tag.id))
-    .innerJoin(show, and(eq(show.id, showTag.showId), eq(show.status, "published"), type ? eq(show.type, type) : undefined))
-    .where(kind ? eq(tag.kind, kind) : undefined)
-    .groupBy(tag.id);
-  const kinds: readonly string[] = tagKind.enumValues;
-  return rows.sort((a, b) => kinds.indexOf(a.kind) - kinds.indexOf(b.kind) || frenchOrder.compare(a.name, b.name));
 }

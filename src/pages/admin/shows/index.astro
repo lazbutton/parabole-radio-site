@@ -1,7 +1,8 @@
 ---
 /**
  * Les shows dans l'admin : tous, brouillons compris, du plus récent au plus ancien (ceux sans date en tête), rangés
- * par mois, avec les filtres de cms/README.md (9.2) : statut, type, étiquette, artiste, ce qui manque (tracklist, son),
+ * par mois, avec les filtres de cms/README.md (9.2) : statut, type, étiquette (un groupe vaut pour ses étiquettes),
+ * artiste, ce qui manque (tracklist, son),
  * et la recherche. Les filtres sont dans l'adresse : une liste filtrée se garde en favori ou se partage avec
  * l'équipe, et l'accueil y mène. Servie en HTML ou en JSON, comme chaque écran.
  */
@@ -26,7 +27,11 @@ const filters = {
 };
 const page = Math.max(1, Math.trunc(Number(params.get("page"))) || 1);
 const now = new Date();
-const [result, choices] = await Promise.all([admin.listShows({ ...filters, now, limit: PER_PAGE, offset: (page - 1) * PER_PAGE }), admin.showChoices()]);
+const [result, choices, tags] = await Promise.all([
+  admin.listShows({ ...filters, now, limit: PER_PAGE, offset: (page - 1) * PER_PAGE }),
+  admin.showChoices(),
+  admin.tagFilter("show", { used: true }),
+]);
 const screen: Screen = {
   name: "shows",
   title: "Shows",
@@ -51,7 +56,7 @@ const screen: Screen = {
     pages: Math.max(1, Math.ceil(result.total / PER_PAGE)),
     filters,
     artists: choices.artists,
-    tags: choices.tags,
+    tags,
   },
 };
 if (wantsJson(Astro.request)) return json(screen);

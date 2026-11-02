@@ -5,6 +5,7 @@
  * l'indicateur de chargement. La connexion, elle, garde le design du site (src/layouts/AdminGate.astro).
  */
 import {
+  BookmarkIcon,
   ChatBubbleIcon,
   CheckIcon,
   DesktopIcon,
@@ -31,8 +32,8 @@ import { initial } from "./text";
 import type { Screen, Viewer } from "./types";
 
 /**
- * Les rubriques, par groupe. Les suivantes (événements, pages, étiquettes, médiathèque) viendront dans « Contenus » ;
- * l'équipe, dans « Site ».
+ * Les rubriques, par groupe. Les suivantes (événements, pages, médiathèque) viendront dans « Contenus » ; l'équipe,
+ * dans « Site ».
  */
 type Section = { href: string; label: string; icon: typeof HomeIcon; screens: Screen["name"][] };
 const HOME: Section = { href: "/admin", label: "Accueil", icon: HomeIcon, screens: ["dashboard"] };
@@ -42,6 +43,7 @@ const GROUPS: { label: string; sections: Section[] }[] = [
     sections: [
       { href: "/admin/shows", label: "Shows", icon: DiscIcon, screens: ["shows", "show"] },
       { href: "/admin/artistes", label: "Artistes", icon: PersonIcon, screens: ["artists", "artist"] },
+      { href: "/admin/etiquettes", label: "Étiquettes", icon: BookmarkIcon, screens: ["tags"] },
     ],
   },
   {

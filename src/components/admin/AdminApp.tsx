@@ -17,6 +17,7 @@ import { PasswordScreen } from "./PasswordScreen";
 import { RouterProvider, useRouter } from "./router";
 import { ShowEditor } from "./ShowEditor";
 import { ShowsList } from "./ShowsList";
+import { TagsScreen } from "./TagsScreen";
 import { preloadTextEditor } from "./TextEditor";
 import { ToastProvider } from "./toast";
 import type { AppProps, Viewer } from "./types";
@@ -69,6 +70,8 @@ function CurrentScreen({ viewer }: { viewer: Viewer }) {
       return <ClipsScreen {...screen.data} />;
     case "antenne":
       return <AntenneScreen {...screen.data} />;
+    case "tags":
+      return <TagsScreen {...screen.data} />;
   }
 }
 

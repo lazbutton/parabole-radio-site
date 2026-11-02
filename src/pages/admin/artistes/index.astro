@@ -1,7 +1,8 @@
 ---
 /**
- * Les artistes dans l'admin : l'index A–Z, brouillons compris, avec les filtres résident / invité, statut, ce qui
- * manque (photo, bio), et la recherche (cms/README.md, 9.2). Servie en HTML ou en JSON, comme chaque écran.
+ * Les artistes dans l'admin : l'index A–Z, brouillons compris, avec les filtres résident / invité, activité (les
+ * étiquettes des filtres des artistes), statut, ce qui manque (photo, bio), et la recherche (cms/README.md, 9.2).
+ * Servie en HTML ou en JSON, comme chaque écran.
  */
 import type { Screen } from "../../../components/admin/types";
 import Admin from "../../../layouts/Admin.astro";
@@ -10,8 +11,15 @@ import { json, wantsJson } from "../../../lib/admin/views";
 export const prerender = false;
 
 const params = Astro.url.searchParams;
-const filters = { q: params.get("q")?.trim() ?? "", role: params.get("role") ?? "", status: params.get("status") ?? "", missing: params.get("missing") ?? "" };
-const index = await Astro.locals.admin!.listArtists(filters);
+const filters = {
+  q: params.get("q")?.trim() ?? "",
+  role: params.get("role") ?? "",
+  status: params.get("status") ?? "",
+  tag: params.get("tag") ?? "",
+  missing: params.get("missing") ?? "",
+};
+const admin = Astro.locals.admin!;
+const [index, tags] = await Promise.all([admin.listArtists(filters), admin.tagFilter("artist")]);
 const screen: Screen = {
   name: "artists",
   title: "Artistes",
@@ -26,10 +34,12 @@ const screen: Screen = {
         shows: artist.shows,
         hasPhoto: artist.hasPhoto,
         hasBio: artist.hasBio,
+        tags: artist.tags,
       })),
     })),
     total: index.total,
     filters,
+    tags,
   },
 };
 if (wantsJson(Astro.request)) return json(screen);

@@ -1,4 +1,4 @@
--- L'antenne libre, le chat du site (0006_antenne.sql, CHAT_EN_DIRECT.md) : ses règles d'accès, ses droits, la trace des
+-- L'antenne libre, le chat du site (0009_antenne.sql, CHAT_EN_DIRECT.md) : ses règles d'accès, ses droits, la trace des
 -- adresses IP, la diffusion en temps réel par la base, et la purge.
 --
 -- Le public n'a aucun droit sur ces tables, pas même en lecture : la clé publiable ne permet pas de les lire par l'API
