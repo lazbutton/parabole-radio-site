@@ -185,14 +185,17 @@ document.addEventListener("astro:page-load", () => {
     cible.focus();
   });
 
-  // La lettre qu'on parcourt s'allume dans l'index
-  let attente = 0;
+  // La lettre qu'on parcourt s'allume dans l'index ; on n'y touche que quand elle change (le défilement reste léger)
+  let attente = 0,
+    allumee = "";
   function suivreLaLettre() {
     if (!index || index.hidden) return;
     const haut = regie!.getBoundingClientRect().bottom;
-    const premiere = cartes.find((c) => !c.li.hidden && c.role === etat.role && c.li.getBoundingClientRect().bottom > haut + 8);
+    const lettre = cartes.find((c) => !c.li.hidden && c.role === etat.role && c.li.getBoundingClientRect().bottom > haut + 8)?.lettre ?? "";
+    if (lettre === allumee) return;
+    allumee = lettre;
     for (const a of lettres) {
-      if (premiere && a.dataset.lettre === premiere.lettre) a.setAttribute("aria-current", "location");
+      if (a.dataset.lettre === lettre) a.setAttribute("aria-current", "location");
       else a.removeAttribute("aria-current");
     }
   }
