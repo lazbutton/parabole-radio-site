@@ -11,6 +11,7 @@
  */
 import { asMember, type Tx } from "../access.ts";
 import type { Db } from "../db.ts";
+import { importSlots, importStatus, radiocultLinks, type ImportInput } from "../radiocult/index.ts";
 import type { FacetScope } from "../schema.ts";
 import { artistChoices, deleteArtist, getArtist, listArtists, saveArtist, type AdminArtistFilters, type ArtistSave } from "./artists.ts";
 import {
@@ -71,6 +72,12 @@ export function createAdmin(db: Db, userId: string) {
     member: () => as((tx) => getMember(tx, userId)),
     /** Le tableau de bord. */
     overview: (options?: { now?: Date }) => as((tx) => overview(tx, options)),
+    /** Lance l'import de la programmation Radio Cult (déjà lue par le serveur), au nom de la personne connectée. */
+    importRadioCult: (input: ImportInput) => as((tx) => importSlots(tx, input, { trigger: "manual", memberId: userId })),
+    /** Le dernier import de la programmation, et ce qu'il reste à relire. */
+    importStatus: () => as((tx) => importStatus(tx)),
+    /** Les artistes de Radio Cult déjà reliés à une fiche, par leur identifiant Radio Cult. */
+    radiocultLinks: () => as((tx) => radiocultLinks(tx)),
     /** Les shows, brouillons compris, filtrés et triés par date. */
     listShows: (filters: AdminShowFilters = {}) => as((tx) => listShows(tx, filters)),
     /** Un show à modifier, ou null. */

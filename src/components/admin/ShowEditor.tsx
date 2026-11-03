@@ -434,7 +434,12 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
                     <DataList.Item>
                       <DataList.Label minWidth="80px">Radio Cult</DataList.Label>
                       <DataList.Value>
-                        <Text className="admin-break">Créneau {sheet.radiocultEventId}, importé de la programmation</Text>
+                        <Text className="admin-break" title={`Créneau ${sheet.radiocultEventId}`}>
+                          Importé de la programmation.{" "}
+                          {sheet.status === "draft"
+                            ? "Tant qu'il est en brouillon, sa date et sa durée suivent le créneau de Radio Cult."
+                            : "Publié, il ne suit plus Radio Cult : un créneau déplacé est signalé à l'accueil."}
+                        </Text>
                       </DataList.Value>
                     </DataList.Item>
                   )}

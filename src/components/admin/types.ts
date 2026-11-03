@@ -67,7 +67,39 @@ export type DashboardData = {
   /** Ce qui reste à compléter, compté comme les listes filtrées où l'on arrive (cms : overview). */
   missing: { tracklist: number; sound: number; photo: number; bio: number; tags: number };
   drafts: { href: string; title: string; kind: "show" | "artist"; since: string }[];
+  radiocult: RadioCultPanel;
 };
+
+/** Une fiche que cite l'import : son adresse dans l'admin, son titre, ce qu'il en dit. */
+export type ImportLine = { href: string; title: string; detail: string };
+/** Un passage de l'import : « il y a 3 heures », la date, « la tâche de nuit » ou un prénom, et son résumé. */
+export type ImportRunView = { when: string; date: string; by: string; ok: boolean; summary: string };
+/**
+ * L'import de la programmation Radio Cult, vu de l'accueil (cms/README.md, 9.4) : le dernier passage (et le dernier
+ * réussi, si celui-là a échoué), puis ce que le dernier réussi demande encore, relu sur les fiches d'aujourd'hui.
+ */
+export type RadioCultPanel = {
+  /** La clé publishable est posée : les artistes des créneaux sont lus. */
+  key: boolean;
+  /** Pourquoi l'import ne peut pas tourner (son journal manque dans la base), ou null. */
+  unavailable: string | null;
+  last: ImportRunView | null;
+  lastOk: ImportRunView | null;
+  /** Les brouillons créés, puis ceux qui ont suivi leur créneau, toujours en brouillon. */
+  created: ImportLine[];
+  updated: ImportLine[];
+  /** Les shows publiés dont le créneau a bougé, et ceux dont le créneau a disparu. */
+  moved: ImportLine[];
+  gone: ImportLine[];
+  /** Les artistes créés par l'import, toujours en brouillon. */
+  artists: ImportLine[];
+  notes: string[];
+};
+/** La réponse du serveur au bouton « Importer maintenant » : l'accueil à jour, et ce qu'a fait l'import. */
+export type ImportResponse = { ok: boolean; message: string; data: DashboardData } | { ok: false; errors: FieldErrors };
+
+/** Un artiste de Radio Cult, à choisir pour relier une fiche (son nom est vide pour une fiche sans nom chez Radio Cult). */
+export type RadioCultChoice = { id: string; name: string };
 
 export type ShowRow = {
   id: string;
@@ -121,7 +153,11 @@ export type ArtistSheet = {
   form: ArtistForm;
   photo: MediaView | null;
   uploads: UploadSettings;
-  radiocultArtistId: string | null;
+  /**
+   * Les artistes de la station, pour relier la fiche à l'un d'eux (null : pas de clé publishable, ou Radio Cult ne
+   * répond pas), et ceux déjà reliés à une autre fiche, avec son nom.
+   */
+  radiocult: { choices: RadioCultChoice[] | null; taken: Record<string, string> };
   shows: { id: string; title: string; type: ShowType; status: ContentStatus; date: string }[];
   events: number;
   /** Les filtres des artistes (Activité…) et leurs étiquettes, à cocher. */

@@ -37,6 +37,8 @@ export const chatStatus = pgEnum("chat_status", ["visible", "held", "refused", "
 export const chatDecider = pgEnum("chat_decider", ["rules", "team", "reports"]);
 export const chatTermAction = pgEnum("chat_term_action", ["refuse", "hold", "mask"]);
 export const chatLinks = pgEnum("chat_links", ["none", "music", "all"]);
+/** Qui a lancé un import de la programmation Radio Cult : la tâche de nuit, ou un membre depuis l'admin. */
+export const importTrigger = pgEnum("import_trigger", ["cron", "manual"]);
 
 export type ContentStatus = (typeof contentStatus.enumValues)[number];
 export type ShowType = (typeof showType.enumValues)[number];
@@ -48,6 +50,7 @@ export type ChatStatus = (typeof chatStatus.enumValues)[number];
 export type ChatDecider = (typeof chatDecider.enumValues)[number];
 export type ChatTermAction = (typeof chatTermAction.enumValues)[number];
 export type ChatLinks = (typeof chatLinks.enumValues)[number];
+export type ImportTrigger = (typeof importTrigger.enumValues)[number];
 
 // ---------------------------------------------------------------------------------------------------------------
 // Briques communes
@@ -684,6 +687,74 @@ export const chatSettings = pgTable(
 ).enableRLS();
 
 // ---------------------------------------------------------------------------------------------------------------
+// L'import de la programmation Radio Cult (cms/README.md, 9.4)
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * Un show dont l'import a changé ou signalé quelque chose : ce que dit le créneau de Radio Cult (`slotAt`, en ISO, et sa
+ * durée en secondes) et ce que disait la fiche (`showAt`, `showDuration`). `filled` : ce que l'import a ajouté à un
+ * brouillon qui ne l'avait pas encore (les artistes, la description).
+ */
+export type ImportChange = {
+  id: string;
+  title: string;
+  slotAt: string;
+  slotDuration: number | null;
+  showAt: string | null;
+  showDuration: number | null;
+  filled?: ("artists" | "description")[];
+};
+
+/** Le détail d'un import réussi, que l'accueil de l'admin relit pour dire ce qui reste à faire. */
+export type ImportReport = {
+  /** Les brouillons créés pour les créneaux nouveaux. */
+  created: { id: string; title: string; slotAt: string }[];
+  /** Les brouillons qui ont suivi leur créneau (date, durée), ou reçu ses artistes ou sa description. */
+  updated: ImportChange[];
+  /** Les shows publiés dont le créneau a bougé : laissés tels quels, à corriger à la main. */
+  moved: ImportChange[];
+  /** Les shows dont le créneau a disparu de Radio Cult : jamais supprimés, signalés. */
+  gone: { id: string; title: string; status: ContentStatus; showAt: string }[];
+  /** Les artistes créés en brouillon, et ceux retrouvés par leur nom puis reliés à leur fiche Radio Cult. */
+  artistsCreated: { id: string; name: string }[];
+  artistsLinked: { id: string; name: string }[];
+  /** Ce qui a manqué : la clé publishable, la liste des artistes, des artistes sans nom… */
+  notes: string[];
+};
+
+/**
+ * Le journal des imports de la programmation Radio Cult : une ligne par passage, de la tâche de nuit ou du bouton de
+ * l'accueil. Un passage qui n'a pas pu lire Radio Cult y est aussi, avec la raison (`error`). L'équipe le lit ; seul le
+ * serveur, ou un membre en son propre nom, y écrit.
+ */
+export const radiocultImport = pgTable(
+  "radiocult_import",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    trigger: importTrigger("trigger").notNull(),
+    /** Le membre qui l'a lancé depuis l'admin ; vide pour la tâche de nuit. */
+    memberId: uuid("member_id").references(() => member.userId, { onDelete: "set null" }),
+    /** La période lue chez Radio Cult : de maintenant à dans 14 jours. */
+    rangeStart: timestamp("range_start", { withTimezone: true }).notNull(),
+    rangeEnd: timestamp("range_end", { withTimezone: true }).notNull(),
+    /** Les créneaux lus, les shows créés, mis à jour, et laissés tels quels. */
+    slots: integer("slots").notNull().default(0),
+    created: integer("created").notNull().default(0),
+    updated: integer("updated").notNull().default(0),
+    unchanged: integer("unchanged").notNull().default(0),
+    /** Pourquoi le passage a échoué (Radio Cult injoignable…) ; vide s'il a réussi. */
+    error: text("error"),
+    report: jsonb("report").$type<ImportReport | Record<string, never>>().notNull().default({}),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check("radiocult_import_counts", sql`${t.slots} >= 0 and ${t.created} >= 0 and ${t.updated} >= 0 and ${t.unchanged} >= 0`),
+    check("radiocult_import_report_object", sql`jsonb_typeof(${t.report}) = 'object'`),
+    index("radiocult_import_created").on(t.createdAt),
+  ],
+).enableRLS();
+
+// ---------------------------------------------------------------------------------------------------------------
 // Relations (requêtes imbriquées de Drizzle : db.query.show.findFirst({ with: { tracks: true } }))
 // ---------------------------------------------------------------------------------------------------------------
 
@@ -791,3 +862,4 @@ export type ChatAuthor = typeof chatAuthor.$inferSelect;
 export type ChatMessage = typeof chatMessage.$inferSelect;
 export type ChatTerm = typeof chatTerm.$inferSelect;
 export type ChatSettings = typeof chatSettings.$inferSelect;
+export type RadioCultImport = typeof radiocultImport.$inferSelect;

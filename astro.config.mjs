@@ -29,6 +29,9 @@ export default defineConfig({
       // lecture et peut aller dans la page : le direct y arrive en temps réel, la programmation nomme ses artistes, et
       // les pages des résidents annoncent leurs passages. Sans elle, le site marche comme avant. Jamais la clé secrète.
       PUBLIC_RADIOCULT_KEY: envField.string({ context: "client", access: "public", optional: true }),
+      // Le secret de la tâche de nuit de Vercel (vercel.json), qui importe la programmation Radio Cult dans le CMS :
+      // Vercel l'envoie dans l'en-tête Authorization. Sans lui, la route refuse tout ; le bouton de l'accueil marche.
+      CRON_SECRET: envField.string({ context: "server", access: "secret", optional: true }),
       // Le CMS (cms/README.md, section 5). Facultatifs pour que le site public se construise sans eux : l'admin
       // (/admin) dit lui-même ce qui lui manque. En local, dans .env ; en ligne, dans les réglages de Vercel.
       // La base Postgres de Supabase. Vide en local : la base PGlite de cms/.pglite.

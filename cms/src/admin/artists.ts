@@ -193,7 +193,23 @@ export async function saveArtist(tx: Tx, { id, version, values, status }: Artist
     if (!values.slugFromTitle) return { ok: false, errors: { slug: `Cette adresse sert déjà à « ${clash.name} ».` } };
     slug = await freeSlug(tx, artist, slug, id);
   }
-  const fields = { slug, name: values.name, role: values.role, bio: values.bio, links: values.links, ...(status ? { status } : {}) };
+  if (values.radiocultArtistId) {
+    const [taken] = await tx
+      .select({ name: artist.name })
+      .from(artist)
+      .where(and(eq(artist.radiocultArtistId, values.radiocultArtistId), id ? ne(artist.id, id) : undefined))
+      .limit(1);
+    if (taken) return { ok: false, errors: { radiocultArtistId: `Cet artiste de Radio Cult est déjà relié à « ${taken.name} ».` } };
+  }
+  const fields = {
+    slug,
+    name: values.name,
+    role: values.role,
+    bio: values.bio,
+    links: values.links,
+    ...(values.radiocultArtistId === undefined ? {} : { radiocultArtistId: values.radiocultArtistId }),
+    ...(status ? { status } : {}),
+  };
   if (id) {
     await tx.update(artist).set(fields).where(eq(artist.id, id));
     await setArtistTags(tx, id, values.tags);
