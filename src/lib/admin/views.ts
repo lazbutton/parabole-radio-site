@@ -25,6 +25,7 @@ import {
   UNPLACED,
   type AntenneData,
   type ArtistSheet,
+  type DashboardData,
   type ChatMessageRow,
   type ClipsData,
   type MediaView,
@@ -35,7 +36,8 @@ import {
 import { mediaBaseUrl } from "../cms";
 import { blobReady, MAX_VIDEO_BYTES } from "./blob";
 import { artistFormOf, showFormOf } from "./forms";
-import { megabytes, parisDateTime, parisDay, parisShortDay, parisTime, since } from "./format";
+import { inDays, megabytes, parisDateTime, parisDay, parisDayParts, parisLongDay, parisShortDay, parisTime, since } from "./format";
+import { radiocultArtists, radiocultPanel } from "./imports";
 import { MAX_IMAGE_BYTES, storageReady } from "./storage";
 
 export const viewerOf = (member: TeamMember): Viewer => ({ name: member.name, email: member.email, role: member.role });
@@ -74,9 +76,13 @@ export async function showSheet(admin: Admin, show: AdminShow | null): Promise<S
   };
 }
 
-/** Une fiche d'artiste à afficher (vide pour un nouvel artiste), avec ses shows et les étiquettes à cocher. */
+/**
+ * Une fiche d'artiste à afficher (vide pour un nouvel artiste), avec ses shows, les étiquettes à cocher et les artistes
+ * de Radio Cult à qui la relier.
+ */
 export async function artistSheet(admin: Admin, artist: AdminArtist | null): Promise<ArtistSheet> {
-  const choices = await admin.artistChoices();
+  const [choices, radiocult, links] = await Promise.all([admin.artistChoices(), radiocultArtists(), admin.radiocultLinks()]);
+  const taken = Object.fromEntries([...links].filter(([, linked]) => linked.id !== artist?.id).map(([id, linked]) => [id, linked.name]));
   return {
     id: artist?.id ?? null,
     status: artist?.status ?? "draft",
@@ -86,11 +92,52 @@ export async function artistSheet(admin: Admin, artist: AdminArtist | null): Pro
     form: artist ? artistFormOf(artist) : emptyArtistForm(),
     photo: mediaView(artist?.photo ?? null),
     uploads: uploads(),
-    radiocultArtistId: artist?.radiocultArtistId ?? null,
+    radiocult: { choices: radiocult, taken },
     shows: (artist?.shows ?? []).map((show) => ({ id: show.id, title: show.title, type: show.type, status: show.status, date: show.broadcastAt ? parisDay(show.broadcastAt) : "sans date" })),
     events: artist?.events ?? 0,
     facets: choices.facets,
     tags: choices.tags,
+  };
+}
+
+/**
+ * L'état de l'import Radio Cult, ou null si son journal n'existe pas encore dans la base (migrations 0012 et 0013 pas
+ * appliquées, code 42P01 de Postgres) : l'accueil s'ouvre quand même et le dit.
+ */
+async function importStatusOf(admin: Admin) {
+  try {
+    return await admin.importStatus();
+  } catch (error) {
+    const code = (error as { cause?: { code?: string } }).cause?.code ?? (error as { code?: string }).code;
+    if (code === "42P01") return null;
+    throw error;
+  }
+}
+
+/** L'accueil : les prochaines diffusions, ce qui reste à compléter, les brouillons, les chiffres et l'import Radio Cult. */
+export async function dashboardData(admin: Admin, now = new Date()): Promise<DashboardData> {
+  const [overview, imports] = await Promise.all([admin.overview({ now }), importStatusOf(admin)]);
+  return {
+    today: parisLongDay(now),
+    stats: { shows: overview.shows, artists: overview.artists },
+    upcoming: overview.upcoming.map((show) => ({
+      href: `/admin/shows/${show.id}`,
+      title: show.title,
+      artists: show.artists.join(", "),
+      type: show.type,
+      status: show.status,
+      ...parisDayParts(show.broadcastAt),
+      time: parisTime(show.broadcastAt),
+      when: inDays(show.broadcastAt, now),
+    })),
+    missing: overview.missing,
+    drafts: overview.drafts.map((draft) => ({
+      href: `/admin/${draft.kind === "show" ? "shows" : "artistes"}/${draft.id}`,
+      title: draft.title,
+      kind: draft.kind,
+      since: since(draft.updatedAt, now),
+    })),
+    radiocult: radiocultPanel(imports, now),
   };
 }
 

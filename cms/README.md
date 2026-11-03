@@ -50,6 +50,7 @@ cms/
 │   ├── local-supabase.ts  ce que Supabase fournit d'office, recréé pour PGlite
 │   ├── read/              les fonctions de lecture du site
 │   ├── admin/             les lectures et écritures de l'admin, et la vérification des saisies
+│   ├── radiocult/         l'import de la programmation Radio Cult et la traduction des réponses de son API
 │   ├── labels.ts          libellés français pour l'admin
 │   ├── slug.ts            slugify(), isSlug()
 │   ├── paris.ts           l'heure de Paris (champs date et heure de l'admin)
@@ -88,6 +89,7 @@ erDiagram
     media |o--o{ artist : "photo"
     media |o--o{ event : "visuel"
     auth_users ||--o| member : "compte"
+    member |o--o{ radiocult_import : "lancé par"
 
     show {
         uuid id PK
@@ -225,13 +227,25 @@ erDiagram
         uuid id PK
         text email
     }
+    radiocult_import {
+        uuid id PK
+        enum trigger "cron, manual"
+        uuid member_id FK "vide : la tâche de nuit"
+        timestamptz range_start
+        timestamptz range_end
+        int created
+        int updated
+        int unchanged
+        text error "vide : réussi"
+        jsonb report "ce qui reste à relire"
+    }
 ```
 
 ### Les tables
 
 | Table | Ce qu'elle garde | À savoir |
 |---|---|---|
-| `show` | Un épisode archivé ou à venir | Publier exige une date de diffusion. `energy` : le mood d'un DJ set ou d'une playlist, de 1 (calme) à 5 (énergique), le curseur des filtres du site. Le son est sur le compte SoundCloud de Parabole : le lecteur joue `soundcloud_track_id` (URN `soundcloud:tracks:<id>`), `soundcloud_url` mène à la piste (crédit exigé par SoundCloud). `radiocult_event_id` relie le show au créneau Radio Cult importé |
+| `show` | Un épisode archivé ou à venir | Publier exige une date de diffusion. `energy` : le mood d'un DJ set ou d'une playlist, de 1 (calme) à 5 (énergique), le curseur des filtres du site. Le son est sur le compte SoundCloud de Parabole : le lecteur joue `soundcloud_track_id` (URN `soundcloud:tracks:<id>`), `soundcloud_url` mène à la piste (crédit exigé par SoundCloud). `radiocult_event_id` relie le show au créneau Radio Cult importé (l'identifiant d'un créneau seul ; « série@jour » pour une occurrence d'un créneau répété, section 9.4) |
 | `track` | La tracklist d'un show | Une ligne par morceau, `position` 1, 2, 3… sans doublon. Le minutage est en secondes depuis le début du show. Le lien Hopper commence forcément par `https://hppr.fr/` |
 | `artist` | Un résident ou un invité | Le rôle est celui de l'artiste (filtres Resident / Guest). `links` : une liste `[{ "label": "Instagram", "url": "…" }]` |
 | `show_artist` | Les artistes d'un show | Dans l'ordre d'affichage (« A b2b B ») |
@@ -249,6 +263,7 @@ erDiagram
 | `background_clip` | Une vidéo du fond du site | Publiée : dans la rotation ; brouillon : mise de côté. `position` donne l'ordre de la liste, et le numéro de chaîne. Le fichier est dans le site (`public/`, les 15 clips d'origine, inscrits par la migration) ou sur Vercel Blob (envoyé depuis l'admin, section 9.7) |
 | `media` | Un fichier envoyé sur Supabase Storage | Sa clé dans le seau (la plus grande version), son type, ses dimensions, son texte alternatif (vide : une image décorative), son crédit, ses versions réduites (`[{ "width": 800, "key": "…" }]`) |
 | `member` | Un membre de l'équipe | Relié à un compte Supabase Auth, avec son rôle. Jamais d'auditeurs |
+| `radiocult_import` | Le journal de l'import de la programmation Radio Cult (section 9.4) | Une ligne par passage, de la tâche de nuit (`cron`) ou du bouton de l'accueil (`manual`, avec le membre) : la période lue, les shows créés, mis à jour et laissés, l'erreur s'il a échoué, et le détail (`report`) que relit l'accueil |
 | `chat_author` | Un pseudo de l'antenne libre (le chat, section 9.9) | Tenu par une session anonyme du site : un jeton dans un cookie, dont la base ne garde que l'empreinte (`token_hash`). `pseudo_key`, la forme comparée, est unique. Les exclusions (`muted_until`) et le bannissement |
 | `chat_message` | Un message de l'antenne | Passé à l'antenne (`visible`), en attente de la régie (`held`), refusé (`refused`) ou brouillé (`removed`). `on_air_at` : son passage, l'envoi plus le différé. Ceux de la régie portent `member_id` |
 | `chat_report` | Un signalement | Un par auditeur et par message, vu ou non par la régie |
@@ -284,6 +299,8 @@ Hors de l'API, dans le schéma `private` : `chat_trace`, l'adresse IP de chaque 
 | `0009_antenne.sql` | drizzle-kit | Les tables de l'antenne libre, le chat |
 | `0010_antenne_acces.sql` | à la main | Leurs règles d'accès (l'équipe seulement), la trace des adresses IP, la diffusion par la base sur le canal Realtime, la règle de réception sur `realtime.messages`, la purge |
 | `0011_seaux.sql` | à la main | Les seaux du Storage pour les images (section 9.3) : `originaux`, privé, et `media`, public, avec leurs limites. Aucune règle sur `storage.objects`. Rien à faire sur une base sans Storage |
+| `0012_imports.sql` | drizzle-kit | Le journal de l'import Radio Cult (`radiocult_import`) et son type `import_trigger` |
+| `0013_imports_acces.sql` | à la main | Ses règles d'accès : l'équipe le lit ; un membre n'y écrit que l'import qu'il lance lui-même ; personne ne le modifie ni ne le vide par l'API |
 
 ---
 
@@ -309,6 +326,7 @@ Le détail des règles :
 - **Les étiquettes**, les filtres et leurs groupes sont publics. Les étiquettes d'un artiste ou d'un événement suivent leur contenu.
 - **Les vidéos de fond** (`background_clip`) : le public ne voit que celles de la rotation (publiées) ; l'équipe voit et modifie tout.
 - **L'équipe** (`member`) : le public n'y a aucun accès. Les membres se voient entre eux ; seul l'admin ajoute, modifie ou retire un membre. La base refuse de laisser l'équipe sans admin : un admin doit en nommer un autre avant de céder sa place. Cela vaut aussi pour la suppression de son compte dans Supabase Auth. Pour une vraie remise à zéro, l'éditeur SQL peut suspendre le déclencheur le temps de l'opération (`alter table member disable trigger keep_an_admin`, puis `enable`).
+- **Le journal de l'import Radio Cult** (`radiocult_import`) : l'équipe le lit ; le public n'y a aucun droit. La tâche de nuit y écrit avec la connexion du serveur ; un membre n'y écrit que l'import qu'il lance depuis l'accueil, en son nom (`trigger = 'manual'`, `member_id` = son compte). Personne ne le modifie.
 - **L'antenne libre** (`chat_*`) : le public n'y a aucun droit, pas même en lecture. Le serveur y écrit en propriétaire, après la modération (`src/chat/`), et la base diffuse elle-même ce qui passe à l'antenne. L'équipe, la régie, lit tout et modère sous son rôle ; elle n'écrit au journal et n'écrit à l'antenne qu'en son propre nom.
 - **Droits des rôles** : Supabase donne d'office tous les droits aux rôles de son API. La migration les réduit : `anon` ne fait que lire, et personne ne vide une table par l'API (`TRUNCATE` échappe à la RLS).
 - **Fonctions des règles** (`private.team_role()`, `private.is_admin()`…) : elles vivent dans le schéma `private`, que l'API de Supabase ne publie pas.
@@ -426,7 +444,8 @@ Le modèle est dans `cms/.env.example`. Les variables `PUBLIC_*` peuvent aller d
 | `SUPABASE_SECRET_KEY` | Vercel (Production, Preview), comme secret ; `.env` pour essayer l'envoi en local | Clé secrète `sb_secret_…` (Project Settings → API Keys ; l'ancienne `service_role` marche aussi) : sert à écrire dans le Storage, et servira à créer les comptes de l'équipe, rien d'autre. Sans elle, l'admin n'envoie aucune image et le dit dans les fiches |
 | `PUBLIC_MEDIA_URL` | Vercel, `.env` | Adresse publique du seau `media` : `https://<ref>.supabase.co/storage/v1/object/public/media`. Les envois passent par `SUPABASE_SECRET_KEY` |
 | `BLOB_READ_WRITE_TOKEN` | Vercel (posé en reliant le magasin Blob au projet) ; `.env` pour essayer l'envoi en local | Le jeton du magasin Vercel Blob `parabole-fond`, celui des vidéos de fond (section 9.7). Serveur seulement : il signe les envois du navigateur et efface les fichiers devenus inutiles. Sans lui, l'admin gère la liste des vidéos mais n'en envoie aucune |
-| `CRON_SECRET` | Vercel | Une longue chaîne aléatoire : protège l'import quotidien Radio Cult |
+| `CRON_SECRET` | Vercel (Production) | Une longue chaîne aléatoire (16 caractères au moins, sans espace) : Vercel l'envoie à la tâche de nuit de l'import Radio Cult (section 9.4). Sans elle, la route refuse tout ; le bouton « Importer maintenant » de l'accueil marche quand même |
+| `PUBLIC_RADIOCULT_KEY` | Vercel, `.env.local` | La clé publishable de Radio Cult (`pk_…`), en lecture seule. L'import lit avec elle les artistes de la station ; sans elle, les shows arrivent sans leurs artistes, et la fiche d'un artiste ne propose pas la liste de Radio Cult. Jamais la clé secrète |
 | `PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | Vercel, `.env` | Le widget Turnstile (Cloudflare) de l'antenne libre : la vérification anti-robots au premier message d'un pseudo (section 9.9). En Production seulement : le widget ne connaît que les adresses de la production, `localhost` et `127.0.0.1`. Facultatifs : sans eux (les aperçus, le développement), l'antenne marche sans cette vérification |
 | `PGLITE_DIR` | `.env`, facultatif | Autre dossier pour la base locale (par défaut `cms/.pglite`) |
 
@@ -540,7 +559,7 @@ npm test
 npm run typecheck
 ```
 
-192 tests, sur une base PGlite en mémoire : aucun compte, aucun réseau, une quinzaine de secondes. `npm test` marche aussi depuis la racine du projet. Ils couvrent :
+209 tests, sur une base PGlite en mémoire : aucun compte, aucun réseau, une quinzaine de secondes. `npm test` marche aussi depuis la racine du projet. Ils couvrent :
 
 - **les migrations** : elles passent sur une base vide, et leur relance ne change rien. Chaque table publique a sa RLS et ses règles. Le schéma Drizzle et la base sont d'accord. drizzle-kit n'a plus rien à générer : une migration oubliée fait échouer le test ;
 - **le seed** : il passe, se rejoue sans doublon, se retire sans toucher au reste, et marque bien tout comme exemple ;
@@ -551,6 +570,7 @@ npm run typecheck
 - **les étiquettes et les filtres** : ce que la migration inscrit (filtres, groupes dans l'ordre du document, étiquettes à deux places, noms en minuscules), la reprise d'une base d'avant (rejouée sur une copie arrêtée à `0006`), la saisie des noms (liste collée en capitales), les menus du site et des listes de l'admin, puis l'ajout, le renommage, les places, l'ordre, la fusion et la suppression des étiquettes et des filtres, et leurs règles d'accès ;
 - **l'admin** : la saisie vérifiée champ par champ, la tracklist collée, les minutages, l'heure de Paris aux changements d'heure ; puis, sous le rôle d'un éditeur, la création d'un show avec un artiste et une étiquette nés à la volée, la publication, la tracklist remplacée, l'enregistrement concurrent, la suppression ; et le refus d'un compte hors de l'équipe.
 - **les images** : les seaux que crée la migration (dans l'imitation du Storage de `local-supabase.ts`), le texte alternatif demandé à l'envoi, puis sous le rôle d'un éditeur l'inscription d'une image envoyée, sa place sur une fiche (photo d'un artiste, pochette d'un show) et le jeton de version rendu à l'écran, ce que le site en lit (`srcset` des versions réduites), le retrait des images qui ne servent plus (jamais les exemples), et le refus d'un compte hors de l'équipe ;
+- **l'import Radio Cult** : la traduction des réponses (clé d'un créneau seul ou répété, jour de Paris, artistes, descriptions TipTap en Markdown sans HTML ni liens douteux, réseaux en liens, type du show) ; puis l'import : brouillons créés avec leurs artistes (retrouvés par leur nom, reliés, ou créés), rejoué sans doublon, brouillon qui suit son créneau et reçoit ce qui lui manque, show publié jamais réécrit mais signalé, créneau disparu signalé, occurrence d'une série passée à un autre jour, échec noté, lancement par un membre (et refus d'un compte hors de l'équipe), ce que relit l'accueil, et le lien d'une fiche à un artiste de Radio Cult ;
 - **l'antenne libre** : les contrôles du texte (mots déguisés, faux positifs, liens déguisés, coordonnées, forme, pseudos) ; l'envoi et sa modération (pseudo pris ou réservé, changements de pseudo, liste de mots, mode lent, débit par personne et par adresse, doublons, différé, mode prudent, Turnstile, sanctions automatiques) ; les signalements ; les actions de la régie ; ce que la base diffuse (un faux `realtime.send()` le note) ; les règles d'accès ; la trace des adresses IP et la purge.
 
 PGlite tourne sous Postgres 18, Supabase sous Postgres 17. Pour vérifier aussi le vrai moteur de Supabase, avec ses rôles et ses droits, Docker suffit :
@@ -598,7 +618,9 @@ Ensuite, l'écran **Vidéos de fond** (`/admin/videos`, rubrique « Site ») : l
 
 Puis l'**envoi des images** (9.3) : la photo d'un artiste et la pochette d'un show, glissées ou choisies dans leur fiche, cadrées en carré, avec leur texte alternatif et leur crédit ; elles partent directement du navigateur vers Supabase Storage, et le site les montre en versions WebP réduites.
 
-Pas encore : le reste du tableau de bord (imports Radio Cult à relire, prochains événements, textes alternatifs), les événements (leurs étiquettes de catégorie sont prêtes dans la base ; leur visuel et leur galerie attendent leur écran, l'envoi est prêt), les pages, la médiathèque, l'équipe, les imports Radio Cult, « Retrouver la piste » SoundCloud, « Trouver les liens Hopper », l'aperçu sur le site et l'invalidation du cache.
+Puis l'**import de la programmation Radio Cult** (9.4) : chaque nuit, et à la demande depuis l'accueil, les créneaux des 14 jours à venir deviennent des shows en brouillon, reliés à leurs artistes ; l'accueil montre le dernier passage et ce qu'il reste à relire ; la fiche d'un artiste se relie à son artiste de Radio Cult dans une liste.
+
+Pas encore : le reste du tableau de bord (prochains événements, textes alternatifs), les événements (leurs étiquettes de catégorie sont prêtes dans la base ; leur visuel et leur galerie attendent leur écran, l'envoi est prêt), les pages, la médiathèque, l'équipe, « Retrouver la piste » SoundCloud, « Trouver les liens Hopper », l'aperçu sur le site et l'invalidation du cache.
 
 ### 9.1 Connexion et session
 
@@ -615,16 +637,16 @@ Pas encore : le reste du tableau de bord (imports Radio Cult à relire, prochain
 
 | Écran | Liste | Fiche (champs) |
 |---|---|---|
-| **Tableau de bord** | Brouillons récents, imports Radio Cult à relire, prochains événements, contenus sans texte alternatif | — |
+| **Tableau de bord** | Brouillons récents, imports Radio Cult à relire ✓, prochains événements, contenus sans texte alternatif | — |
 | **Shows** | Filtres statut, type, étiquette, artiste ; recherche ; tri par date | Titre*, slug (tiré du titre, modifiable), type*, statut, date et heure de diffusion (heure de Paris), durée, description (Markdown, écrite dans un petit éditeur visuel), pochette carrée (envoi et recadrage 1:1), artistes (choix multiple ordonné ; un nouvel artiste naît en brouillon), étiquettes filtre par filtre, à la souris (section 9.8 ; une étiquette hors des filtres se tape dans « Autres »), mood de 1 à 5, piste SoundCloud (adresse, puis « Retrouver la piste » : l'API de SoundCloud, `/resolve`, côté serveur, remplit l'identifiant), créneau Radio Cult (lecture seule) |
 | **Tracklist** (dans la fiche du show) | — | Tableau éditable : artiste, titre, minutage (`m:ss` ou `h:mm:ss`), lien Hopper ; réordonner par glisser ; coller une tracklist en texte (« 12:30 Artiste – Titre » par ligne) ; « Trouver les liens Hopper » : `POST https://hppr.fr/api/resolve` pour chaque morceau, avec la clé partenaire. Le lien n'est gardé que si Hopper répond 200 : un lien faux est pire qu'un lien absent. L'enregistrement remplace toute la tracklist dans une transaction |
-| **Artistes** | Index A–Z, filtres résident / invité, statut | Nom*, slug, rôle*, bio (Markdown), photo carrée, liens (libellé + adresse, ordonnés), statut, identifiant Radio Cult (rempli par l'import) ; ses shows |
+| **Artistes** | Index A–Z, filtres résident / invité, statut | Nom*, slug, rôle*, bio (Markdown), photo carrée, liens (libellé + adresse, ordonnés), statut, artiste Radio Cult (choisi dans la liste de la station, ou relié par l'import) ; ses shows |
 | **Événements** | À venir / passés, catégorie, statut | Titre*, slug, catégorie*, statut, début*, fin, lieu, adresse, description, visuel, billetterie, artistes ordonnés ; galerie : envoi de plusieurs photos, ordre par glisser, légende et texte alternatif pour chacune |
 | **Étiquettes** ✓ | Un onglet par filtre (Thème, Genre, Géographie, Activité, Catégorie…) et « À classer » ; les groupes dans l'ordre, leurs étiquettes en pastilles avec leur nombre de contenus ; la recherche dans tous les filtres | Nom, adresse ; ses places (en ajouter, en retirer) ; fusionner avec une autre ; supprimer. Ajouter une étiquette ou une liste collée à un groupe ; ajouter, ordonner, retirer les groupes ; créer, modifier, ordonner, supprimer un filtre (section 9.8) |
 | **Pages** | Titre, statut, date de modification | Titre*, slug*, corps (Markdown avec aperçu), statut |
 | **Médiathèque** | Grille des fichiers, ceux sans texte alternatif en tête | Texte alternatif, crédit, où le fichier sert ; supprimer seulement s'il ne sert plus (et dans le Storage aussi) |
 | **Équipe** (admin seulement) | Nom, adresse, rôle, dernière connexion | Ajouter : adresse, nom, rôle. Le serveur crée le compte avec la clé secrète (`supabase.auth.admin.createUser({ email, password, email_confirm: true })`, mot de passe tiré au hasard et montré une seule fois à l'admin), puis écrit la fiche `member` sous le rôle de l'admin. Plus tard, avec les e-mails : `inviteUserByEmail` à la place. Poser un nouveau mot de passe, changer un rôle, retirer un membre (la base garde toujours un admin) |
-| **Imports Radio Cult** | Journal des imports : créés, mis à jour, laissés | — |
+| **Imports Radio Cult** ✓ | Dans l'accueil : le dernier passage (créés, mis à jour, laissés), ce qu'il reste à relire, « Importer maintenant ». Le journal entier est dans `radiocult_import` | — |
 | **Vidéos de fond** ✓ | Cartes dans l'ordre de la liste : image, numéro de chaîne, titre, durée, cadre, poids ; celles mises de côté en gris | Titre (sur place), dans la rotation ou de côté, monter et descendre ; ajouter et remplacer (envoi direct vers Vercel Blob, 9.7), supprimer avec confirmation |
 
 Pour chaque contenu : **Enregistrer** (brouillon), **Publier**, **Dépublier**, **Aperçu** (la page du site, brouillon compris, pour l'équipe seulement), **Supprimer**, avec confirmation. Publier un show exige une date de diffusion : la base refuse sinon, et l'écran doit le dire avant.
@@ -659,24 +681,38 @@ Le module natif `sharp` (une dépendance du site) n'est chargé que pour ce trai
 
 ### 9.4 Import quotidien de la programmation Radio Cult
 
-- **Une tâche planifiée Vercel**, une fois par jour : le plan Hobby le permet. Dans `vercel.json` :
+Fait (novembre 2026). Radio Cult décide de ce qui passe à l'antenne, et quand ; l'admin, de la façon de le présenter. L'import fait le lien : chaque créneau de la grille de Radio Cult devient un show en brouillon, que l'équipe complète (pochette, description, étiquettes, puis la tracklist et le son après la diffusion) et publie. Un créneau n'est jamais saisi deux fois.
+
+**Quand.**
+
+- **Chaque nuit**, par une tâche planifiée de Vercel, une fois par jour comme le permet le plan Hobby (`vercel.json`) :
 
   ```json
   { "crons": [{ "path": "/api/cron/radiocult", "schedule": "0 5 * * *" }] }
   ```
 
-  La route vérifie l'en-tête `Authorization: Bearer <CRON_SECRET>`.
-- **Lecture** de `https://api.radiocult.fm/api/station/parabole-radio-b02d5385/schedule?startDate=…&endDate=…` : la même source que la PROGRAMMATION du site, sur les 14 jours à venir.
-- **Pour chaque créneau** (`start`, `end`, `title`, `media.type`) :
-  - un créneau nouveau devient un **show en brouillon** ;
-  - `radiocult_event_id` reçoit l'identifiant du créneau (champ à confirmer dans la réponse de l'API) ;
-  - la date vient de `start`, la durée de `end - start` ;
-  - le type se déduit de `media.type` : `mix` donne `dj_set`, `playlist` donne `playlist`, `live` donne `dj_set`, à corriger à la main au besoin ;
-  - le slug est tiré du titre et de la date.
-- **Les artistes** du créneau se relient par `artist.radiocult_artist_id`. Un artiste inconnu est créé en brouillon.
-- **L'import ne touche jamais un show publié.** Sur un brouillon déjà importé, il ne met à jour que la date et la durée, si le créneau a bougé. Un créneau disparu de Radio Cult n'est pas supprimé : il est signalé au tableau de bord.
-- **Rejouable** : `radiocult_event_id` est unique, un créneau ne donne jamais deux shows.
-- **Une tâche du serveur**, sans personne connectée : elle écrit avec la connexion du serveur, en propriétaire des tables, et ne crée que des brouillons. Son résumé (créés, mis à jour, laissés) va dans les journaux de Vercel et à l'écran **Imports**.
+  Vers 6 h ou 7 h à Paris : Vercel la lance dans l'heure, sur la production seulement. La route (`src/pages/api/cron/radiocult.ts`) vérifie l'en-tête `Authorization: Bearer <CRON_SECRET>` que Vercel envoie ; sans le réglage `CRON_SECRET`, elle refuse tout.
+- **À la demande**, avec « Importer maintenant » dans le bloc « Programmation Radio Cult » de l'accueil : après avoir calé la grille chez Radio Cult, les brouillons arrivent tout de suite. L'import s'écrit alors au nom de la personne connectée, sous son rôle.
+
+**Ce qu'il lit** (`src/lib/admin/imports.ts`) : `GET /schedule?startDate=…&endDate=…`, de maintenant à dans 14 jours, la même source que la PROGRAMMATION du site ; et `GET /artists`, avec la clé publishable (`PUBLIC_RADIOCULT_KEY`), pour les artistes des créneaux. Les réponses sont traduites par `src/radiocult/traduction.ts` (CMS) ; l'écriture est dans `src/radiocult/index.ts`, sans appel réseau.
+
+**La clé d'un créneau** (`show.radiocult_event_id`). Un créneau seul garde son identifiant chez Radio Cult, même déplacé. Une occurrence d'un créneau répété n'a pas d'identifiant à elle : Radio Cult le fabrique à la lecture (`<série>-r_index-<début>`) et il change dès que la série bouge. La clé est donc la série et le jour, à Paris : `<série>@2026-11-03`. Une série avancée d'une heure garde ses shows ; une occurrence passée à un autre jour (trois jours au plus) reprend le show de sa série au lieu d'en créer un second.
+
+**Pour chaque créneau :**
+
+- **nouveau** : un show en brouillon. Titre et description (TipTap, traduit en Markdown) du créneau ; date de son début, durée de sa longueur ; adresse tirée du titre et du jour (`podcast-2026-11-03`) ; type tiré du créneau : un set enregistré (`mix`) ou un direct (`live`) font un DJ set, `playlist` une playlist, un titre qui dit « podcast » un podcast ;
+- **ses artistes**, dans l'ordre de Radio Cult : retrouvés par `artist.radiocult_artist_id`, sinon par leur nom (sans accents ni majuscules) ou leur adresse, et la fiche trouvée est alors reliée ; sinon créés en brouillon, invités, avec leur bio et leurs liens (réseaux de Radio Cult). Un artiste sans nom chez Radio Cult est laissé de côté ; deux fiches Radio Cult du même nom (« Secri », « SECRI ») font une seule fiche ;
+- **un brouillon déjà importé** suit son créneau : sa date et sa durée changent avec lui, et il reçoit les artistes et la description du créneau tant qu'il n'en a pas. Rien d'autre : le titre, la description et les artistes choisis par l'équipe restent les siens ;
+- **un show publié n'est jamais réécrit** (seul son lien au créneau peut changer, quand une occurrence change de jour). S'il ne correspond plus à son créneau, l'accueil le signale : à corriger sur la fiche, ou chez Radio Cult ;
+- **un créneau disparu** de Radio Cult n'est pas supprimé : son show est signalé à l'accueil.
+
+**Rejouable** : un créneau ne donne jamais deux shows (`radiocult_event_id` est unique), et deux imports ne se croisent pas (verrou de transaction).
+
+**Le journal** (`radiocult_import`, section 2) garde chaque passage, réussi ou non. Son résumé va aussi dans les journaux de Vercel (« Radio Cult, import (tâche de nuit) : 2 shows créés, 1 inchangé. »). L'accueil montre le dernier passage, puis ce que le dernier passage réussi demande encore, relu sur les fiches d'aujourd'hui : à corriger à la main (show publié décalé, créneau disparu), nouveaux brouillons, brouillons mis à jour, artistes créés. Une fiche corrigée, publiée ou supprimée en sort aussitôt.
+
+**Relier un artiste** : la fiche d'un artiste propose la liste des artistes de la station (« Artiste Radio Cult ») ; un artiste déjà relié à une autre fiche y est grisé. Sans la clé publishable, ou si Radio Cult ne répond pas, le lien reste tel quel.
+
+**Sans écriture chez Radio Cult.** La station n'a pas l'option Connect : l'API n'y écrit rien. Les créneaux, leurs artistes et les enregistrements se saisissent dans Radio Cult, le reste dans l'admin.
 
 ### 9.5 Les rôles dans l'admin
 

@@ -216,7 +216,7 @@ export async function showChoices(tx: Tx): Promise<{ artists: AdminShowArtist[];
 // ---------------------------------------------------------------------------------------------------------------
 
 /** Le même nom, sans les accents ni les majuscules : « eloise vachon » retrouve « Éloïse Vachon ». */
-const sameName = (column: typeof artist.name | typeof tag.name, name: string) => sql`private.immutable_unaccent(lower(${column})) = private.immutable_unaccent(lower(${name}))`;
+export const sameName =(column: typeof artist.name | typeof tag.name, name: string) => sql`private.immutable_unaccent(lower(${column})) = private.immutable_unaccent(lower(${name}))`;
 
 /** Les artistes choisis, dans l'ordre : un nom nouveau retrouve l'artiste du même nom, ou en crée un, en brouillon. */
 async function resolveArtists(tx: Tx, picks: ArtistPick[]): Promise<{ ids: string[]; created: string[] }> {

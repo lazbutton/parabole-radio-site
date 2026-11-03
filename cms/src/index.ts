@@ -5,6 +5,8 @@
  *   - createAdmin() : les lectures et les écritures des écrans d'admin, sous le rôle de la personne connectée
  *     (asMember), et la vérification de leurs saisies ;
  *   - le schéma Drizzle (schema.show, schema.track…), ses types et les libellés français ;
+ *   - l'import de la programmation Radio Cult (importRadioCult, pour la tâche de nuit) et la traduction des réponses
+ *     de son API ;
  *   - l'heure de Paris et les minutages (aussi dans le navigateur : @parabole/cms/tracklist).
  */
 export { asMember, asPublic, withViewer, type Tx, type Viewer } from "./access.ts";
@@ -16,6 +18,18 @@ export { ENERGY, LABELS } from "./labels.ts";
 export { coveredTags, mediaUrl, startOfParisDay } from "./read/common.ts";
 export { fromParisInput, STATION_TIME_ZONE, toParisInput } from "./paris.ts";
 export { indexLetter } from "./read/artists.ts";
+export {
+  artistFromRadioCult,
+  importRadioCult,
+  markdownFrom,
+  slotsFromRadioCult,
+  type ImportInput,
+  type ImportResult,
+  type ImportRun,
+  type ImportStatus,
+  type RadioCultArtist,
+  type RadioCultSlot,
+} from "./radiocult/index.ts";
 export { prefixQuery } from "./read/search.ts";
 export {
   createReader,
@@ -57,6 +71,9 @@ export type {
   Event,
   Facet,
   FacetScope,
+  ImportChange,
+  ImportReport,
+  ImportTrigger,
   Media,
   MediaVariant,
   Member,
