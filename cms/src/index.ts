@@ -33,6 +33,8 @@ export {
 export { prefixQuery } from "./read/search.ts";
 export {
   createReader,
+  type AboutContent,
+  type AboutFilm,
   type Airing,
   type ArtistCard,
   type ArtistDetail,
@@ -63,6 +65,7 @@ export {
 } from "./read/index.ts";
 export * as schema from "./schema.ts";
 export type {
+  AboutCredit,
   Artist,
   ArtistLink,
   ArtistRole,

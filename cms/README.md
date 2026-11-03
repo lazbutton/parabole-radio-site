@@ -198,6 +198,19 @@ erDiagram
         text body "Markdown"
         enum status "draft, published"
     }
+    about_page {
+        boolean id PK "une seule ligne"
+        text description "Markdown"
+        jsonb socials "libellé + adresse"
+        jsonb team "rôle + nom + lien"
+        jsonb credits "rôle + nom + lien"
+        text contact_email
+        text apply_text "Markdown"
+        text apply_url "le formulaire"
+        text apply_label "le bouton"
+        text film_url "Vercel Blob"
+        text film_poster_url "image fixe"
+    }
     media {
         uuid id PK
         text key UK "clé dans le seau media"
@@ -259,7 +272,8 @@ erDiagram
 | `event` | Un événement | Sa catégorie est une étiquette (`event_tag`). Sans heure de fin, il reste « à venir » jusqu'à minuit, heure de Paris |
 | `event_artist` | Les artistes d'un événement | Dans l'ordre d'affichage |
 | `event_photo` | La galerie d'un événement | Dans l'ordre de défilement, avec une légende |
-| `page` | Une page de texte | À propos (`a-propos`), mentions légales… |
+| `page` | Une page de texte | Les mentions légales (`mentions-legales`, posée par la migration, écrite dans l'écran À propos)… |
+| `about_page` | La page À propos (section 9.10) | Une seule ligne, posée par la migration, toujours en ligne : la description, les réseaux sociaux, l'équipe et les crédits (`[{ "role", "name", "url" }]`, le lien facultatif), l'adresse de contact, CANDIDATER (le texte, l'adresse du formulaire, le mot du bouton), et le film qu'on y lance (la vidéo, son image fixe, son titre, ce que le navigateur en a lu) |
 | `background_clip` | Une vidéo du fond du site | Publiée : dans la rotation ; brouillon : mise de côté. `position` donne l'ordre de la liste, et le numéro de chaîne. Le fichier est dans le site (`public/`, les 15 clips d'origine, inscrits par la migration) ou sur Vercel Blob (envoyé depuis l'admin, section 9.7) |
 | `media` | Un fichier envoyé sur Supabase Storage | Sa clé dans le seau (la plus grande version), son type, ses dimensions, son texte alternatif (vide : une image décorative), son crédit, ses versions réduites (`[{ "width": 800, "key": "…" }]`) |
 | `member` | Un membre de l'équipe | Relié à un compte Supabase Auth, avec son rôle. Jamais d'auditeurs |
@@ -301,6 +315,8 @@ Hors de l'API, dans le schéma `private` : `chat_trace`, l'adresse IP de chaque 
 | `0011_seaux.sql` | à la main | Les seaux du Storage pour les images (section 9.3) : `originaux`, privé, et `media`, public, avec leurs limites. Aucune règle sur `storage.objects`. Rien à faire sur une base sans Storage |
 | `0012_imports.sql` | drizzle-kit | Le journal de l'import Radio Cult (`radiocult_import`) et son type `import_trigger` |
 | `0013_imports_acces.sql` | à la main | Ses règles d'accès : l'équipe le lit ; un membre n'y écrit que l'import qu'il lance lui-même ; personne ne le modifie ni ne le vide par l'API |
+| `0014_a_propos.sql` | drizzle-kit | La page À propos (`about_page`), sur une ligne |
+| `0015_a_propos_acces.sql` | à la main | Ses règles d'accès (tout le monde la lit, l'équipe la modifie, personne n'y ajoute ni n'en retire de ligne), sa ligne, reprise de la page provisoire du site, et les mentions légales (`page` « mentions-legales ») : ce qui est connu, et ce qui reste à compléter |
 
 ---
 
@@ -315,7 +331,7 @@ Postgres voit chaque visiteur sous un rôle de Supabase. La sécurité par ligne
 | Un éditeur (`editor`) | ✓ | ✓ | ✓ | |
 | Un admin (`admin`) | ✓ | ✓ | ✓ | ✓ |
 
-« Écrire les contenus » couvre : créer, modifier, publier et supprimer les shows, les tracklists, les artistes, les événements, les étiquettes, les pages, les fichiers et les vidéos de fond.
+« Écrire les contenus » couvre : créer, modifier, publier et supprimer les shows, les tracklists, les artistes, les événements, les étiquettes, les pages, les fichiers et les vidéos de fond ; modifier la page À propos.
 
 Le détail des règles :
 
@@ -325,6 +341,7 @@ Le détail des règles :
 - **Les images elles-mêmes**, dans Supabase Storage : aucune règle sur `storage.objects`. Seul le serveur y écrit, avec la clé secrète ; ni le navigateur ni la clé publiable ne peuvent y écrire ni y lister quoi que ce soit. Le public lit le seau `media` par son adresse publique (section 9.3).
 - **Les étiquettes**, les filtres et leurs groupes sont publics. Les étiquettes d'un artiste ou d'un événement suivent leur contenu.
 - **Les vidéos de fond** (`background_clip`) : le public ne voit que celles de la rotation (publiées) ; l'équipe voit et modifie tout.
+- **La page À propos** (`about_page`) : tout le monde la lit, elle est toujours en ligne ; l'équipe la modifie. Personne n'y ajoute ni n'en retire de ligne : il n'y en a qu'une, et la base en refuse une seconde.
 - **L'équipe** (`member`) : le public n'y a aucun accès. Les membres se voient entre eux ; seul l'admin ajoute, modifie ou retire un membre. La base refuse de laisser l'équipe sans admin : un admin doit en nommer un autre avant de céder sa place. Cela vaut aussi pour la suppression de son compte dans Supabase Auth. Pour une vraie remise à zéro, l'éditeur SQL peut suspendre le déclencheur le temps de l'opération (`alter table member disable trigger keep_an_admin`, puis `enable`).
 - **Le journal de l'import Radio Cult** (`radiocult_import`) : l'équipe le lit ; le public n'y a aucun droit. La tâche de nuit y écrit avec la connexion du serveur ; un membre n'y écrit que l'import qu'il lance depuis l'accueil, en son nom (`trigger = 'manual'`, `member_id` = son compte). Personne ne le modifie.
 - **L'antenne libre** (`chat_*`) : le public n'y a aucun droit, pas même en lecture. Le serveur y écrit en propriétaire, après la modération (`src/chat/`), et la base diffuse elle-même ce qui passe à l'antenne. L'équipe, la régie, lit tout et modère sous son rôle ; elle n'écrit au journal et n'écrit à l'antenne qu'en son propre nom.
@@ -530,7 +547,8 @@ Toutes les lectures se font sous le rôle `anon`, en lecture seule. Elles ne voi
 | `getArtist(slug)` | | `ArtistDetail` : photo, bio, liens, ses étiquettes, ses shows, ses événements, les étiquettes de ses shows (`showTags`). Ou `null` |
 | `listEvents(filtres)` | `period` (`"upcoming"` ou `"past"`, obligatoire), `tag` (adresse d'étiquette : `"fete"`), `limit`, `offset`, `now` | `{ items: EventCard[], total, limit, offset }` ; chaque événement porte ses étiquettes, à montrer dessous |
 | `getEvent(slug)` | | `EventDetail` : description, adresse, billetterie, artistes, galerie dans l'ordre. Ou `null` |
-| `getPage(slug)` | | `{ slug, title, body, updatedAt }` (Markdown). Ou `null` |
+| `getPage(slug)` | | `{ slug, title, body, updatedAt }` (Markdown). Ou `null`. Sert aux mentions légales (`"mentions-legales"`) |
+| `getAbout()` | | La page À propos : `{ description, socials, team, credits, contactEmail, apply: { text, url, label }, film, updatedAt }`, la description et le texte de CANDIDATER en Markdown, `film` : `{ src, type, poster, title, width, height, durationSeconds }` ou `null`. `null` si sa ligne manque (migration pas appliquée) |
 | `search(texte, { limit })` | `limit` par type (10 par défaut) | `{ query, shows, artists, events }`, les plus pertinents d'abord |
 | `listBackgroundClips()` | | Les vidéos de fond de la rotation, dans l'ordre de la liste : `[{ src, title, poster }]` |
 
@@ -561,7 +579,7 @@ npm test
 npm run typecheck
 ```
 
-212 tests, sur une base PGlite en mémoire : aucun compte, aucun réseau, une quinzaine de secondes. `npm test` marche aussi depuis la racine du projet. Ils couvrent :
+225 tests, sur une base PGlite en mémoire : aucun compte, aucun réseau, une quinzaine de secondes. `npm test` marche aussi depuis la racine du projet. Ils couvrent :
 
 - **les migrations** : elles passent sur une base vide, et leur relance ne change rien. Chaque table publique a sa RLS et ses règles. Le schéma Drizzle et la base sont d'accord. drizzle-kit n'a plus rien à générer : une migration oubliée fait échouer le test ;
 - **le seed** : il passe, se rejoue sans doublon, se retire sans toucher au reste, et marque bien tout comme exemple ;
@@ -573,6 +591,7 @@ npm run typecheck
 - **l'admin** : la saisie vérifiée champ par champ, la tracklist collée, les minutages, l'heure de Paris aux changements d'heure ; puis, sous le rôle d'un éditeur, la création d'un show avec un artiste et une étiquette nés à la volée, la publication, la tracklist remplacée, l'enregistrement concurrent, la suppression ; et le refus d'un compte hors de l'équipe.
 - **les images** : les seaux que crée la migration (dans l'imitation du Storage de `local-supabase.ts`), le texte alternatif demandé à l'envoi, puis sous le rôle d'un éditeur l'inscription d'une image envoyée, sa place sur une fiche (photo d'un artiste, pochette d'un show) et le jeton de version rendu à l'écran, ce que le site en lit (`srcset` des versions réduites), le retrait des images qui ne servent plus (jamais les exemples), le refus d'un compte hors de l'équipe, et le retrait des exemples arrêté tant qu'une image envoyée est posée sur l'un d'eux ;
 - **l'import Radio Cult** : la traduction des réponses (clé d'un créneau seul ou répété, jour de Paris, artistes, descriptions TipTap en Markdown sans HTML ni liens douteux, réseaux en liens, type du show) ; puis l'import : brouillons créés avec leurs artistes (retrouvés par leur nom, reliés, ou créés), rejoué sans doublon, brouillon qui suit son créneau et reçoit ce qui lui manque, show publié jamais réécrit mais signalé, créneau disparu signalé, occurrence d'une série passée à un autre jour, échec noté, lancement par un membre (et refus d'un compte hors de l'équipe), ce que relit l'accueil, et le lien d'une fiche à un artiste de Radio Cult ;
+- **la page À propos** : sa ligne et les mentions légales posées par la migration, et une seule ligne ; la saisie vérifiée (lignes vides oubliées, réseau nommé d'après son adresse, lien vers une page du site, adresse e-mail devenue lien `mailto:`, chaque erreur à sa place) ; les règles d'accès (le public lit, n'écrit rien ; un compte hors de l'équipe non plus) ; l'enregistrement des textes et des mentions légales (recréées si elles manquent), l'enregistrement concurrent ; le film mis, son image fixe changée, remplacé et enlevé, avec les fichiers devenus inutiles ; les contraintes du film dans la base ;
 - **l'antenne libre** : les contrôles du texte (mots déguisés, faux positifs, liens déguisés, coordonnées, forme, pseudos) ; l'envoi et sa modération (pseudo pris ou réservé, changements de pseudo, liste de mots, mode lent, débit par personne et par adresse, doublons, différé, mode prudent, Turnstile, sanctions automatiques) ; les signalements ; les actions de la régie ; ce que la base diffuse (un faux `realtime.send()` le note) ; les règles d'accès ; la trace des adresses IP et la purge.
 
 PGlite tourne sous Postgres 18, Supabase sous Postgres 17. Pour vérifier aussi le vrai moteur de Supabase, avec ses rôles et ses droits, Docker suffit :
@@ -622,6 +641,8 @@ Puis l'**envoi des images** (9.3) : la photo d'un artiste et la pochette d'un sh
 
 Puis l'**import de la programmation Radio Cult** (9.4) : chaque nuit, et à la demande depuis l'accueil, les créneaux des 14 jours à venir deviennent des shows en brouillon, reliés à leurs artistes ; l'accueil montre le dernier passage et ce qu'il reste à relire ; la fiche d'un artiste se relie à son artiste de Radio Cult dans une liste.
 
+Puis l'écran **À propos** (`/admin/a-propos`, rubrique « Site », 9.10) : la page du site rangée comme elle s'affiche (description, réseaux sociaux, équipe, crédits, contact, candidater), les mentions légales, page à part, et le film qu'on lance depuis la page.
+
 Pas encore : le reste du tableau de bord (prochains événements, textes alternatifs), les événements (leurs étiquettes de catégorie sont prêtes dans la base ; leur visuel et leur galerie attendent leur écran, l'envoi est prêt), les pages, la médiathèque, l'équipe, « Retrouver la piste » SoundCloud, « Trouver les liens Hopper », l'aperçu sur le site et l'invalidation du cache.
 
 ### 9.1 Connexion et session
@@ -645,7 +666,8 @@ Pas encore : le reste du tableau de bord (prochains événements, textes alterna
 | **Artistes** | Index A–Z, filtres résident / invité, statut | Nom*, slug, rôle*, bio (Markdown), photo carrée, liens (libellé + adresse, ordonnés), statut, artiste Radio Cult (choisi dans la liste de la station, ou relié par l'import) ; ses shows |
 | **Événements** | À venir / passés, catégorie, statut | Titre*, slug, catégorie*, statut, début*, fin, lieu, adresse, description, visuel, billetterie, artistes ordonnés ; galerie : envoi de plusieurs photos, ordre par glisser, légende et texte alternatif pour chacune |
 | **Étiquettes** ✓ | Un onglet par filtre (Thème, Genre, Géographie, Activité, Catégorie…) et « À classer » ; les groupes dans l'ordre, leurs étiquettes en pastilles avec leur nombre de contenus ; la recherche dans tous les filtres | Nom, adresse ; ses places (en ajouter, en retirer) ; fusionner avec une autre ; supprimer. Ajouter une étiquette ou une liste collée à un groupe ; ajouter, ordonner, retirer les groupes ; créer, modifier, ordonner, supprimer un filtre (section 9.8) |
-| **Pages** | Titre, statut, date de modification | Titre*, slug*, corps (Markdown avec aperçu), statut |
+| **Pages** | Titre, statut, date de modification | Titre*, slug*, corps (Markdown avec aperçu), statut. Les mentions légales, elles, s'écrivent déjà dans l'écran À propos |
+| **À propos** ✓ | — | Description, réseaux sociaux, équipe, crédits, contact, candidater (texte, bouton, formulaire), mentions légales : enregistrés ensemble, toujours en ligne. Le film : envoi direct vers Vercel Blob, image fixe choisie dans le film ou envoyée, remplacer, retirer (9.10) |
 | **Médiathèque** | Grille des fichiers, ceux sans texte alternatif en tête | Texte alternatif, crédit, où le fichier sert ; supprimer seulement s'il ne sert plus (et dans le Storage aussi) |
 | **Équipe** (admin seulement) | Nom, adresse, rôle, dernière connexion | Ajouter : adresse, nom, rôle. Le serveur crée le compte avec la clé secrète (`supabase.auth.admin.createUser({ email, password, email_confirm: true })`, mot de passe tiré au hasard et montré une seule fois à l'admin), puis écrit la fiche `member` sous le rôle de l'admin. Plus tard, avec les e-mails : `inviteUserByEmail` à la place. Poser un nouveau mot de passe, changer un rôle, retirer un membre (la base garde toujours un admin) |
 | **Imports Radio Cult** ✓ | Dans l'accueil : le dernier passage (créés, mis à jour, laissés), ce qu'il reste à relire, « Importer maintenant ». Le journal entier est dans `radiocult_import` | — |
@@ -812,3 +834,24 @@ Le chat du site, décrit en entier dans `CHAT_EN_DIRECT.md` : les messages défi
 - **Les auditeurs** n'ont pas de compte : une session anonyme du site, un jeton dans un cookie (`parabole_antenne`, réservé aux routes `/api/chat`), dont la base ne garde que l'empreinte.
 - **La purge** : `private.purge_chat()` retire les messages au bout de 30 jours, et le journal, la trace des adresses IP et les pseudos inactifs au bout d'un an. Si pg_cron est allumé au moment de la migration, elle passe chaque nuit ; sinon, l'allumer (Database → Extensions), puis dans l'éditeur SQL : `select cron.schedule('antenne-purge', '17 4 * * *', 'select private.purge_chat()');`.
 - **Pour l'essayer en local**, il faut un Supabase avec Realtime : la recette de « L'admin en local », sans exclure `realtime` au `supabase start`. Sans `PUBLIC_SUPABASE_URL`, le site redemande l'historique toutes les 8 secondes au lieu d'écouter le canal.
+
+### 9.10 La page À propos
+
+La page du site (`/a-propos`), d'après le croquis du 3 novembre 2026, et son écran dans l'admin (`/admin/a-propos`, rubrique « Site »). Toute la page tient dans la table `about_page`, sur une ligne : rien n'y est en brouillon, chaque enregistrement passe sur le site en une minute environ (le cache de Vercel). Un bloc vide n'est pas montré.
+
+**Sur le site** (`src/pages/a-propos.astro`, `src/styles/a-propos.css`, `src/scripts/a-propos.ts`) :
+
+- en fond, l'image fixe du film (le mode photo de `background.ts`, comme la photo d'un artiste), et au centre un grand ▶, seul, sans cadre ni texte (le titre du film n'est dit qu'aux lecteurs d'écran) ; sans film, la vidéo de fond habituelle ;
+- DESCRIPTION et les réseaux sociaux à droite ; L'ÉQUIPE et les CRÉDITS à gauche, en générique de fin (le rôle, des points, le nom), qui passent sous le bas du premier écran ; CONTACT et CANDIDATER (la touche jaune, qui mène au formulaire) plus bas ; tout en bas, le lien des mentions légales. Le contenu garde une marge en haut et sur les côtés, et 1 120 px de large au plus, au centre. Sur téléphone, l'un sous l'autre, ▶ posé sur l'image ;
+- ▶ lance le film, avec le son, après un éclair de neige : il passe sous l'en-tête, derrière les pages. La radio lui prête le son (`preterLeSon()`, `audio.ts`) et le reprend quand il finit, qu'on le ferme ou qu'on quitte la page ; ÉCOUTER, RADIO / VIDÉO ou le casque reprennent la main et le mettent en pause. Le volume de l'en-tête règle aussi le film. La régie reste discrète : un fil d'avancée au bas de l'écran, et la durée, ❚❚ et × en petit dans le coin ; un clic sur l'image elle-même met en pause ou relance ;
+- le film en marche, si la souris ne bouge plus pendant 2 s, les pages et le pointeur s'effacent ; l'en-tête et la régie restent. Ils reviennent au moindre mouvement, au doigt, à la molette ou au clavier ; un doigt posé sur la page effacée ne fait que la réveiller. En pause, rien ne s'efface. Par-dessus le film, les pages ne floutent plus l'image (un flou recalculé à chaque image ralentit le défilement).
+
+**Les mentions légales** sont une page à part (`/mentions-legales`, la table `page`), avec un lien discret en bas de À propos. La migration en pose une première version : l'hébergeur (Vercel Inc., adresse vérifiée le 3 novembre 2026) et, à compléter, l'éditeur et la direction de la publication. Elles s'écrivent dans l'écran À propos et s'enregistrent avec la page.
+
+**Le film** suit le chemin des vidéos de fond (9.7), dans le même magasin Vercel Blob, sous `a-propos/` :
+
+1. On choisit la vidéo (MP4 ou WebM, 100 Mo au plus). Le navigateur la lit, puis on choisit l'image fixe en la faisant défiler (elle part à un dixième de sa durée, 10 s au plus) ; elle devient un JPEG de 1920 px de large au plus.
+2. La vidéo et l'image partent directement du navigateur vers le magasin, sous des jetons que le serveur signe pour chaque fichier (`intent=ticket`). L'envoi continue si l'on change d'écran.
+3. `intent=film` : le serveur vérifie que les fichiers sont dans le magasin, puis les met sur la page. L'image fixe se change à part (un autre moment du film, ou une image de l'ordinateur : `intent=poster`), le film se retire (`intent=remove-film`). Les fichiers devenus inutiles sont effacés du magasin, et seulement sous `a-propos/`.
+
+Le film ne se charge qu'au clic sur ▶ (`preload="none"`), mais chaque lecture le télécharge sur le trafic de Vercel Blob, compté au mois et partagé avec les vidéos de fond (10 Go en Hobby, 9.7) : un film de 50 Mo vu en entier 200 fois fait 10 Go. D'où le conseil de l'écran : 720p, moins de 50 Mo. Si la page attire du monde, le film ira mieux sur Cloudflare R2 (sortie gratuite), prévu pour les sets.

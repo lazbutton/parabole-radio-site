@@ -1,0 +1,32 @@
+CREATE TABLE "about_page" (
+	"id" boolean PRIMARY KEY DEFAULT true NOT NULL,
+	"description" text DEFAULT '' NOT NULL,
+	"socials" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"team" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"credits" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"contact_email" text,
+	"apply_text" text DEFAULT '' NOT NULL,
+	"apply_url" text,
+	"apply_label" text DEFAULT 'Music lover ?!' NOT NULL,
+	"film_url" text,
+	"film_poster_url" text,
+	"film_title" text DEFAULT '' NOT NULL,
+	"film_mime_type" text,
+	"film_size_bytes" bigint,
+	"film_duration_seconds" integer,
+	"film_width" integer,
+	"film_height" integer,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "about_page_single" CHECK ("about_page"."id"),
+	CONSTRAINT "about_page_lists" CHECK (jsonb_typeof("about_page"."socials") = 'array' and jsonb_typeof("about_page"."team") = 'array' and jsonb_typeof("about_page"."credits") = 'array'),
+	CONSTRAINT "about_page_contact_email" CHECK ("about_page"."contact_email" is null or "about_page"."contact_email" ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'),
+	CONSTRAINT "about_page_apply_url" CHECK ("about_page"."apply_url" is null or "about_page"."apply_url" ~ '^(https?://|mailto:)'),
+	CONSTRAINT "about_page_film" CHECK (("about_page"."film_url" is null) = ("about_page"."film_mime_type" is null) and ("about_page"."film_mime_type" is null or "about_page"."film_mime_type" in ('video/mp4', 'video/webm'))),
+	CONSTRAINT "about_page_film_url" CHECK ("about_page"."film_url" is null or "about_page"."film_url" ~ '^(/[^/]|https://)'),
+	CONSTRAINT "about_page_film_poster_url" CHECK ("about_page"."film_poster_url" is null or "about_page"."film_poster_url" ~ '^(/[^/]|https://)'),
+	CONSTRAINT "about_page_film_dimensions" CHECK (("about_page"."film_width" is null) = ("about_page"."film_height" is null) and coalesce("about_page"."film_width" > 0 and "about_page"."film_height" > 0, true)),
+	CONSTRAINT "about_page_film_size" CHECK ("about_page"."film_size_bytes" is null or "about_page"."film_size_bytes" >= 0),
+	CONSTRAINT "about_page_film_duration" CHECK ("about_page"."film_duration_seconds" is null or "about_page"."film_duration_seconds" > 0)
+);
+--> statement-breakpoint
+ALTER TABLE "about_page" ENABLE ROW LEVEL SECURITY;

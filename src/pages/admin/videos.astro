@@ -78,7 +78,7 @@ if (Astro.request.method === "POST") {
     case "abandon": {
       // Un envoi interrompu (l'image d'attente n'est pas partie…) : ses fichiers, s'ils ne servent à aucun clip.
       const used = new Set((await admin.listClips()).flatMap((clip) => [clip.videoUrl, clip.posterUrl]));
-      await removeFiles(data.getAll("url").map(String).filter((url) => !used.has(url)));
+      await removeFiles(data.getAll("url").map(String).filter((url) => !used.has(url)), "fond");
       return json({ ok: true });
     }
 

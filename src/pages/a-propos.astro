@@ -1,58 +1,191 @@
 ---
 /**
- * À propos : un texte PROVISOIRE. Ce qui est sûr (la radio, l'écoute, l'appel aux contributeurs) est écrit ; le reste
- * est marqué « À écrire », dont le contact et les mentions légales, obligatoires pour un site publié en France (LCEN).
- * Le futur CMS (/admin) permettra à l'équipe de l'éditer sans toucher au code.
+ * À propos (/a-propos), d'après le croquis du 3 novembre. Le film de Parabole en fond : son image fixe derrière les
+ * panneaux (le mode photo de background.ts) et un grand ▶ au centre, qui le lance avec le son ; sans film, la vidéo
+ * de fond habituelle. Par-dessus, comme des pages posées sur l'image : DESCRIPTION et les réseaux sociaux à droite,
+ * L'ÉQUIPE et les CRÉDITS à gauche (ils passent sous le bas de l'écran, pour inviter à descendre), CONTACT et
+ * CANDIDATER plus bas ; tout en bas, le lien des mentions légales, une page à part. Le contenu a ses marges et une
+ * largeur au plus (src/styles/a-propos.css). Le film en marche, les pages s'effacent après 2 s sans bouger la souris
+ * et reviennent au moindre mouvement ; l'en-tête reste (src/scripts/a-propos.ts).
+ *
+ * Tout vient de l'admin (À propos) ; un bloc vide n'est pas montré. Rendue à la demande, gardée une minute par le cache
+ * de Vercel, comme les résidents.
  */
+import type { AboutContent, AboutCredit } from "@parabole/cms";
+import { formatTimecode } from "@parabole/cms/tracklist";
+import Interruption from "../components/Interruption.astro";
+import Liens from "../components/residents/Liens.astro";
 import Base from "../layouts/Base.astro";
-import Sheet from "../components/Sheet.astro";
-import { DEFAULT_SUBTITLE_URL } from "../scripts/settings";
+import { reader } from "../lib/cms";
+import { renderMarkdown } from "../lib/markdown";
+
+export const prerender = false;
+
+let about: AboutContent | null | undefined;
+try {
+  about = await (await reader()).getAbout();
+} catch (erreur) {
+  console.error("a-propos : la base ne répond pas", erreur);
+}
+if (about) {
+  Astro.response.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
+  Astro.response.headers.set("Vercel-CDN-Cache-Control", "max-age=60, stale-while-revalidate=600");
+} else {
+  // la base ne répond pas, ou la page n'y est pas encore (migration) : le carton d'interruption
+  Astro.response.status = 503;
+  Astro.response.headers.set("Cache-Control", "no-store");
+}
+
+const film = about?.film ?? null;
+// L'image fixe du film prend le fond, comme la photo d'un artiste ; sans image, la mire.
+const fond = film ? (film.poster ? { src: film.poster, flou: film.poster } : { mire: true }) : null;
+const ratio = film?.width && film.height ? `${film.width} / ${film.height}` : "16 / 9";
+const nomDuFilm = film?.title || "Le film";
+const duree = film?.durationSeconds ? formatTimecode(film.durationSeconds) : null;
+
+const description = about?.description ? renderMarkdown(about.description) : "";
+const candidater = about?.apply.text ? renderMarkdown(about.apply.text) : "";
+const socials = about?.socials ?? [];
+const team = about?.team ?? [];
+const credits = about?.credits ?? [];
+const contact = about?.contactEmail ?? null;
+// le formulaire s'ouvre dans un autre onglet ; une adresse e-mail, dans la messagerie
+const bouton = about?.apply.url
+  ? { href: about.apply.url, texte: about.apply.label, ...(about.apply.url.startsWith("mailto:") ? {} : { target: "_blank", rel: "noopener noreferrer" }) }
+  : null;
+
+/** Un lien d'une ligne du générique : une page du site s'ouvre ici, une adresse d'ailleurs dans un autre onglet. */
+const lienDe = (ligne: AboutCredit) =>
+  !ligne.url ? null : ligne.url.startsWith("/") ? { href: ligne.url } : { href: ligne.url, target: "_blank", rel: "noopener noreferrer" };
+
+// la description de l'aperçu : le début de la description, sans Markdown
+const texte = (about?.description ?? "")
+  .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+  .replace(/[*_`#>~]/g, "")
+  .replace(/\s+/g, " ")
+  .trim();
+const resume = texte ? (texte.length > 155 ? texte.slice(0, 154).replace(/\s+\S*$/, "") + "…" : texte) : "Parabole Radio, webradio communautaire de Paris 18.";
 ---
 
-<Base page="about" title="À propos" description="Parabole Radio, webradio communautaire de Paris 18.">
-  <Sheet title="À propos">
-    <span slot="tete" class="a-ecrire">Texte à écrire</span>
-    <div class="feuille-corps">
-      <p class="brouillon">
-        Ce texte est provisoire : chaque partie marquée <span class="a-ecrire">À écrire</span> attend sa version définitive.
-      </p>
+<Base page="about" title="À propos" description={resume}>
+  {
+    !about ? (
+      <div class="apropos-panne">
+        <Interruption quoi="La page À propos ne peut pas s'afficher pour le moment." />
+      </div>
+    ) : (
+      <article class="apropos" data-apropos data-fond-photo={fond ? JSON.stringify(fond) : undefined} style={`--ratio: ${ratio}`}>
+        <h1 class="sr-only">À propos de Parabole Radio</h1>
 
-      <h2>Parabole Radio</h2>
-      <p>
-        Webradio communautaire du 18<sup>e</sup> arrondissement de Paris : Union de la Jeunesse Internationale Community
-        Radio. Le direct tourne 24 h sur 24 : de la musique en continu, des émissions et des sets.
-      </p>
-      <p class="brouillon"><span class="a-ecrire">À écrire</span> L’histoire de la radio, l’équipe, ce qu’on y entend.</p>
+        {film && (
+          <div class="apropos-centre">
+            <div class="apropos-film" aria-hidden="true">
+              <video data-film src={film.src} poster={film.poster ?? undefined} preload="none" playsinline />
+            </div>
+            <!-- Un grand ▶, seul : ce qu'il fait, et le titre du film, ne sont dits qu'aux lecteurs d'écran -->
+            <div class="apropos-lancement">
+              <button class="apropos-lancer" type="button" data-film-touche data-film-lancer>
+                <span class="apropos-lancer-signe" aria-hidden="true" />
+                <span class="sr-only" data-film-nom>
+                  <span class="apropos-mot-regarder">Regarder</span><span class="apropos-mot-reprendre">Reprendre</span> le film : {nomDuFilm}
+                </span>
+              </button>
+            </div>
+            <div class="apropos-regie" data-film-regie>
+              <button class="apropos-regie-touche" type="button" data-film-touche data-film-pause aria-label="Mettre le film en pause">
+                <svg class="icon apropos-icone-pause" aria-hidden="true"><use href="#icon-pause" /></svg>
+                <svg class="icon apropos-icone-lire" aria-hidden="true"><use href="#icon-play" /></svg>
+              </button>
+              <span class="apropos-regie-temps" data-film-temps aria-hidden="true">
+                0:00{duree && ` / ${duree}`}
+              </span>
+              <input
+                class="apropos-regie-avance"
+                type="range"
+                min="0"
+                max={film.durationSeconds ?? 0}
+                step="0.1"
+                value="0"
+                data-film-touche
+                data-film-avance
+                aria-label="Avancer dans le film"
+              />
+              <button class="apropos-regie-touche" type="button" data-film-touche data-film-fermer aria-label="Fermer le film">
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+          </div>
+        )}
 
-      <h2>Écouter</h2>
-      <p>
-        Le direct se lance avec la touche ▶ ON AIR, en haut de chaque page, sous le menu, et sur l’accueil avec la grande
-        touche ▶ Écouter. Il continue quand on change de page. Sur la même ligne défile ce qui passe ; la touche Juste
-        avant donne le morceau d’avant, puis viennent le volume et la touche Radio / Vidéo, qui fait entendre le son des
-        clips à la place du direct. La loupe, en haut, cherche dans tout le site. Sur l’accueil, la programmation et
-        l’historique des morceaux s’ouvrent depuis la ligne du bas ; partout, l’historique s’ouvre aussi depuis Juste avant.
-      </p>
+        {(description || socials.length > 0) && (
+          <section class="apropos-panneau apropos-description" aria-labelledby="aproposDescription">
+            <h2 id="aproposDescription" class="apropos-titre">
+              Description
+            </h2>
+            {description && <div class="apropos-texte" set:html={description} />}
+            {socials.length > 0 && (
+              <>
+                <p class="apropos-groupe">Réseaux sociaux</p>
+                <Liens liens={socials} nom="Parabole Radio" />
+              </>
+            )}
+          </section>
+        )}
 
-      <h2>Participer</h2>
-      <p>
-        La radio cherche des contributeurs : DJ, podcasteurs, spécialistes d’un genre, passionnés de musique.{" "}
-        {
-          DEFAULT_SUBTITLE_URL && (
-            <a href={DEFAULT_SUBTITLE_URL} target="_blank" rel="noopener noreferrer">
-              Répondre au formulaire
-            </a>
-          )
-        }
-      </p>
+        {(team.length > 0 || credits.length > 0) && (
+          <section class="apropos-panneau apropos-equipe" aria-label="L'équipe et les crédits">
+            {[
+              { titre: "L'équipe", lignes: team },
+              { titre: "Crédits", lignes: credits },
+            ]
+              .filter((bloc) => bloc.lignes.length > 0)
+              .map((bloc) => (
+                <>
+                  <h2 class="apropos-titre">{bloc.titre}</h2>
+                  <dl class="apropos-generique">
+                    {bloc.lignes.map((ligne) => {
+                      const lien = lienDe(ligne);
+                      return (
+                        <div data-seul={ligne.role ? undefined : ""}>
+                          {ligne.role && <dt>{ligne.role}</dt>}
+                          <dd>{lien ? <a {...lien}>{ligne.name}</a> : ligne.name}</dd>
+                        </div>
+                      );
+                    })}
+                  </dl>
+                </>
+              ))}
+          </section>
+        )}
 
-      <h2>Contact</h2>
-      <p class="brouillon"><span class="a-ecrire">À écrire</span> Une adresse e-mail pour joindre la radio.</p>
+        {(contact || candidater || bouton) && (
+          <section class="apropos-panneau apropos-contact" aria-label="Contact et candidatures">
+            {contact && (
+              <>
+                <h2 class="apropos-titre">Contact</h2>
+                <p class="apropos-adresse">
+                  <a href={`mailto:${contact}`}>{contact}</a>
+                </p>
+              </>
+            )}
+            {(candidater || bouton) && (
+              <>
+                <h2 class="apropos-titre">Candidater</h2>
+                {candidater && <div class="apropos-texte" set:html={candidater} />}
+                {bouton && (
+                  <a class="apropos-candidater" href={bouton.href} target={bouton.target} rel={bouton.rel}>
+                    {bouton.texte}
+                  </a>
+                )}
+              </>
+            )}
+          </section>
+        )}
 
-      <h2>Mentions légales</h2>
-      <p class="brouillon">
-        <span class="a-ecrire">À écrire</span> L’éditeur du site, le directeur ou la directrice de la publication, et
-        l’hébergeur.
-      </p>
-    </div>
-  </Sheet>
+        <p class="apropos-mentions">
+          <a href="/mentions-legales">Mentions légales</a>
+        </p>
+      </article>
+    )
+  }
 </Base>

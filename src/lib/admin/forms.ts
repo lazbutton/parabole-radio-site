@@ -2,7 +2,7 @@
  * Les fiches de l'admin entre la base, l'écran et le formulaire envoyé : une fiche lue devient des champs à remplir,
  * un formulaire reçu redevient une fiche à vérifier (@parabole/cms, readShowForm et readArtistForm).
  */
-import { formatTimecode, toParisInput, type AdminArtist, type AdminShow, type ArtistForm, type ShowForm } from "@parabole/cms";
+import { formatTimecode, toParisInput, type AboutCreditForm, type AboutForm, type AdminAbout, type AdminArtist, type AdminShow, type ArtistForm, type ShowForm } from "@parabole/cms";
 
 const text = (data: FormData, name: string) => String(data.get(name) ?? "");
 const texts = (data: FormData, name: string) => data.getAll(name).map(String);
@@ -87,6 +87,44 @@ export function artistFormFrom(data: FormData): ArtistForm {
     tags: texts(data, "tag"),
     // Absent du formulaire (Radio Cult ne répondait pas à l'ouverture de la fiche) : le lien ne change pas.
     ...(data.has("radiocultArtistId") ? { radiocultArtistId: text(data, "radiocultArtistId") } : {}),
+  };
+}
+
+/** Les champs de la page À propos enregistrée ; un lien absent devient un champ vide. */
+export const aboutFormOf = (about: AdminAbout): AboutForm => ({
+  description: about.description,
+  socials: about.socials,
+  team: about.team.map((row) => ({ role: row.role, name: row.name, url: row.url ?? "" })),
+  credits: about.credits.map((row) => ({ role: row.role, name: row.name, url: row.url ?? "" })),
+  contactEmail: about.contactEmail ?? "",
+  applyText: about.applyText,
+  applyUrl: about.applyUrl ?? "",
+  applyLabel: about.applyLabel,
+  filmTitle: about.filmTitle,
+  legal: about.legal,
+});
+
+/** Le formulaire de la page À propos tel qu'envoyé : les lignes de l'équipe (« team… ») et des crédits (« credit… »). */
+export function aboutFormFrom(data: FormData): AboutForm {
+  const rows = (prefix: string): AboutCreditForm[] => {
+    const roles = texts(data, `${prefix}Role`);
+    const names = texts(data, `${prefix}Name`);
+    const urls = texts(data, `${prefix}Url`);
+    return Array.from({ length: Math.max(roles.length, names.length, urls.length) }, (_, index) => ({ role: roles[index] ?? "", name: names[index] ?? "", url: urls[index] ?? "" }));
+  };
+  const labels = texts(data, "socialLabel");
+  const urls = texts(data, "socialUrl");
+  return {
+    description: text(data, "description"),
+    socials: Array.from({ length: Math.max(labels.length, urls.length) }, (_, index) => ({ label: labels[index] ?? "", url: urls[index] ?? "" })),
+    team: rows("team"),
+    credits: rows("credit"),
+    contactEmail: text(data, "contactEmail"),
+    applyText: text(data, "applyText"),
+    applyUrl: text(data, "applyUrl"),
+    applyLabel: text(data, "applyLabel"),
+    filmTitle: text(data, "filmTitle"),
+    legal: text(data, "legal"),
   };
 }
 

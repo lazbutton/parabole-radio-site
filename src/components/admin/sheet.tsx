@@ -5,7 +5,7 @@
  * qui s'écrit sur place, les propriétés en lignes (libellé à gauche, valeur à droite), les sections, et le panneau
  * de côté (image, son, informations). Plus l'envoi au serveur (postForm, qui sert aussi au mot de passe).
  */
-import { ArrowLeftIcon, CheckIcon, DotsHorizontalIcon, ExclamationTriangleIcon, EyeNoneIcon, TrashIcon } from "@radix-ui/react-icons";
+import { ArrowLeftIcon, CheckIcon, DotsHorizontalIcon, ExclamationTriangleIcon, ExternalLinkIcon, EyeNoneIcon, TrashIcon } from "@radix-ui/react-icons";
 import { AlertDialog, Button, DropdownMenu, Flex, Heading, IconButton, Kbd, Spinner, Text, Tooltip } from "@radix-ui/themes";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { FieldErrors } from "@parabole/cms";
@@ -154,6 +154,7 @@ export function SidePanel({ title, aside, children }: { title: string; aside?: R
  * La barre de la fiche, collée en haut : le retour à la liste, le nom, le statut ; puis l'état de l'enregistrement
  * et les actions. Un brouillon a Enregistrer et Publier ; un contenu publié a Enregistrer (qui met à jour la version
  * publiée), et Dépublier dans le menu « … », avec Supprimer, toujours confirmé. ⌘S ou Ctrl+S enregistre aussi.
+ * Une page toujours en ligne (`live`, À propos) n'a qu'Enregistrer, et `view`, le lien vers sa page du site.
  */
 export function SheetBar({
   back,
@@ -165,10 +166,13 @@ export function SheetBar({
   updated,
   onSave,
   deleteTitle,
-  deleteNote,
+  deleteNote = "",
   onDelete,
+  live = false,
+  view,
 }: {
-  back: { label: string; href: string };
+  /** La liste où revenir ; absente pour une page qui n'est dans aucune liste. */
+  back?: { label: string; href: string };
   name: string;
   status: "draft" | "published";
   isNew: boolean;
@@ -178,12 +182,16 @@ export function SheetBar({
   onSave(intent: SaveIntent): void;
   /** « Supprimer « Nuit Parabole » ? » ; absent pour une fiche pas encore créée. */
   deleteTitle?: string;
-  deleteNote: string;
-  onDelete(): void;
+  deleteNote?: string;
+  onDelete?(): void;
+  /** Toujours en ligne : ni statut, ni Publier, ni Dépublier. */
+  live?: boolean;
+  /** La page du site, à ouvrir dans un autre onglet. */
+  view?: { label: string; href: string };
 }) {
   const mod = useModKey();
   const [confirming, setConfirming] = useState(false);
-  const published = status === "published";
+  const published = live || status === "published";
   const saving = busy !== null && busy !== "delete";
   const state = saving
     ? { tone: "busy", text: "Enregistrement…" }
@@ -192,29 +200,42 @@ export function SheetBar({
       : isNew
         ? { tone: "new", text: "Nouveau brouillon" }
         : { tone: "saved", text: published ? "Enregistré" : "Brouillon enregistré" };
-  const hint = dirty && published ? "Enregistrer met à jour la version publiée." : updated ? `Modifié le ${updated}` : undefined;
-  const menu = published || Boolean(deleteTitle);
+  const hint = dirty && published ? (live ? "Enregistrer met à jour le site." : "Enregistrer met à jour la version publiée.") : updated ? `Modifié le ${updated}` : undefined;
+  const menu = (published && !live) || Boolean(deleteTitle);
 
   return (
     <div className="admin-sheet-bar">
       <div className="admin-sheet-where">
-        <Tooltip content={`Retour : ${back.label}`}>
-          <IconButton asChild variant="ghost" color="gray" size="2">
-            <a href={back.href} data-astro-prefetch="false" aria-label={`Retour : ${back.label}`}>
-              <ArrowLeftIcon width="18" height="18" />
-            </a>
-          </IconButton>
-        </Tooltip>
-        <Text size="2" color="gray" className="admin-sheet-crumb admin-hide-mobile">
-          <a href={back.href} data-astro-prefetch="false">
-            {back.label}
-          </a>
-          <span aria-hidden> / </span>
-        </Text>
+        {back && (
+          <>
+            <Tooltip content={`Retour : ${back.label}`}>
+              <IconButton asChild variant="ghost" color="gray" size="2">
+                <a href={back.href} data-astro-prefetch="false" aria-label={`Retour : ${back.label}`}>
+                  <ArrowLeftIcon width="18" height="18" />
+                </a>
+              </IconButton>
+            </Tooltip>
+            <Text size="2" color="gray" className="admin-sheet-crumb admin-hide-mobile">
+              <a href={back.href} data-astro-prefetch="false">
+                {back.label}
+              </a>
+              <span aria-hidden> / </span>
+            </Text>
+          </>
+        )}
         <Text size="2" weight="medium" truncate className="admin-sheet-name">
           {name}
         </Text>
-        {!isNew && <StatusBadge status={status} />}
+        {!isNew && !live && <StatusBadge status={status} />}
+        {view && (
+          <Tooltip content={`${view.label} (nouvel onglet)`}>
+            <IconButton asChild variant="ghost" color="gray" size="2">
+              <a href={view.href} target="_blank" rel="noopener" aria-label={`${view.label} (nouvel onglet)`}>
+                <ExternalLinkIcon />
+              </a>
+            </IconButton>
+          </Tooltip>
+        )}
       </div>
 
       <div className="admin-sheet-actions">
@@ -232,12 +253,12 @@ export function SheetBar({
               </IconButton>
             </DropdownMenu.Trigger>
             <DropdownMenu.Content align="end" size="2">
-              {published && (
+              {published && !live && (
                 <DropdownMenu.Item onSelect={() => onSave("unpublish")}>
                   <EyeNoneIcon /> Dépublier
                 </DropdownMenu.Item>
               )}
-              {published && deleteTitle && <DropdownMenu.Separator />}
+              {published && !live && deleteTitle && <DropdownMenu.Separator />}
               {deleteTitle && (
                 <DropdownMenu.Item color="red" onSelect={() => setConfirming(true)}>
                   <TrashIcon /> Supprimer…
@@ -265,7 +286,7 @@ export function SheetBar({
             Enregistrer
           </Button>
         </Tooltip>
-        {!published && (
+        {!published && !live && (
           <Button type="button" size="2" loading={busy === "publish"} disabled={busy !== null} onClick={() => onSave("publish")}>
             Publier
           </Button>
@@ -284,7 +305,7 @@ export function SheetBar({
                 </Button>
               </AlertDialog.Cancel>
               {/* Pas d'AlertDialog.Action : le dialogue reste ouvert, avec son indicateur, jusqu'au retour à la liste. */}
-              <Button color="red" loading={busy === "delete"} onClick={onDelete}>
+              <Button color="red" loading={busy === "delete"} onClick={() => onDelete?.()}>
                 <TrashIcon /> Supprimer
               </Button>
             </Flex>

@@ -11,11 +11,13 @@ import {
   mediaUrl,
   MUTE_CHOICES,
   SLOW_CHOICES,
+  type AdminAbout,
   type Admin,
   type AdminAntenne,
   type AdminArtist,
   type AdminChatMessage,
   type AdminClip,
+  type AdminFilm,
   type AdminMedia,
   type AdminShow,
   type TeamMember,
@@ -23,19 +25,21 @@ import {
 } from "@parabole/cms";
 import {
   UNPLACED,
+  type AboutSheet,
   type AntenneData,
   type ArtistSheet,
   type DashboardData,
   type ChatMessageRow,
   type ClipsData,
+  type FilmView,
   type MediaView,
   type ShowSheet,
   type TagsData,
   type Viewer,
 } from "../../components/admin/types";
 import { mediaBaseUrl } from "../cms";
-import { blobReady, MAX_VIDEO_BYTES } from "./blob";
-import { artistFormOf, showFormOf } from "./forms";
+import { blobReady, MAX_FILM_BYTES, MAX_VIDEO_BYTES } from "./blob";
+import { aboutFormOf, artistFormOf, showFormOf } from "./forms";
 import { inDays, megabytes, parisDateTime, parisDay, parisDayParts, parisLongDay, parisShortDay, parisTime, since } from "./format";
 import { radiocultArtists, radiocultPanel } from "./imports";
 import { MAX_IMAGE_BYTES, storageReady } from "./storage";
@@ -172,6 +176,30 @@ export function clipsData(clips: AdminClip[]): ClipsData {
     })),
   };
 }
+
+/** Le film de la page À propos, prêt à montrer. */
+export function filmView(film: AdminFilm | null): FilmView | null {
+  if (!film) return null;
+  return {
+    url: film.videoUrl,
+    poster: film.posterUrl,
+    width: film.width,
+    height: film.height,
+    facts: [film.durationSeconds && formatTimecode(film.durationSeconds), film.width && film.height && `${film.width} × ${film.height}`, film.sizeBytes && megabytes(film.sizeBytes)]
+      .filter(Boolean)
+      .join(" · "),
+  };
+}
+
+/** La page À propos à remplir, avec son film. */
+export const aboutSheet = (about: AdminAbout): AboutSheet => ({
+  version: about.version,
+  updated: parisDateTime(about.updatedAt),
+  form: aboutFormOf(about),
+  film: filmView(about.film),
+  uploads: blobReady(),
+  maxBytes: MAX_FILM_BYTES,
+});
 
 /** « 21:42 » aujourd'hui, « lun. 2 nov., 21:42 » avant. */
 const whenOf = (at: Date, now: Date) => (parisDay(at) === parisDay(now) ? parisTime(at) : `${parisShortDay(at)}, ${parisTime(at)}`);

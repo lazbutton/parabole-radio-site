@@ -24,6 +24,7 @@ const APP_PATHS = [
   /^\/admin\/videos\/?$/,
   /^\/admin\/antenne\/?$/,
   /^\/admin\/etiquettes\/?$/,
+  /^\/admin\/a-propos\/?$/,
   /^\/admin\/mot-de-passe\/?$/,
 ];
 export const isAppPath = (pathname: string) => APP_PATHS.some((pattern) => pattern.test(pathname));
