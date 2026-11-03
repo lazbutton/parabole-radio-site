@@ -1,8 +1,8 @@
 /**
  * Les fiches de l'admin entre la base, l'écran et le formulaire envoyé : une fiche lue devient des champs à remplir,
- * un formulaire reçu redevient une fiche à vérifier (@parabole/cms, readShowForm et readArtistForm).
+ * un formulaire reçu redevient une fiche à vérifier (@parabole/cms, readShowForm, readArtistForm, readEventForm).
  */
-import { formatTimecode, toParisInput, type AboutCreditForm, type AboutForm, type AdminAbout, type AdminArtist, type AdminShow, type ArtistForm, type ShowForm } from "@parabole/cms";
+import { formatTimecode, toParisInput, type AboutCreditForm, type AboutForm, type AdminAbout, type AdminArtist, type AdminEvent, type AdminShow, type ArtistForm, type EventForm, type ShowForm } from "@parabole/cms";
 
 const text = (data: FormData, name: string) => String(data.get(name) ?? "");
 const texts = (data: FormData, name: string) => data.getAll(name).map(String);
@@ -89,6 +89,34 @@ export function artistFormFrom(data: FormData): ArtistForm {
     ...(data.has("radiocultArtistId") ? { radiocultArtistId: text(data, "radiocultArtistId") } : {}),
   };
 }
+
+/** Les champs d'un événement enregistré. */
+export const eventFormOf = (event: AdminEvent): EventForm => ({
+  title: event.title,
+  slug: event.slug,
+  startsAt: toParisInput(event.startsAt),
+  endsAt: event.endsAt ? toParisInput(event.endsAt) : "",
+  venue: event.venue ?? "",
+  address: event.address ?? "",
+  description: event.description ?? "",
+  ticketUrl: event.ticketUrl ?? "",
+  artists: event.artists.map((artist) => artist.id),
+  tags: event.tags.map((tag) => tag.id),
+});
+
+/** Le formulaire d'un événement tel qu'envoyé (EventEditor). */
+export const eventFormFrom = (data: FormData): EventForm => ({
+  title: text(data, "title"),
+  slug: text(data, "slug"),
+  startsAt: text(data, "startsAt"),
+  endsAt: text(data, "endsAt"),
+  venue: text(data, "venue"),
+  address: text(data, "address"),
+  description: text(data, "description"),
+  ticketUrl: text(data, "ticketUrl"),
+  artists: texts(data, "artist"),
+  tags: texts(data, "tag"),
+});
 
 /** Les champs de la page À propos enregistrée ; un lien absent devient un champ vide. */
 export const aboutFormOf = (about: AdminAbout): AboutForm => ({

@@ -2,7 +2,7 @@
  * Les fiches ouvertes récemment, pour les retrouver d'un coup dans la recherche (⌘K). Une commodité de ce navigateur
  * (localStorage) : rien ne part au serveur, et une liste perdue (navigation privée, données effacées) ne gêne en rien.
  */
-export type Recent = { href: string; title: string; kind: "show" | "artist" };
+export type Recent = { href: string; title: string; kind: "show" | "artist" | "event" };
 
 const KEY = "admin-recents";
 const KEEP = 6;
@@ -11,7 +11,7 @@ export function readRecents(): Recent[] {
   try {
     const list: unknown = JSON.parse(localStorage.getItem(KEY) ?? "[]");
     return Array.isArray(list)
-      ? list.filter((item): item is Recent => typeof item?.href === "string" && typeof item?.title === "string" && (item.kind === "show" || item.kind === "artist"))
+      ? list.filter((item): item is Recent => typeof item?.href === "string" && typeof item?.title === "string" && ["show", "artist", "event"].includes(item.kind))
       : [];
   } catch {
     return [];

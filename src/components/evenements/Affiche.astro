@@ -1,0 +1,57 @@
+---
+/**
+ * L'affiche d'un événement dans la liste (src/pages/evenements/index.astro), comme sur le croquis : un carré (son
+ * visuel, sinon la mire), puis son nom, sa date et sa catégorie sur une plaque sombre. Toute l'affiche est un seul
+ * lien vers la page de l'événement. À venir, l'image est en couleurs, avec sa pastille quand il approche (« En ce
+ * moment », « Aujourd'hui », « Demain ») ; passé, elle est en bichromie, jaune et bleu, comme les portraits des
+ * résidents (le filtre #bichromie, Icons.astro), et retrouve ses couleurs au survol après un éclair de neige.
+ */
+import type { EventCard } from "@parabole/cms";
+import { dateCourte, estAVenir, pastille } from "../../lib/evenements";
+
+interface Props {
+  evenement: EventCard;
+  maintenant: Date;
+  /** La première rangée se charge tout de suite ; les autres au défilement. */
+  tot?: boolean;
+}
+const { evenement, maintenant, tot = false } = Astro.props;
+const { visual } = evenement;
+const passe = !estAVenir(evenement, maintenant);
+const signal = pastille(evenement, maintenant);
+---
+
+<a class="affiche" href={`/evenements/${evenement.slug}`} data-passe={passe ? "" : undefined}>
+  <span class="affiche-image">
+    {
+      visual ? (
+        <img
+          src={visual.url}
+          srcset={visual.srcset ?? undefined}
+          sizes="(min-width: 1101px) 270px, (min-width: 821px) 22vw, (min-width: 561px) 30vw, 46vw"
+          width={visual.width ?? undefined}
+          height={visual.height ?? undefined}
+          alt=""
+          loading={tot ? "eager" : "lazy"}
+          decoding="async"
+        />
+      ) : (
+        <span class="portrait-mire" aria-hidden="true" />
+      )
+    }
+    {signal && <span class="affiche-pastille" data-direct={signal.direct ? "" : undefined}>{signal.texte}</span>}
+  </span>
+  <span class="affiche-plaque">
+    <span class="affiche-nom">{evenement.title}</span>
+    <time class="affiche-date" datetime={evenement.startsAt.toISOString()}>{dateCourte(evenement, maintenant)}</time>
+    {
+      evenement.tags.length > 0 && (
+        <span class="affiche-categories">
+          {evenement.tags.map((tag) => (
+            <span>{tag.name}</span>
+          ))}
+        </span>
+      )
+    }
+  </span>
+</a>

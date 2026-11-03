@@ -24,7 +24,7 @@ export const GET: APIRoute = async ({ url }) => {
       shows: found.shows
         .slice(0, 5)
         .map(({ title, type, broadcastAt }) => ({ title, type: LABELS.showType[type], broadcastAt: new Date(broadcastAt).toISOString() })),
-      events: found.events.slice(0, 5).map(({ title, startsAt, venue }) => ({ title, startsAt: new Date(startsAt).toISOString(), venue })),
+      events: found.events.slice(0, 5).map(({ slug, title, startsAt, venue }) => ({ slug, title, startsAt: new Date(startsAt).toISOString(), venue })),
     };
     const response = json(body, "public, max-age=0, must-revalidate");
     response.headers.set("Vercel-CDN-Cache-Control", "max-age=60, stale-while-revalidate=600");

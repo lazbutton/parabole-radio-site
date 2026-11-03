@@ -6,6 +6,7 @@
  */
 import {
   BookmarkIcon,
+  CalendarIcon,
   ChatBubbleIcon,
   CheckIcon,
   DesktopIcon,
@@ -44,6 +45,7 @@ const GROUPS: { label: string; sections: Section[] }[] = [
     sections: [
       { href: "/admin/shows", label: "Shows", icon: DiscIcon, screens: ["shows", "show"] },
       { href: "/admin/artistes", label: "Artistes", icon: PersonIcon, screens: ["artists", "artist"] },
+      { href: "/admin/evenements", label: "Événements", icon: CalendarIcon, screens: ["events", "event"] },
       { href: "/admin/etiquettes", label: "Étiquettes", icon: BookmarkIcon, screens: ["tags"] },
     ],
   },

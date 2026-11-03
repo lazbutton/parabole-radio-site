@@ -32,6 +32,7 @@ import {
   type ChatSettingsChange,
 } from "./chat.ts";
 import { addClip, deleteClip, getClip, listClips, moveClip, replaceClipFile, updateClip, type ClipAdd, type ClipChange } from "./clips.ts";
+import { addEventPhotos, captionEventPhoto, deleteEvent, eventChoices, getEvent, listEvents, orderEventPhotos, removeEventPhoto, saveEvent, type AdminEventFilters, type EventSave } from "./events.ts";
 import type { NotSaved } from "./common.ts";
 import type { ClipFile, FacetValues, MediaText } from "./input.ts";
 import { fieldErrorsFrom } from "./errors.ts";
@@ -99,6 +100,24 @@ export function createAdmin(db: Db, userId: string) {
     deleteArtist: (id: string) => as((tx) => deleteArtist(tx, id)),
     /** Les filtres des artistes et leurs étiquettes, à proposer dans la fiche d'un artiste. */
     artistChoices: () => as((tx) => artistChoices(tx)),
+    /** Les événements, brouillons compris : à venir d'abord, puis les passés. */
+    listEvents: (filters: AdminEventFilters = {}) => as((tx) => listEvents(tx, filters)),
+    /** Un événement à modifier, avec sa galerie, ou null. */
+    getEvent: (id: string) => as((tx) => getEvent(tx, id)),
+    /** Les artistes et les étiquettes (sa catégorie) à proposer dans la fiche d'un événement. */
+    eventChoices: () => as((tx) => eventChoices(tx)),
+    /** Enregistre un événement, ses artistes et sa catégorie ; publie ou dépublie au passage. */
+    saveEvent: (save: EventSave) => saving(() => as((tx) => saveEvent(tx, save))),
+    /** Supprime un événement. Rend son titre et ses images (visuel, galerie), ou null s'il n'existait plus. */
+    deleteEvent: (id: string) => as((tx) => deleteEvent(tx, id)),
+    /** Ajoute des images envoyées à la fin de la galerie d'un événement. */
+    addEventPhotos: (id: string, photos: { mediaId: string; caption: string | null }[]) => saving(() => as((tx) => addEventPhotos(tx, id, photos))),
+    /** Range la galerie d'un événement dans cet ordre. */
+    orderEventPhotos: (id: string, mediaIds: string[]) => as((tx) => orderEventPhotos(tx, id, mediaIds)),
+    /** Change la légende d'une photo de la galerie. */
+    captionEventPhoto: (id: string, mediaId: string, caption: string | null) => saving(() => as((tx) => captionEventPhoto(tx, id, mediaId, caption))),
+    /** Retire une photo de la galerie. Rend son image, à retirer si elle ne sert plus (releaseMedia). */
+    removeEventPhoto: (id: string, mediaId: string) => as((tx) => removeEventPhoto(tx, id, mediaId)),
     /** Le menu « Étiquette » d'une liste (shows, artistes) ; `used` : seulement ce qui sert. */
     tagFilter: (scope: FacetScope, options?: { used?: boolean }) => as((tx) => tagFilter(tx, scope, options)),
     /** Tout le classement des étiquettes : les filtres, leurs groupes, les étiquettes, ce qui les porte. */
@@ -153,7 +172,7 @@ export function createAdmin(db: Db, userId: string) {
     addMedia: (file: MediaUpload) => saving(() => as((tx) => addMedia(tx, file))),
     /** Change le texte alternatif et le crédit d'une image. */
     describeMedia: (id: string, text: MediaText) => saving(() => as((tx) => describeMedia(tx, id, text))),
-    /** Met une image à sa place sur une fiche (photo d'un artiste, pochette d'un show), ou l'en retire. Rend l'image d'avant. */
+    /** Met une image à sa place sur une fiche (photo d'un artiste, pochette d'un show, visuel d'un événement), ou l'en retire. Rend l'image d'avant. */
     placeMedia: (slot: MediaSlot, place: MediaPlace) => saving(() => as((tx) => placeMedia(tx, slot, place))),
     /** Retire les images envoyées qui ne servent plus. Rend les clés de leurs versions, à effacer du Storage. */
     releaseMedia: (ids: (string | null | undefined)[]) => as((tx) => releaseMedia(tx, ids)),
@@ -193,12 +212,14 @@ export type { AdminArtist, AdminArtistFilters, AdminArtistIndex, AdminArtistRow,
 export { DELAY_CHOICES, MUTE_CHOICES, SLOW_CHOICES } from "./chat.ts";
 export type { AdminAntenne, AdminChatAuthor, AdminChatMessage, AdminChatSettings, AdminChatTerm, ChatSettingsChange } from "./chat.ts";
 export type { AdminClip, ClipAdd, ClipChange, ClipFiles } from "./clips.ts";
+export type { AdminEvent, AdminEventFilters, AdminEventPhoto, AdminEventRow, EventSave, GalleryChanged } from "./events.ts";
 export { UPLOAD_FOLDER, type AdminMedia, type MediaPlace, type MediaSlot, type MediaUpload } from "./media.ts";
 export type { AdminFacet, AdminFacetChoice, AdminTagChoice, AdminTagUse, TagFilterMenu, TagFilterOption, TagPlace, TagsAdded, Taxonomy } from "./tags.ts";
 export type { NotSaved, Saved } from "./common.ts";
 export {
   CLIP_TYPES,
   emptyArtistForm,
+  emptyEventForm,
   emptyShowForm,
   isUuid,
   linkLabel,
@@ -206,8 +227,10 @@ export {
   NEW_PICK,
   readAboutForm,
   readArtistForm,
+  readCaption,
   readClipFile,
   readClipTitle,
+  readEventForm,
   readFacetForm,
   readMediaText,
   readShowForm,
@@ -222,6 +245,8 @@ export {
   type ClipFile,
   type ClipFileForm,
   type ClipType,
+  type EventForm,
+  type EventValues,
   type FacetForm,
   type FacetValues,
   type FieldErrors,

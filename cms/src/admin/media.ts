@@ -1,7 +1,7 @@
 /**
  * Les images dans l'admin (README, 9.3) : un fichier envoyé sur Supabase Storage, inscrit avec ses versions WebP, son
- * texte alternatif et son crédit ; sa place sur une fiche (la photo d'un artiste, la pochette d'un show) ; le retrait
- * de ceux qui ne servent plus. Les fichiers ne passent jamais par ici, seulement leurs clés : le site Astro les prépare
+ * texte alternatif et son crédit ; sa place sur une fiche (la photo d'un artiste, la pochette d'un show, le visuel d'un
+ * événement ; sa galerie est dans src/admin/events.ts) ; le retrait de ceux qui ne servent plus. Les fichiers ne passent jamais par ici, seulement leurs clés : le site Astro les prépare
  * et les dépose (src/lib/admin/storage.ts), puis efface du Storage ceux que le retrait lui rend.
  */
 import { and, eq, inArray, like, sql } from "drizzle-orm";
@@ -50,8 +50,8 @@ export async function describeMedia(tx: Tx, id: string, text: MediaText): Promis
   return updated ? { ok: true, media: updated } : gone;
 }
 
-/** Les places d'une image sur une fiche : la photo d'un artiste, la pochette d'un show. */
-export type MediaSlot = "photo" | "cover";
+/** Les places d'une image sur une fiche : la photo d'un artiste, la pochette d'un show, le visuel d'un événement. */
+export type MediaSlot = "photo" | "cover" | "visual";
 
 const SLOTS = {
   photo: {
@@ -66,10 +66,16 @@ const SLOTS = {
     write: (tx: Tx, id: string, fileId: string | null) =>
       tx.update(show).set({ coverId: fileId }).where(eq(show.id, id)).returning({ version: versionOf(show.updatedAt) }),
   },
+  visual: {
+    gone: "Cet événement n'existe plus : il a peut-être été supprimé.",
+    read: (tx: Tx, id: string) => tx.select({ fileId: event.visualId, version: versionOf(event.updatedAt) }).from(event).where(eq(event.id, id)).for("update"),
+    write: (tx: Tx, id: string, fileId: string | null) =>
+      tx.update(event).set({ visualId: fileId }).where(eq(event.id, id)).returning({ version: versionOf(event.updatedAt) }),
+  },
 } satisfies Record<MediaSlot, unknown>;
 
 export type MediaPlace = {
-  /** L'artiste ou le show. */
+  /** L'artiste, le show ou l'événement. */
   id: string;
   /** L'image à y mettre ; null pour la retirer. */
   mediaId: string | null;

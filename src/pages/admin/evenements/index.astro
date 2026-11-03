@@ -1,0 +1,58 @@
+---
+/**
+ * Les événements dans l'admin : tous, brouillons compris, ceux à venir d'abord (du plus proche au plus lointain),
+ * puis les passés, rangés par mois, avec les filtres de cms/README.md (9.2) : période, catégorie, statut, et la
+ * recherche. Les filtres sont dans l'adresse, comme pour les shows. Servie en HTML ou en JSON, comme chaque écran.
+ */
+import type { EventRow, Screen } from "../../../components/admin/types";
+import Admin from "../../../layouts/Admin.astro";
+import { parisMonth, parisShortDay, parisTime } from "../../../lib/admin/format";
+import { json, wantsJson } from "../../../lib/admin/views";
+
+export const prerender = false;
+
+const PER_PAGE = 50;
+/** Sur plusieurs jours (une expo) : 24 heures ou plus, comme sur le site (src/lib/evenements.ts). */
+const LONG = 24 * 3_600_000;
+const admin = Astro.locals.admin!;
+const params = Astro.url.searchParams;
+const filters = {
+  q: params.get("q")?.trim() ?? "",
+  status: params.get("status") ?? "",
+  period: params.get("period") ?? "",
+  tag: params.get("tag") ?? "",
+};
+const page = Math.max(1, Math.trunc(Number(params.get("page"))) || 1);
+const [result, tags] = await Promise.all([admin.listEvents({ ...filters, limit: PER_PAGE, offset: (page - 1) * PER_PAGE }), admin.tagFilter("event", { used: true })]);
+const screen: Screen = {
+  name: "events",
+  title: "Événements",
+  data: {
+    rows: result.items.map((item): EventRow => {
+      const long = item.endsAt !== null && item.endsAt.getTime() - item.startsAt.getTime() >= LONG;
+      return {
+        id: item.id,
+        title: item.title,
+        categories: item.categories.join(", "),
+        artists: item.artists.join(", "),
+        venue: item.venue ?? "",
+        day: long ? `${parisShortDay(item.startsAt)} → ${parisShortDay(item.endsAt!)}` : parisShortDay(item.startsAt),
+        time: long ? "" : parisTime(item.startsAt) + (item.endsAt ? ` → ${parisTime(item.endsAt)}` : ""),
+        month: parisMonth(item.startsAt),
+        upcoming: item.upcoming,
+        hasVisual: item.hasVisual,
+        photos: item.photos,
+        status: item.status,
+      };
+    }),
+    total: result.total,
+    page,
+    pages: Math.max(1, Math.ceil(result.total / PER_PAGE)),
+    filters,
+    tags,
+  },
+};
+if (wantsJson(Astro.request)) return json(screen);
+---
+
+<Admin screen={screen} />

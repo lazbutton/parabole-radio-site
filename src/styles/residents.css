@@ -366,6 +366,12 @@
   background: #fff039; color: #000dff; font-size: 9px; font-weight: 700; letter-spacing: 0.12em; line-height: 1; text-transform: uppercase;
   box-shadow: -1.5px 0 rgba(255,0,72,0.6), 1.5px 0 rgba(0,200,255,0.55);
 }
+/* un événement mène à sa page (src/pages/evenements/) : toute la vignette est le lien, son image s'encadre au survol */
+.vignette-lien { display: flex; flex-direction: column; gap: 7px; color: inherit; text-decoration: none; }
+.vignette-lien .vignette-image { outline: 2px solid transparent; outline-offset: -2px; transition: outline-color 0.15s; }
+.vignette-lien:hover .vignette-image { outline-color: #fff039; }
+.vignette-lien:hover .vignette-titre { color: #fff039; }
+.vignette-lien:focus-visible { outline: 2px solid #ffffff; outline-offset: 3px; }
 
 /* ---------- LA PAGE D'UN ARTISTE, SUR ÉCRAN ÉTROIT ----------
    La photo se cale en haut (socle.css) : le nom et ses étiquettes se posent sur son bas, puis la description prend la

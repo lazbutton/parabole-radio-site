@@ -58,8 +58,9 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12p
   display: none;
 }
 .overlay-canvas { position: absolute; }
-/* pas de globe sur la rubrique Résidents : il tombait sous l'index et les portraits, ou sur la photo d'un artiste */
-html[data-page="residents"] .logo-overlay { display: none; }
+/* pas de globe sur les rubriques Résidents et Événements : il tombait sous l'index et les portraits, sur les affiches,
+   ou sur la photo d'un artiste et le visuel d'un événement */
+html:is([data-page="residents"], [data-page="event"]) .logo-overlay { display: none; }
 
 /* Le mode photo du fond (background.ts) : la page d'un artiste prend l'antenne. Sa photo remplit toute la largeur de
    la fenêtre, sous l'en-tête. Plus haute que la fenêtre, elle défile avec la page (plus bas) ; sinon, elle est recadrée

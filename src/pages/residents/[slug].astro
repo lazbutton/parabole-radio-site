@@ -3,7 +3,8 @@
  * La page d'un artiste (/residents/<nom>) : il prend l'antenne. Sa photo remplace la vidéo du fond (le mode photo de
  * background.ts, par data-fond-photo) ; son nom en très grand, en lettres creuses ; ses activités, et sa prochaine
  * émission ; l'encart Description (la bio, les étiquettes de ses émissions, ses liens) ; puis ses
- * émissions et ses événements, en rangées, sans lien tant que leurs rubriques n'existent pas. En haut, ◂ RÉSIDENTS
+ * émissions et ses événements, en rangées : les événements mènent à leur page, les émissions n'ont pas encore de lien
+ * (leur rubrique n'existe pas). En haut, ◂ RÉSIDENTS
  * ramène à la liste, et ◂ ▸ zappent vers l'artiste d'avant ou d'après (src/scripts/artiste.ts). Rendue à la demande,
  * gardée une minute par le cache de Vercel, comme la liste.
  */
@@ -14,6 +15,7 @@ import Rangee from "../../components/residents/Rangee.astro";
 import Sheet from "../../components/Sheet.astro";
 import Base from "../../layouts/Base.astro";
 import { reader } from "../../lib/cms";
+import { estAVenir, rangerParDate } from "../../lib/evenements";
 import { renderMarkdown } from "../../lib/markdown";
 import { adresseDe } from "../../lib/residents";
 import { upcomingSlots } from "../../lib/station";
@@ -50,11 +52,9 @@ const prochaines = [
     ...(artiste ? await upcomingSlots({ name: artiste.name, slug: artiste.slug }) : []).map((debut) => new Date(debut).toISOString()),
   ]),
 ].sort();
-const aVenir = (evenement: EventCard) => (evenement.endsAt ?? evenement.startsAt).getTime() > maintenant;
-const evenements = [
-  ...(artiste?.events ?? []).filter(aVenir).sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()),
-  ...(artiste?.events ?? []).filter((evenement) => !aVenir(evenement)),
-];
+// ses événements à venir d'abord (même règle que la rubrique Événements, src/lib/evenements.ts), puis les passés
+const aVenir = (evenement: EventCard) => estAVenir(evenement, new Date(maintenant));
+const evenements = rangerParDate(artiste?.events ?? [], new Date(maintenant));
 
 const photo = artiste?.photo ?? null;
 /** La plus petite version de la photo : celle qu'on floute autour, et qu'on charge d'avance pour zapper. */
@@ -212,25 +212,27 @@ const voisins = artiste?.neighbors;
           <Rangee titre="Événements" id="evenements" nombre={evenements.length}>
             {evenements.map((evenement) => (
               <li class="vignette vignette-evenement">
-                <span class="vignette-image">
-                  {evenement.visual ? (
-                    <img
-                      src={evenement.visual.url}
-                      srcset={evenement.visual.srcset ?? undefined}
-                      sizes="(min-width: 821px) 300px, 60vw"
-                      width={evenement.visual.width ?? undefined}
-                      height={evenement.visual.height ?? undefined}
-                      alt=""
-                      loading="lazy"
-                      decoding="async"
-                    />
-                  ) : (
-                    <span class="portrait-mire" aria-hidden="true" />
-                  )}
-                  {aVenir(evenement) && <span class="vignette-a-venir">À venir</span>}
-                </span>
-                <span class="vignette-titre">{evenement.title}</span>
-                <span class="vignette-quoi">{[jour.format(evenement.startsAt), evenement.venue].filter(Boolean).join(" · ")}</span>
+                <a class="vignette-lien" href={`/evenements/${evenement.slug}`}>
+                  <span class="vignette-image">
+                    {evenement.visual ? (
+                      <img
+                        src={evenement.visual.url}
+                        srcset={evenement.visual.srcset ?? undefined}
+                        sizes="(min-width: 821px) 300px, 60vw"
+                        width={evenement.visual.width ?? undefined}
+                        height={evenement.visual.height ?? undefined}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <span class="portrait-mire" aria-hidden="true" />
+                    )}
+                    {aVenir(evenement) && <span class="vignette-a-venir">À venir</span>}
+                  </span>
+                  <span class="vignette-titre">{evenement.title}</span>
+                  <span class="vignette-quoi">{[jour.format(evenement.startsAt), evenement.venue].filter(Boolean).join(" · ")}</span>
+                </a>
               </li>
             ))}
           </Rangee>

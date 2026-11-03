@@ -1,0 +1,122 @@
+---
+/**
+ * Événements : les soirées, ateliers et rencontres de Parabole, d'après le croquis du 3 novembre. ÉVÉNEMENTS À VENIR,
+ * du plus proche au plus lointain, puis ÉVÉNEMENTS PASSÉS, du plus récent au plus ancien, posés sur la vidéo comme la
+ * grille des résidents. Chaque affiche mène à la page de son événement (src/components/evenements/Affiche.astro). Les
+ * passés vont par pages de 40 (?page=2). Rendue à la demande, gardée une minute par le cache de Vercel, comme les
+ * résidents.
+ */
+import type { EventCard, Paged } from "@parabole/cms";
+import Interruption from "../../components/Interruption.astro";
+import Affiche from "../../components/evenements/Affiche.astro";
+import Base from "../../layouts/Base.astro";
+import { reader } from "../../lib/cms";
+
+export const prerender = false;
+
+const PAR_PAGE = 40;
+const page = Math.max(1, Math.trunc(Number(Astro.url.searchParams.get("page"))) || 1);
+const maintenant = new Date();
+
+let aVenir: Paged<EventCard> | null = null;
+let passes: Paged<EventCard> | null = null;
+try {
+  const cms = await reader();
+  [aVenir, passes] = await Promise.all([
+    page === 1 ? cms.listEvents({ period: "upcoming", limit: 100, now: maintenant }) : null,
+    cms.listEvents({ period: "past", limit: PAR_PAGE, offset: (page - 1) * PAR_PAGE, now: maintenant }),
+  ]);
+} catch (erreur) {
+  console.error("evenements : la base ne répond pas", erreur);
+}
+// une page au-delà de la dernière (une vieille adresse) : retour au début
+if (passes && page > 1 && passes.items.length === 0) return Astro.redirect("/evenements");
+if (passes) {
+  Astro.response.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
+  Astro.response.headers.set("Vercel-CDN-Cache-Control", "max-age=60, stale-while-revalidate=600");
+} else {
+  Astro.response.status = 503;
+  Astro.response.headers.set("Cache-Control", "no-store");
+}
+
+const pages = Math.max(1, Math.ceil((passes?.total ?? 0) / PAR_PAGE));
+const aucun = page === 1 && !aVenir?.total && !passes?.total;
+const adresse = (n: number) => (n > 1 ? `/evenements?page=${n}` : "/evenements");
+// tout de suite : les dix premières affiches ; les autres au défilement
+const tot = (rang: number) => rang < 10;
+const avant = aVenir?.items.length ?? 0;
+---
+
+<Base page="event" title="Événements" description="Les événements de Parabole Radio : soirées, ateliers et rencontres, à venir et passés.">
+  <div class="evenements">
+    <h1 class="sr-only">Événements de Parabole Radio</h1>
+    {
+      !passes ? (
+        <Interruption quoi="Les événements ne peuvent pas s'afficher pour le moment." />
+      ) : aucun ? (
+        <div class="residents-vide">
+          <div class="bientot">
+            <p class="bientot-titre">Les événements arrivent</p>
+            <p>Les soirées, les ateliers et les rencontres de Parabole s'afficheront ici, ceux à venir puis les passés.</p>
+          </div>
+        </div>
+      ) : (
+        <>
+          {aVenir && (
+            <section class="evenements-partie" aria-labelledby="evenementsAVenir">
+              <h2 id="evenementsAVenir" class="evenements-titre">
+                Événements à venir<span class="evenements-nombre">{aVenir.total}</span>
+              </h2>
+              {aVenir.items.length > 0 ? (
+                <ul class="grille">
+                  {aVenir.items.map((evenement, rang) => (
+                    <li>
+                      <Affiche evenement={evenement} maintenant={maintenant} tot={tot(rang)} />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p class="evenements-rien">Pas d'événement annoncé pour le moment. Les prochains s'afficheront ici.</p>
+              )}
+            </section>
+          )}
+          {passes.total > 0 && (
+            <section class="evenements-partie" aria-labelledby="evenementsPasses">
+              <h2 id="evenementsPasses" class="evenements-titre">
+                Événements passés<span class="evenements-nombre">{passes.total}</span>
+              </h2>
+              <ul class="grille">
+                {passes.items.map((evenement, rang) => (
+                  <li>
+                    <Affiche evenement={evenement} maintenant={maintenant} tot={tot(avant + rang)} />
+                  </li>
+                ))}
+              </ul>
+              {pages > 1 && (
+                <nav class="evenements-pages" aria-label="Pages des événements passés">
+                  {page > 1 ? (
+                    <a class="interruption-touche" href={adresse(page - 1)}>
+                      <span aria-hidden="true">◂</span>&nbsp;Plus récents
+                    </a>
+                  ) : (
+                    <span />
+                  )}
+                  <span class="evenements-page">
+                    Page {page} sur {pages}
+                  </span>
+                  {page < pages ? (
+                    <a class="interruption-touche" href={adresse(page + 1)}>
+                      Plus anciens&nbsp;<span aria-hidden="true">▸</span>
+                    </a>
+                  ) : (
+                    <span />
+                  )}
+                </nav>
+              )}
+            </section>
+          )}
+        </>
+      )
+    }
+  </div>
+</Base>

@@ -1,0 +1,219 @@
+---
+/**
+ * La page d'un événement (/evenements/<adresse>), d'après le croquis du 3 novembre. Son visuel prend l'antenne, comme
+ * la photo d'un artiste (le mode photo de background.ts, par data-fond-photo) ; en bas du premier écran, son nom en très
+ * grand, en lettres creuses, sa catégorie et sa date ; à droite, l'encart Description, qui commence à hauteur du nom
+ * et passe sous le bas de l'écran : le texte, le lieu (avec un lien vers la carte), les artistes (vers leur page), puis
+ * INSCRIPTION, le lien de la billetterie, tant que l'événement n'est pas passé. Plus bas, ses photos, en rangée, qu'on
+ * ouvre en grand (src/scripts/evenement.ts). En haut, ◂ ÉVÉNEMENTS ramène à la liste. Rendue à la demande, gardée une
+ * minute par le cache de Vercel, comme la liste.
+ */
+import type { EventDetail } from "@parabole/cms";
+import Interruption from "../../components/Interruption.astro";
+import Rangee from "../../components/residents/Rangee.astro";
+import Sheet from "../../components/Sheet.astro";
+import Base from "../../layouts/Base.astro";
+import { reader } from "../../lib/cms";
+import { dateLongue, estAVenir, pastille } from "../../lib/evenements";
+import { renderMarkdown } from "../../lib/markdown";
+
+export const prerender = false;
+
+let evenement: EventDetail | null | undefined;
+try {
+  evenement = await (await reader()).getEvent(Astro.params.slug ?? "");
+} catch (erreur) {
+  console.error("evenements : la base ne répond pas", erreur);
+}
+// inconnu ou pas publié : « Pas de signal », comme la page d'un artiste
+if (evenement !== undefined) {
+  if (!evenement) Astro.response.status = 404;
+  Astro.response.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
+  Astro.response.headers.set("Vercel-CDN-Cache-Control", "max-age=60, stale-while-revalidate=600");
+} else {
+  Astro.response.status = 503;
+  Astro.response.headers.set("Cache-Control", "no-store");
+}
+
+const maintenant = new Date();
+const visuel = evenement?.visual ?? null;
+/** La plus petite version d'une image : celle qu'on floute autour du visuel, et la vignette d'une photo. */
+const petite = (srcset: string | null | undefined, url: string) => srcset?.split(",")[0]?.trim().split(/\s+/)[0] || url;
+const fond = visuel ? { src: visuel.url, srcset: visuel.srcset, flou: petite(visuel.srcset, visuel.url) } : { mire: true };
+const texte = evenement?.description ? renderMarkdown(evenement.description) : "";
+const passe = evenement ? !estAVenir(evenement, maintenant) : false;
+const signal = evenement ? pastille(evenement, maintenant) : null;
+const quand = evenement ? dateLongue(evenement) : "";
+// la carte : l'adresse, sinon le lieu, cherchés sur Google Maps (l'application s'ouvre sur un téléphone)
+const ouChercher = evenement?.address || evenement?.venue;
+const carte = ouChercher ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ouChercher)}` : null;
+/** Le site de la billetterie, dit sous le lien : on sait où l'on va. */
+const site = (() => {
+  try {
+    return evenement?.ticketUrl ? new URL(evenement.ticketUrl).hostname.replace(/^www\./, "") : "";
+  } catch {
+    return "";
+  }
+})();
+const inscription = evenement?.ticketUrl && !passe ? evenement.ticketUrl : null;
+// la description de l'aperçu : le début du texte, sans Markdown ; sinon la date et le lieu
+const resume = (evenement?.description ?? "")
+  .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+  .replace(/[*_`#>~]/g, "")
+  .replace(/\s+/g, " ")
+  .trim();
+const description = resume
+  ? resume.length > 155
+    ? resume.slice(0, 154).replace(/\s+\S*$/, "") + "…"
+    : resume
+  : [quand, evenement?.venue].filter(Boolean).join(", ") + ". Un événement de Parabole Radio.";
+const longueur = !evenement
+  ? undefined
+  : evenement.title.length > 44
+    ? "fleuve"
+    : evenement.title.length > 26
+      ? "tres-long"
+      : evenement.title.length > 14
+        ? "long"
+        : undefined;
+const photos = evenement?.photos ?? [];
+---
+
+<Base page="event" title={evenement?.title ?? (evenement === null ? "Page introuvable" : "Événements")} description={description} image={visuel?.url}>
+  {
+    evenement === null ? (
+      <Sheet title="Page introuvable" meta="erreur 404">
+        <div class="bientot">
+          <p class="bientot-titre">Pas de signal</p>
+          <p>
+            Cet événement n’est pas, ou plus, sur Parabole. Le direct, lui, continue : <a href="/evenements">voir tous les événements</a>.
+          </p>
+        </div>
+      </Sheet>
+    ) : !evenement ? (
+      <div class="evenements">
+        <Interruption quoi="Cette page ne peut pas s'afficher pour le moment." />
+      </div>
+    ) : (
+      <article class="evenement" data-evenement data-fond-photo={JSON.stringify(fond)}>
+        <div class="evenement-haut">
+          <a class="evenement-retour" href="/evenements" data-retour>
+            <span aria-hidden="true">◂</span> Événements
+          </a>
+        </div>
+
+        <div class="evenement-une">
+          <div class="evenement-titre">
+            <h1 class="evenement-nom" data-longueur={longueur}>
+              {evenement.title}
+            </h1>
+            {visuel?.alt && <p class="sr-only">Visuel : {visuel.alt}</p>}
+            {evenement.tags.length > 0 && (
+              <ul class="evenement-categories" aria-label="Catégorie">
+                {evenement.tags.map((tag) => (
+                  <li>{tag.name}</li>
+                ))}
+              </ul>
+            )}
+            <p class="evenement-quand">
+              {signal && <span class="evenement-pastille" data-direct={signal.direct ? "" : undefined}>{signal.texte}</span>}
+              <time datetime={evenement.startsAt.toISOString()}>{quand}</time>
+            </p>
+            {visuel?.credit && <p class="evenement-credit">Visuel {visuel.credit}</p>}
+          </div>
+
+          <aside class="evenement-encart" aria-labelledby="evenementDescription">
+            <h2 id="evenementDescription" class="evenement-encart-titre">
+              Description
+            </h2>
+            {texte && <div class="evenement-texte" set:html={texte} />}
+            <dl class="evenement-infos">
+              {evenement.venue || evenement.address ? (
+                <div>
+                  <dt>Lieu</dt>
+                  <dd>
+                    {evenement.venue && <span class="evenement-lieu">{evenement.venue}</span>}
+                    {evenement.address && <span>{evenement.address}</span>}
+                    {carte && (
+                      <a href={carte} target="_blank" rel="noopener">
+                        Voir sur la carte <span aria-hidden="true">↗</span>
+                      </a>
+                    )}
+                  </dd>
+                </div>
+              ) : null}
+              {evenement.artists.length > 0 && (
+                <div>
+                  <dt>Avec</dt>
+                  <dd>
+                    <ul class="evenement-artistes">
+                      {evenement.artists.map((artiste) => (
+                        <li>
+                          <a href={`/residents/${artiste.slug}`}>{artiste.name}</a>
+                        </li>
+                      ))}
+                    </ul>
+                  </dd>
+                </div>
+              )}
+            </dl>
+            {inscription && (
+              <div class="evenement-inscription">
+                <p class="evenement-groupe">Inscription</p>
+                <a class="evenement-touche" href={inscription} target="_blank" rel="noopener">
+                  S'inscrire <span aria-hidden="true">↗</span>
+                </a>
+                {site && <p class="evenement-site">sur {site}</p>}
+              </div>
+            )}
+          </aside>
+        </div>
+
+        {photos.length > 0 && (
+          <Rangee titre="Photos" id="photos" nombre={photos.length}>
+            {photos.map((photo, rang) => (
+              <li class="vignette vignette-photo">
+                <button
+                  class="vignette-image"
+                  type="button"
+                  data-photo={rang}
+                  data-src={photo.url}
+                  data-srcset={photo.srcset ?? undefined}
+                  data-alt={photo.alt}
+                  data-legende={[photo.caption, photo.credit].filter(Boolean).join(" · ") || undefined}
+                  aria-label={`Voir en grand : ${photo.alt || photo.caption || `photo ${rang + 1}`}`}
+                >
+                  <img
+                    src={petite(photo.srcset, photo.url)}
+                    srcset={photo.srcset ?? undefined}
+                    sizes="(min-width: 821px) 360px, 78vw"
+                    width={photo.width ?? undefined}
+                    height={photo.height ?? undefined}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </button>
+                {photo.caption && <span class="vignette-quoi">{photo.caption}</span>}
+              </li>
+            ))}
+          </Rangee>
+        )}
+        {photos.length > 0 && (
+          <dialog class="visionneuse" aria-label="Photos de l'événement">
+            <figure class="visionneuse-cadre">
+              <img class="visionneuse-image" alt="" />
+              <figcaption class="visionneuse-legende" />
+            </figure>
+            <div class="visionneuse-touches">
+              <button type="button" data-sens="-1" aria-label="Photo précédente">◂</button>
+              <span class="visionneuse-numero" aria-live="polite" />
+              <button type="button" data-sens="1" aria-label="Photo suivante">▸</button>
+              <button type="button" class="visionneuse-fermer" aria-label="Fermer">×</button>
+            </div>
+          </dialog>
+        )}
+      </article>
+    )
+  }
+</Base>
