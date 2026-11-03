@@ -3,14 +3,17 @@
  *
  * Tout y est marqué comme exemple : les noms et les titres finissent par « (exemple) », les slugs commencent par
  * « exemple- », les clés des fichiers par « exemples/ » (ces fichiers n'existent pas dans le Storage). removeExamples() les
- * retire tous, sans toucher au reste. Les dates partent de `now` : un événement « à venir » le reste.
+ * retire tous, sans toucher au reste, sauf si l'équipe a posé sur l'un d'eux une image envoyée depuis l'admin : rien
+ * n'est retiré, car ses fichiers resteraient dans le Storage. Les dates partent de `now` : un événement « à venir » le reste.
  *
  * Les contenus portent les vraies étiquettes des filtres (« house », « dj », « fete » : la migration 0007 les inscrit),
  * plus deux étiquettes d'exemple sans place, « à classer ». Une vraie étiquette supprimée entre-temps est sautée.
  *
  * Écrit par le propriétaire des tables, que les règles d'accès laissent passer.
  */
-import { like, sql } from "drizzle-orm";
+import { and, eq, like, sql } from "drizzle-orm";
+import type { Tx } from "../src/access.ts";
+import { UPLOAD_FOLDER } from "../src/admin/media.ts";
 import type { Db } from "../src/db.ts";
 import { startOfParisDay } from "../src/read/common.ts";
 import {
@@ -430,10 +433,72 @@ function seconds(at: string): number {
   return at.split(":").reduce((total, part) => total * 60 + Number(part), 0);
 }
 
-/** Retire tous les exemples, et seulement eux. Les liens (tracklists, galeries…) partent avec leurs contenus. */
+/** Une image envoyée depuis l'admin (sous images/) posée sur un exemple : sa place, et le nom de la fiche. */
+export type ExampleUpload = { slot: "photo" | "cover" | "visual" | "gallery"; name: string };
+
+const SLOT_LABELS: Record<ExampleUpload["slot"], string> = {
+  photo: "la photo de l'artiste",
+  cover: "la pochette du show",
+  visual: "le visuel de l'événement",
+  gallery: "une photo de la galerie de l'événement",
+};
+
+/**
+ * Des images envoyées depuis l'admin sont posées sur des exemples. Retirer les exemples les laisserait sans fiche, avec
+ * leurs fichiers dans le Storage, que seul l'admin efface. Rien n'a changé ; le message dit quoi faire.
+ */
+export class ExampleUploadsError extends Error {
+  readonly uploads: ExampleUpload[];
+
+  constructor(uploads: ExampleUpload[]) {
+    const one = uploads.length === 1;
+    super(
+      [
+        one
+          ? "Les exemples restent en place : une image envoyée depuis l'admin y est posée."
+          : `Les exemples restent en place : ${uploads.length} images envoyées depuis l'admin y sont posées.`,
+        ...uploads.map(({ slot, name }) => `  - ${SLOT_LABELS[slot]} « ${name} »`),
+        `Retirer les exemples ${one ? "la laisserait sans fiche, avec ses" : "les laisserait sans fiche, avec leurs"} fichiers dans le Storage : seul l'admin efface ces images.`,
+        `Depuis l'admin, retire ${one ? "cette image" : "chacune de ces images"}, ou supprime sa fiche. Puis relance la commande.`,
+        `${one ? "Cette fiche" : "Une de ces fiches"} n'est plus un exemple ? Change son adresse sur le site, qui commence par « ${EXAMPLE_SLUG_PREFIX} » : la commande la laissera en place.`,
+      ].join("\n"),
+    );
+    this.name = "ExampleUploadsError";
+    this.uploads = uploads;
+  }
+}
+
+/** Les images envoyées depuis l'admin que portent des exemples, fiche par fiche. */
+async function uploadsOnExamples(tx: Tx): Promise<ExampleUpload[]> {
+  const prefix = `${EXAMPLE_SLUG_PREFIX}%`;
+  const uploaded = like(media.key, `${UPLOAD_FOLDER}%`);
+  const photos = await tx.select({ name: artist.name }).from(artist).innerJoin(media, eq(media.id, artist.photoId)).where(and(like(artist.slug, prefix), uploaded)).orderBy(artist.name);
+  const covers = await tx.select({ name: show.title }).from(show).innerJoin(media, eq(media.id, show.coverId)).where(and(like(show.slug, prefix), uploaded)).orderBy(show.title);
+  const visuals = await tx.select({ name: event.title }).from(event).innerJoin(media, eq(media.id, event.visualId)).where(and(like(event.slug, prefix), uploaded)).orderBy(event.title);
+  const gallery = await tx
+    .select({ name: event.title })
+    .from(eventPhoto)
+    .innerJoin(event, eq(event.id, eventPhoto.eventId))
+    .innerJoin(media, eq(media.id, eventPhoto.mediaId))
+    .where(and(like(event.slug, prefix), uploaded))
+    .orderBy(event.title, eventPhoto.position);
+  return [
+    ...photos.map(({ name }) => ({ slot: "photo" as const, name })),
+    ...covers.map(({ name }) => ({ slot: "cover" as const, name })),
+    ...visuals.map(({ name }) => ({ slot: "visual" as const, name })),
+    ...gallery.map(({ name }) => ({ slot: "gallery" as const, name })),
+  ];
+}
+
+/**
+ * Retire tous les exemples, et seulement eux. Les liens (tracklists, galeries…) partent avec leurs contenus.
+ * Une image envoyée depuis l'admin sur l'un d'eux arrête tout, sans rien retirer (ExampleUploadsError).
+ */
 export async function removeExamples(db: Db): Promise<void> {
   const prefix = `${EXAMPLE_SLUG_PREFIX}%`;
   await db.transaction(async (tx) => {
+    const uploads = await uploadsOnExamples(tx);
+    if (uploads.length) throw new ExampleUploadsError(uploads);
     await tx.delete(show).where(like(show.slug, prefix));
     await tx.delete(event).where(like(event.slug, prefix));
     await tx.delete(artist).where(like(artist.slug, prefix));
@@ -445,7 +510,10 @@ export async function removeExamples(db: Db): Promise<void> {
 
 export type SeedSummary = { media: number; tags: number; artists: number; shows: number; tracks: number; events: number; pages: number };
 
-/** Remplace les exemples par un jeu neuf, daté à partir de `now`. Rejouable : le reste de la base n'est pas touché. */
+/**
+ * Remplace les exemples par un jeu neuf, daté à partir de `now`. Rejouable : le reste de la base n'est pas touché.
+ * Arrêté, comme removeExamples, par une image envoyée depuis l'admin sur un exemple.
+ */
 export async function seedExamples(db: Db, { now = new Date() }: { now?: Date } = {}): Promise<SeedSummary> {
   await removeExamples(db);
   const at = (hours: number) => new Date(now.getTime() + hours * HOUR);

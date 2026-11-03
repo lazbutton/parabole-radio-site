@@ -4,9 +4,12 @@
  *   npm run db:seed                  remplace les exemples de la base locale (PGlite) par un jeu neuf
  *   npm run db:seed -- --supprimer   retire tous les exemples, et rien d'autre
  *   npm run db:seed -- --distant     sur la base de DATABASE_URL (Supabase), déjà migrée
+ *
+ * Une image envoyée depuis l'admin sur un exemple arrête les deux, sans rien changer : le message dit laquelle, et
+ * quoi faire depuis l'admin (ses fichiers resteraient sinon dans le Storage).
  */
 import { connect } from "../src/db.ts";
-import { removeExamples, seedExamples } from "../seed/exemples.ts";
+import { ExampleUploadsError, removeExamples, seedExamples } from "../seed/exemples.ts";
 
 // Les variables de cms/.env, s'il existe (DATABASE_URL).
 try {
@@ -29,6 +32,10 @@ try {
         `${summary.tags} étiquettes, ${summary.pages} pages, ${summary.media} fichiers.`,
     );
   }
+} catch (error) {
+  if (!(error instanceof ExampleUploadsError)) throw error;
+  console.error(error.message);
+  process.exitCode = 1;
 } finally {
   await close();
 }

@@ -429,6 +429,8 @@ Tout y est marqué comme exemple. Pour tout retirer, et rien d'autre :
 npm run db:seed -- --distant --supprimer
 ```
 
+Une image envoyée depuis l'admin et posée sur un exemple (la photo d'un artiste, la pochette d'un show) arrête la commande, qui ne retire alors rien : elle n'efface que des lignes de la base, et les fichiers de l'image resteraient dans le Storage. Elle nomme chaque fiche concernée. Retirer ces images depuis l'admin, ou supprimer leurs fiches depuis l'admin, qui efface aussi les fichiers ; puis relancer la commande. Le jeu neuf (`npm run db:seed -- --distant`) s'arrête de même, puisqu'il commence par retirer l'ancien. Une fiche d'exemple devenue vraie garde sa place si son adresse sur le site ne commence plus par `exemple-`.
+
 ---
 
 ## 5. Variables d'environnement
@@ -466,7 +468,7 @@ npm run db:seed
 
 - `db:migrate` crée la base locale dans `cms/.pglite`, que Git ignore. C'est un vrai Postgres, avec les rôles, le schéma `auth` et les droits de Supabase recréés (`src/local-supabase.ts`). Les règles d'accès s'y appliquent comme en ligne.
 - `db:seed` écrit le jeu d'exemples : 9 shows (dont un brouillon), 16 morceaux, 8 artistes (dont un brouillon), 7 événements, 11 étiquettes, 2 pages, 15 fichiers. On peut le relancer : il remplace les exemples sans toucher au reste.
-- `db:seed -- --supprimer` retire les exemples.
+- `db:seed -- --supprimer` retire les exemples, sauf si une image envoyée depuis l'admin est posée sur l'un d'eux (section 4.6).
 
 **Les exemples.** Tout y est inventé et marqué :
 
@@ -559,7 +561,7 @@ npm test
 npm run typecheck
 ```
 
-209 tests, sur une base PGlite en mémoire : aucun compte, aucun réseau, une quinzaine de secondes. `npm test` marche aussi depuis la racine du projet. Ils couvrent :
+212 tests, sur une base PGlite en mémoire : aucun compte, aucun réseau, une quinzaine de secondes. `npm test` marche aussi depuis la racine du projet. Ils couvrent :
 
 - **les migrations** : elles passent sur une base vide, et leur relance ne change rien. Chaque table publique a sa RLS et ses règles. Le schéma Drizzle et la base sont d'accord. drizzle-kit n'a plus rien à générer : une migration oubliée fait échouer le test ;
 - **le seed** : il passe, se rejoue sans doublon, se retire sans toucher au reste, et marque bien tout comme exemple ;
@@ -569,7 +571,7 @@ npm run typecheck
 - **les vidéos de fond** : les clips d'origine inscrits par la migration, la liste que lit le site, les règles d'accès, puis l'ajout, le titre, la mise de côté, l'ordre, le remplacement du fichier et la suppression ;
 - **les étiquettes et les filtres** : ce que la migration inscrit (filtres, groupes dans l'ordre du document, étiquettes à deux places, noms en minuscules), la reprise d'une base d'avant (rejouée sur une copie arrêtée à `0006`), la saisie des noms (liste collée en capitales), les menus du site et des listes de l'admin, puis l'ajout, le renommage, les places, l'ordre, la fusion et la suppression des étiquettes et des filtres, et leurs règles d'accès ;
 - **l'admin** : la saisie vérifiée champ par champ, la tracklist collée, les minutages, l'heure de Paris aux changements d'heure ; puis, sous le rôle d'un éditeur, la création d'un show avec un artiste et une étiquette nés à la volée, la publication, la tracklist remplacée, l'enregistrement concurrent, la suppression ; et le refus d'un compte hors de l'équipe.
-- **les images** : les seaux que crée la migration (dans l'imitation du Storage de `local-supabase.ts`), le texte alternatif demandé à l'envoi, puis sous le rôle d'un éditeur l'inscription d'une image envoyée, sa place sur une fiche (photo d'un artiste, pochette d'un show) et le jeton de version rendu à l'écran, ce que le site en lit (`srcset` des versions réduites), le retrait des images qui ne servent plus (jamais les exemples), et le refus d'un compte hors de l'équipe ;
+- **les images** : les seaux que crée la migration (dans l'imitation du Storage de `local-supabase.ts`), le texte alternatif demandé à l'envoi, puis sous le rôle d'un éditeur l'inscription d'une image envoyée, sa place sur une fiche (photo d'un artiste, pochette d'un show) et le jeton de version rendu à l'écran, ce que le site en lit (`srcset` des versions réduites), le retrait des images qui ne servent plus (jamais les exemples), le refus d'un compte hors de l'équipe, et le retrait des exemples arrêté tant qu'une image envoyée est posée sur l'un d'eux ;
 - **l'import Radio Cult** : la traduction des réponses (clé d'un créneau seul ou répété, jour de Paris, artistes, descriptions TipTap en Markdown sans HTML ni liens douteux, réseaux en liens, type du show) ; puis l'import : brouillons créés avec leurs artistes (retrouvés par leur nom, reliés, ou créés), rejoué sans doublon, brouillon qui suit son créneau et reçoit ce qui lui manque, show publié jamais réécrit mais signalé, créneau disparu signalé, occurrence d'une série passée à un autre jour, échec noté, lancement par un membre (et refus d'un compte hors de l'équipe), ce que relit l'accueil, et le lien d'une fiche à un artiste de Radio Cult ;
 - **l'antenne libre** : les contrôles du texte (mots déguisés, faux positifs, liens déguisés, coordonnées, forme, pseudos) ; l'envoi et sa modération (pseudo pris ou réservé, changements de pseudo, liste de mots, mode lent, débit par personne et par adresse, doublons, différé, mode prudent, Turnstile, sanctions automatiques) ; les signalements ; les actions de la régie ; ce que la base diffuse (un faux `realtime.send()` le note) ; les règles d'accès ; la trace des adresses IP et la purge.
 
@@ -673,7 +675,7 @@ Une fonction Vercel n'accepte pas plus de 4,5 Mo par requête. Le fichier part d
 3. **Traitement** : `POST /admin/api/media/finalize`, avec le cadrage, le texte alternatif et le crédit. Le serveur relit l'original, le tourne selon son orientation EXIF, le recadre en carré (photo, pochette) là où l'écran l'a montré, et le convertit en WebP aux largeurs 400, 800 et 1600 (`sharp`, qualité 80), ce qui retire au passage les métadonnées. Jamais d'agrandissement : une image de 1 000 px de large donne 400, 800 et 1 000 ; sous 200 px de côté, elle est refusée (l'écran le dit avant l'envoi). Il dépose ces versions dans le seau `media`, avec `cacheControl: "31536000"` : un nom de fichier ne sert qu'une fois, le CDN peut le garder un an. Enfin il écrit la ligne `media`, sous le rôle du membre : clé de la plus grande version, poids, dimensions, `variants` (les plus petites, pour le `srcset` que construit `toImage`), type `image/webp`. Un original illisible est effacé.
 4. **Mise en place** : la fiche envoie l'image à sa propre adresse (`intent=photo` ou `cover`), qui prend sa place (`placeMedia`). La fiche change de version : l'écran reçoit la nouvelle, et enregistre ensuite le reste de la saisie sans fausse alerte.
 5. **Texte alternatif** : demandé à l'envoi, et obligatoire, sauf pour une image décorative, cochée comme telle (son texte alternatif reste vide). Une image en place a donc toujours le sien, ou se dit décorative : publier n'a rien de plus à vérifier.
-6. **Suppression** : une image qui ne sert plus (remplacée, retirée, ou dont la fiche est supprimée) disparaît, avec son original et toutes ses versions (`releaseMedia`, puis le Storage). Seulement celles envoyées depuis l'admin (`images/…`) : jamais une image qui sert encore ailleurs, ni les exemples (`exemples/…`).
+6. **Suppression** : une image qui ne sert plus (remplacée, retirée, ou dont la fiche est supprimée) disparaît, avec son original et toutes ses versions (`releaseMedia`, puis le Storage). Seulement celles envoyées depuis l'admin (`images/…`) : jamais une image qui sert encore ailleurs, ni les exemples (`exemples/…`). Le retrait des exemples (`db:seed -- --supprimer`) n'efface que des lignes : il s'arrête tant qu'une image envoyée est posée sur l'un d'eux (section 4.6).
 
 Le module natif `sharp` (une dépendance du site) n'est chargé que pour ce traitement : les autres écrans de l'admin ne le paient pas. La fonction Vercel embarque son binaire pour Linux et la bibliothèque `libvips` qu'il charge ; s'il manquait, l'écran le dirait au lieu d'une erreur.
 

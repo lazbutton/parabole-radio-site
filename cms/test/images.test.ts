@@ -5,11 +5,12 @@
  */
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { countExamples, ExampleUploadsError, removeExamples, seedExamples } from "../seed/exemples.ts";
 import { createAdmin, readMediaText, type Admin, type MediaUpload } from "../src/admin/index.ts";
 import type { Connection } from "../src/db.ts";
 import { createReader } from "../src/read/index.ts";
-import { artist, media, show } from "../src/schema.ts";
-import { createAccount, exampleDb, MEDIA_BASE, rowsOf } from "./helpers.ts";
+import { artist, event, eventPhoto, media, show } from "../src/schema.ts";
+import { createAccount, exampleDb, MEDIA_BASE, NOW, rowsOf } from "./helpers.ts";
 
 let connection: Connection;
 let editor: Admin;
@@ -174,5 +175,87 @@ describe("les images dans l'admin", () => {
     expect(removed).toEqual({ name: "Photo Seule", photoId: file.id });
     expect(await editor.releaseMedia([removed!.photoId])).toHaveLength(3);
     expect(await connection.db.select({ id: media.id }).from(media).where(eq(media.id, file.id))).toEqual([]);
+  });
+});
+
+// Sur une base à part : le retrait des exemples ne doit rien enlever aux tests précédents.
+describe("le retrait des exemples", () => {
+  let own: Connection;
+  let team: Admin;
+  let visual: string;
+  let shot: string;
+
+  beforeAll(async () => {
+    own = await exampleDb();
+    team = createAdmin(own.db, await createAccount(own.db, "editor"));
+  });
+  afterAll(() => own?.close());
+
+  const ownId = async (table: typeof artist | typeof show | typeof event, slug: string) => (await own.db.select({ id: table.id }).from(table).where(eq(table.slug, slug)))[0]!.id;
+  async function sent() {
+    const result = await team.addMedia(upload());
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    return result.media.id;
+  }
+  const uploadsLeft = async () => rowsOf<{ n: number }>(await own.db.execute(sql`select count(*)::int as n from media where key like 'images/%'`))[0]!.n;
+
+  it("s'arrête tant qu'une image envoyée depuis l'admin est posée sur un exemple, sans rien changer", async () => {
+    await team.placeMedia("photo", { id: await ownId(artist, "exemple-bastien-ocre"), mediaId: await sent() });
+    await team.placeMedia("photo", { id: await ownId(artist, "exemple-yaya-kossi"), mediaId: await sent() });
+    await team.placeMedia("cover", { id: await ownId(show, "exemple-techno-de-minuit"), mediaId: await sent() });
+    // Pas encore d'écran des événements : leur visuel et leur galerie se posent directement.
+    visual = await sent();
+    shot = await sent();
+    await own.db.update(event).set({ visualId: visual }).where(eq(event.slug, "exemple-nuit-parabole"));
+    await own.db.insert(eventPhoto).values({ eventId: await ownId(event, "exemple-expo-sonore"), mediaId: shot, position: 3 });
+    const before = await countExamples(own.db);
+
+    const refused = await removeExamples(own.db).catch((error: unknown) => error);
+    expect(refused).toBeInstanceOf(ExampleUploadsError);
+    expect((refused as ExampleUploadsError).uploads).toEqual([
+      { slot: "photo", name: "Bastien Ocre (exemple)" },
+      { slot: "photo", name: "Yaya Kossi (exemple)" },
+      { slot: "cover", name: "Techno de minuit (exemple)" },
+      { slot: "visual", name: "Nuit Parabole (exemple)" },
+      { slot: "gallery", name: "Expo sonore (exemple)" },
+    ]);
+    const message = (refused as Error).message;
+    expect(message).toContain("Les exemples restent en place : 5 images envoyées depuis l'admin y sont posées.");
+    expect(message).toContain("  - la photo de l'artiste « Bastien Ocre (exemple) »\n  - la photo de l'artiste « Yaya Kossi (exemple) »\n  - la pochette du show");
+    expect(message).toContain("Depuis l'admin, retire chacune de ces images, ou supprime sa fiche. Puis relance la commande.");
+    // Un jeu neuf commence par retirer l'ancien : arrêté de même.
+    await expect(seedExamples(own.db, { now: NOW })).rejects.toThrow(ExampleUploadsError);
+    expect(await countExamples(own.db)).toEqual(before);
+    expect(await uploadsLeft()).toBe(5);
+  });
+
+  it("le dit au singulier pour une seule image", () => {
+    expect(new ExampleUploadsError([{ slot: "photo", name: "Éloïse Vachon (exemple)" }]).message).toBe(
+      [
+        "Les exemples restent en place : une image envoyée depuis l'admin y est posée.",
+        "  - la photo de l'artiste « Éloïse Vachon (exemple) »",
+        "Retirer les exemples la laisserait sans fiche, avec ses fichiers dans le Storage : seul l'admin efface ces images.",
+        "Depuis l'admin, retire cette image, ou supprime sa fiche. Puis relance la commande.",
+        "Cette fiche n'est plus un exemple ? Change son adresse sur le site, qui commence par « exemple- » : la commande la laissera en place.",
+      ].join("\n"),
+    );
+  });
+
+  it("passe une fois ces images retirées depuis l'admin ; une fiche qui n'est plus un exemple reste, avec sa photo", async () => {
+    // Bastien perd sa photo, le show est supprimé : l'admin rend leurs images, puis les retire.
+    const unplaced = await team.placeMedia("photo", { id: await ownId(artist, "exemple-bastien-ocre"), mediaId: null });
+    const deleted = await team.deleteShow(await ownId(show, "exemple-techno-de-minuit"));
+    await own.db.update(event).set({ visualId: null }).where(eq(event.slug, "exemple-nuit-parabole"));
+    await own.db.delete(eventPhoto).where(eq(eventPhoto.mediaId, shot));
+    const ids = [unplaced.ok ? unplaced.previous : null, deleted?.coverId, visual, shot];
+    expect(await team.releaseMedia(ids)).toHaveLength(12);
+    // Yaya n'est plus un exemple : son adresse a changé.
+    await own.db.update(artist).set({ slug: "yaya-kossi", name: "Yaya Kossi" }).where(eq(artist.slug, "exemple-yaya-kossi"));
+
+    await removeExamples(own.db);
+    expect(await countExamples(own.db)).toEqual({ shows: 0, artists: 0, events: 0, pages: 0, tags: 0, media: 0 });
+    const [yaya] = await own.db.select({ photo: media.key }).from(artist).innerJoin(media, eq(media.id, artist.photoId)).where(eq(artist.slug, "yaya-kossi"));
+    expect(yaya?.photo).toMatch(/^images\//);
+    expect(await uploadsLeft()).toBe(1);
   });
 });
