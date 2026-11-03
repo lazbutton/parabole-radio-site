@@ -783,7 +783,7 @@ Les clips qui passent au hasard derrière toutes les pages du site. Leur liste e
 
 ### 9.8 Les étiquettes et les filtres
 
-Le document « Tags et filtres site web » (novembre 2026) dit comment le site range ses contenus. La migration `0007_etiquettes_donnees.sql` l'a inscrit dans la base ; la suite se fait dans l'admin, à `/admin/etiquettes`.
+Le document « Tags et filtres site web » dit comment le site range ses contenus. La migration `0007_etiquettes_donnees.sql` en a inscrit la version du 2 novembre 2026 ; les versions suivantes s'importent depuis l'admin, à `/admin/etiquettes` (« Importer le document », plus bas), où se fait aussi tout le reste.
 
 **Le modèle.** Une **étiquette** (`tag`) n'existe qu'une fois. Un **filtre** (`facet`) la range, pour un genre de contenu : les shows (d'un ou plusieurs types), les artistes ou les événements. Dans un filtre, des **groupes** (`tag_group`) : ce sont des étiquettes au premier niveau (Club, Caraïbes, Culture), qui se choisissent elles-mêmes sur une fiche (« Jazz », sans plus de précision) et valent, sur le site, pour toutes leurs étiquettes. Dans un groupe, des **étiquettes** (`tag_member`), dans l'ordre alphabétique. Une étiquette peut avoir plusieurs places : Amapiano est dans Genre › Club et dans Géographie › Afrique / Moyen-Orient ; un show Amapiano se trouve par les deux. Deux niveaux, pas plus : un groupe ne contient pas de groupes.
 
@@ -797,18 +797,31 @@ Le document « Tags et filtres site web » (novembre 2026) dit comment le site r
 | Activité | les artistes | Podcast, Playlist, DJ | — |
 | Catégorie | les événements | Live session_Art ensemble, Fête, Rencontre/Talk, DJ set_On air, Événement spécial | — |
 
+La version du 3 novembre refait Genre en 13 groupes, de Classique à Live & parole (Soul & funk, Rap & RnB, Techno, Breaks & bass music…), et range de nouvelles étiquettes dans Afrique / Moyen-Orient et dans Asie.
+
 La lecture du document, pour s'y retrouver :
 
+- les rubriques : ÉMISSIONS › PODCAST donne Thème (sous chaque titre, une étiquette par ligne) ; ÉMISSIONS › PLAYLIST + DJ SETS donne Genre et Géographie (« → GENRE », « → GÉOGRAPHIE »), et un autre titre à cet endroit, un nouveau filtre des DJ sets et des playlists ; RÉSIDENTS donne Activité, et ÉVÉNEMENTS, Catégorie ;
 - dans les listes de genres, un passage en gras est un groupe, et les noms qui suivent sont ses étiquettes (« **HIP-HOP, R'N'B,** DRILL, RNB, RAP, TRAP » : le groupe « Hip-hop, R'n'B » et quatre étiquettes) ;
 - une étiquette qui porte le nom de son groupe (SOUL dans SOUL, CLUB dans CLUB) n'est pas recopiée dedans : le groupe se choisit lui-même ;
-- les noms passent des capitales du document aux minuscules, sigles et noms propres gardés (« UK funky », « K-pop », « Folk du Rajasthan ») ;
+- les noms passent des capitales du document aux minuscules, sigles et noms propres gardés (« Rap UK », « K-pop », « Folk du Rajasthan », « Techno de Détroit »), et l'accent oublié sur une capitale revient (« ELECTRONIQUE » donne « Électronique ») ;
 - le mood (« calme — énergique ») n'est pas une étiquette : c'est `show.energy`, de 1 à 5 ;
 - les résidents et les invités restent le rôle d'un artiste ; leur sous-filtre (podcast, playlist, DJ) est le filtre Activité ;
-- la partie « POUBELLE » et « À propos » n'ont rien donné.
+- la lecture s'arrête à « À propos » ou à « POUBELLE ».
 
 Les étiquettes saisies avant la migration restent, avec leurs shows : celle qui porte une adresse du document y prend sa place et son nom ; les autres passent « à classer ». Les catégories d'événements deviennent des étiquettes : Art ensemble → Live session_Art ensemble, Parabole → Fête, Special → Événement spécial, Talk → Rencontre/Talk.
 
-**Quand le document évolue**, tout se fait dans l'écran Étiquettes, sans migration :
+**Quand le document évolue**, tout se fait dans l'écran Étiquettes, sans migration.
+
+**Importer le document**, le plus simple : dans Google Docs, Fichier › Télécharger › Markdown, puis « Importer le document » en haut de l'écran (`src/admin/document.ts`). L'admin montre d'abord tout ce qui changera, filtre par filtre : les groupes ajoutés ou retirés, leur ordre, les étiquettes qui entrent dans chaque groupe ou en sortent ; puis les étiquettes créées, renommées, supprimées. Rien ne change avant « Appliquer » : l'aperçu joue l'import dans une transaction, puis l'annule. Le document fait foi pour les filtres qu'il décrit, et seulement pour eux :
+
+- une étiquette se retrouve par son adresse : elle garde ses contenus et prend le nom du document (« Pop, variété » devient « Pop & variété ») ; une casse retouchée dans l'admin reste ;
+- une étiquette que le document ne nomme plus quitte ces filtres. Si elle ne sert à rien, elle est supprimée. Si elle est posée sur des contenus, elle reste, à classer, ou prend un des nouveaux noms du document en gardant ses contenus : « Detroit techno » devient « Techno de Détroit », le nom le plus proche étant proposé d'office. Rangée aussi dans un autre filtre, elle y reste ;
+- un filtre que le document ne décrit pas n'est pas touché.
+
+Ce que l'import n'a pas su lire (une rubrique inconnue, des étiquettes avant tout groupe) est signalé dans l'aperçu, sans l'arrêter. Réimporter le même document ne change rien.
+
+**À la main**, pour une retouche :
 
 - **ajouter** : dans le groupe, le champ « Ajouter… » prend un nom, ou une liste copiée du document (« AFRO HOUSE, AFROBEATS, AMAPIANO » ; une liste sur plusieurs lignes aussi) : les noms en capitales passent en minuscules, une étiquette déjà connue (même adresse, ou même nom sans accents ni majuscules) gagne une place au lieu d'être recréée ;
 - **ranger ailleurs, retirer** : la fiche d'une étiquette (un clic sur sa pastille) liste ses places ; « Ranger aussi dans… » en ajoute une. Retirer une étiquette de toutes ses places la laisse sur ses contenus, « à classer » ;
