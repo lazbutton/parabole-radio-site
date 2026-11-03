@@ -13,6 +13,7 @@ import { asMember, type Tx } from "../access.ts";
 import type { Db } from "../db.ts";
 import { importSlots, importStatus, radiocultLinks, type ImportInput } from "../radiocult/index.ts";
 import type { FacetScope } from "../schema.ts";
+import { getAbout, saveAbout, setAboutFilm, setAboutPoster, type AboutSave } from "./about.ts";
 import { artistChoices, deleteArtist, getArtist, listArtists, saveArtist, type AdminArtistFilters, type ArtistSave } from "./artists.ts";
 import {
   addChatTerm,
@@ -138,6 +139,14 @@ export function createAdmin(db: Db, userId: string) {
     moveClip: (id: string, direction: "up" | "down") => as((tx) => moveClip(tx, id, direction)),
     /** Supprime une vidéo de fond. Rend les adresses de ses fichiers, à effacer du stockage, ou null. */
     deleteClip: (id: string) => as((tx) => deleteClip(tx, id)),
+    /** La page À propos et le corps des mentions légales, ou null si sa ligne manque dans la base. */
+    about: () => as((tx) => getAbout(tx)),
+    /** Enregistre les textes de la page À propos, et les mentions légales. */
+    saveAbout: (save: AboutSave) => saving(() => as((tx) => saveAbout(tx, save))),
+    /** Met un film sur la page À propos (ses fichiers sont déjà sur le stockage), le remplace ou l'enlève (null). */
+    setAboutFilm: (film: ClipFile | null, version?: string) => saving(() => as((tx) => setAboutFilm(tx, film, version))),
+    /** Change l'image fixe du film de la page À propos. */
+    setAboutPoster: (posterUrl: string, version?: string) => saving(() => as((tx) => setAboutPoster(tx, posterUrl, version))),
     /** Une image, ou null. */
     getMedia: (id: string) => as((tx) => getMedia(tx, id)),
     /** Inscrit une image envoyée (ses versions sont déjà sur le Storage), avec son texte alternatif et son crédit. */
@@ -179,6 +188,7 @@ export function createAdmin(db: Db, userId: string) {
 
 export type Admin = ReturnType<typeof createAdmin>;
 
+export { LEGAL_SLUG, type AboutSave, type AdminAbout, type AdminFilm, type FilmPlaced } from "./about.ts";
 export type { AdminArtist, AdminArtistFilters, AdminArtistIndex, AdminArtistRow, ArtistSave } from "./artists.ts";
 export { DELAY_CHOICES, MUTE_CHOICES, SLOW_CHOICES } from "./chat.ts";
 export type { AdminAntenne, AdminChatAuthor, AdminChatMessage, AdminChatSettings, AdminChatTerm, ChatSettingsChange } from "./chat.ts";
@@ -194,6 +204,7 @@ export {
   linkLabel,
   mergeTracks,
   NEW_PICK,
+  readAboutForm,
   readArtistForm,
   readClipFile,
   readClipTitle,
@@ -203,6 +214,9 @@ export {
   readTagForm,
   readTagNames,
   tidyTagName,
+  type AboutCreditForm,
+  type AboutForm,
+  type AboutValues,
   type ArtistForm,
   type ArtistValues,
   type ClipFile,

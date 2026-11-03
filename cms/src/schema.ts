@@ -450,7 +450,7 @@ export const eventPhoto = pgTable(
 // Pages simples
 // ---------------------------------------------------------------------------------------------------------------
 
-/** Une page de texte : À propos (slug « a-propos »), mentions légales… */
+/** Une page de texte : les mentions légales (slug « mentions-legales »)… À propos a sa propre table, about_page. */
 export const page = pgTable(
   "page",
   {
@@ -464,6 +464,62 @@ export const page = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [slugFormat("page", t.slug)],
+).enableRLS();
+
+/**
+ * Une ligne de L'ÉQUIPE ou des CRÉDITS de la page À propos : ce que fait la personne (vide permis), son nom, et un lien
+ * facultatif (sa page de résident, son site, la source d'un emprunt).
+ */
+export type AboutCredit = { role: string; name: string; url?: string };
+
+/**
+ * La page À propos (cms/README.md, 9.10), sur une seule ligne posée par la migration : les panneaux du croquis du
+ * 3 novembre (DESCRIPTION et les réseaux sociaux, L'ÉQUIPE et les CRÉDITS, CONTACT et CANDIDATER) et le film qu'on y
+ * lance. Toujours en ligne : pas de brouillon. Les mentions légales sont une page à part (page « mentions-legales »).
+ */
+export const aboutPage = pgTable(
+  "about_page",
+  {
+    id: boolean("id").primaryKey().default(true),
+    /** Qui est Parabole, en Markdown. */
+    description: text("description").notNull().default(""),
+    /** Les réseaux de la radio, dans l'ordre : [{ label, url }], comme les liens d'un artiste. */
+    socials: jsonb("socials").$type<ArtistLink[]>().notNull().default([]),
+    /** Dans l'ordre d'affichage : [{ role, name }]. */
+    team: jsonb("team").$type<AboutCredit[]>().notNull().default([]),
+    credits: jsonb("credits").$type<AboutCredit[]>().notNull().default([]),
+    /** L'adresse de CONTACT. Vide : le bloc ne s'affiche pas. */
+    contactEmail: text("contact_email"),
+    /** CANDIDATER : quelques mots (Markdown), où mène le bouton (le formulaire), et ce qu'il dit. */
+    applyText: text("apply_text").notNull().default(""),
+    applyUrl: text("apply_url"),
+    applyLabel: text("apply_label").notNull().default("Music lover ?!"),
+    /**
+     * Le film, qu'on lance depuis la page : la vidéo (Vercel Blob, ou un chemin du site), son image fixe, son titre
+     * (dit aux lecteurs d'écran), et ce que le navigateur en a lu à l'envoi. Sans vidéo, pas de film.
+     */
+    filmUrl: text("film_url"),
+    filmPosterUrl: text("film_poster_url"),
+    filmTitle: text("film_title").notNull().default(""),
+    filmMimeType: text("film_mime_type"),
+    filmSizeBytes: bigint("film_size_bytes", { mode: "number" }),
+    filmDurationSeconds: integer("film_duration_seconds"),
+    filmWidth: integer("film_width"),
+    filmHeight: integer("film_height"),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check("about_page_single", sql`${t.id}`),
+    check("about_page_lists", sql`jsonb_typeof(${t.socials}) = 'array' and jsonb_typeof(${t.team}) = 'array' and jsonb_typeof(${t.credits}) = 'array'`),
+    check("about_page_contact_email", sql`${t.contactEmail} is null or ${t.contactEmail} ~ '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$'`),
+    check("about_page_apply_url", sql`${t.applyUrl} is null or ${t.applyUrl} ~ '^(https?://|mailto:)'`),
+    check("about_page_film", sql`(${t.filmUrl} is null) = (${t.filmMimeType} is null) and (${t.filmMimeType} is null or ${t.filmMimeType} in ('video/mp4', 'video/webm'))`),
+    check("about_page_film_url", sql`${t.filmUrl} is null or ${t.filmUrl} ~ '^(/[^/]|https://)'`),
+    check("about_page_film_poster_url", sql`${t.filmPosterUrl} is null or ${t.filmPosterUrl} ~ '^(/[^/]|https://)'`),
+    check("about_page_film_dimensions", sql`(${t.filmWidth} is null) = (${t.filmHeight} is null) and coalesce(${t.filmWidth} > 0 and ${t.filmHeight} > 0, true)`),
+    check("about_page_film_size", sql`${t.filmSizeBytes} is null or ${t.filmSizeBytes} >= 0`),
+    check("about_page_film_duration", sql`${t.filmDurationSeconds} is null or ${t.filmDurationSeconds} > 0`),
+  ],
 ).enableRLS();
 
 // ---------------------------------------------------------------------------------------------------------------

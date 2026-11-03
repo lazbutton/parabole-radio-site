@@ -1,4 +1,4 @@
-/** Les pages simples pour le site : À propos, mentions légales… */
+/** Les pages simples pour le site : les mentions légales… (À propos a sa propre lecture, about.ts.) */
 import { and, eq } from "drizzle-orm";
 import type { Tx } from "../access.ts";
 import { page } from "../schema.ts";

@@ -5,6 +5,7 @@
  */
 import { AlertDialog, Button, Flex, Theme } from "@radix-ui/themes";
 import { useEffect, useState } from "react";
+import { AboutScreen } from "./AboutScreen";
 import { AdminShell } from "./AdminShell";
 import { AntenneScreen } from "./AntenneScreen";
 import { AppearanceProvider } from "./appearance";
@@ -72,6 +73,8 @@ function CurrentScreen({ viewer }: { viewer: Viewer }) {
       return <AntenneScreen {...screen.data} />;
     case "tags":
       return <TagsScreen {...screen.data} />;
+    case "about":
+      return <AboutScreen key={visit} {...screen.data} />;
   }
 }
 

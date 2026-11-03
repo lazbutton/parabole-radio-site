@@ -12,6 +12,7 @@
  */
 import { asPublic } from "../access.ts";
 import type { Db } from "../db.ts";
+import { getAbout } from "./about.ts";
 import { getArtist, listArtists, type ArtistFilters } from "./artists.ts";
 import { listBackgroundClips } from "./clips.ts";
 import { getEvent, listEvents, type EventFilters } from "./events.ts";
@@ -43,8 +44,10 @@ export function createReader(db: Db, { mediaBaseUrl }: ReaderOptions) {
     listEvents: (filters: EventFilters) => asPublic(db, (tx) => listEvents(tx, mediaBaseUrl, filters)),
     /** Un événement avec ses artistes et sa galerie, ou null. */
     getEvent: (slug: string) => asPublic(db, (tx) => getEvent(tx, mediaBaseUrl, slug)),
-    /** Une page publiée (À propos…), ou null. */
+    /** Une page publiée (les mentions légales…), ou null. */
     getPage: (slug: string) => asPublic(db, (tx) => getPage(tx, slug)),
+    /** La page À propos : ses panneaux et son film. Null si sa ligne manque dans la base. */
+    getAbout: () => asPublic(db, (tx) => getAbout(tx)),
     /** La recherche plein texte en français, sans accents, sur les shows, les artistes et les événements. */
     search: (query: string, options: { limit?: number } = {}) => asPublic(db, (tx) => search(tx, mediaBaseUrl, query, options)),
     /** Les vidéos de fond de la rotation, dans l'ordre de la liste de l'admin. */
@@ -54,6 +57,7 @@ export function createReader(db: Db, { mediaBaseUrl }: ReaderOptions) {
 
 export type Reader = ReturnType<typeof createReader>;
 
+export type { AboutContent, AboutFilm } from "./about.ts";
 export type { ArtistCard, ArtistDetail, ArtistFilters, ArtistIndex, ArtistNeighbor } from "./artists.ts";
 export type { ClipCard } from "./clips.ts";
 export type { ArtistRef, Image, Paged, TagRef } from "./common.ts";

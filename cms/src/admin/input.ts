@@ -5,7 +5,7 @@
  */
 import { ENERGY } from "../labels.ts";
 import { fromParisInput } from "../paris.ts";
-import { artistRole, facetScope, showType, type ArtistLink, type ArtistRole, type FacetScope, type ShowType } from "../schema.ts";
+import { artistRole, facetScope, showType, type AboutCredit, type ArtistLink, type ArtistRole, type FacetScope, type ShowType } from "../schema.ts";
 import { slugify } from "../slug.ts";
 import { parseTimecode, parseTracklist, type TrackLine } from "../tracklist.ts";
 
@@ -41,6 +41,12 @@ export const LIMITS = {
   /** Le texte alternatif d'une image : une phrase, pas une légende. */
   alt: 300,
   credit: 120,
+  /** Les lignes de L'ÉQUIPE et des CRÉDITS de la page À propos, et chacun de leurs champs. */
+  people: 60,
+  person: 120,
+  /** Le texte d'un bouton (CANDIDATER). */
+  button: 40,
+  email: 200,
 };
 
 const oneOf = <T extends string>(values: readonly T[], value: string): value is T => (values as readonly string[]).includes(value);
@@ -303,10 +309,25 @@ export function linkLabel(url: string): string {
   }
 }
 
+/** Des liens remis au propre, sans les lignes vides. */
+const tidyLinks = (links: ArtistLink[]): ArtistLink[] =>
+  links.map((link) => ({ label: clean(link.label), url: withScheme(clean(link.url)) })).filter((link) => link.label || link.url);
+
+/** Vérifie des liens remis au propre : les valeurs pour la base (sans libellé, le nom du site), les erreurs sous `field`. */
+function readLinks(links: ArtistLink[], field: string, errors: FieldErrors): ArtistLink[] {
+  if (links.length > LIMITS.links) errors[field] = `${LIMITS.links} liens au plus.`;
+  return links.map((link, index) => {
+    if (!link.url) errors[`${field}.${index}.url`] = "L'adresse manque.";
+    else if (link.url.length > LIMITS.url || !isWebAddress(link.url)) errors[`${field}.${index}.url`] = "Une adresse complète : https://…";
+    if (link.label.length > LIMITS.label) errors[`${field}.${index}.label`] = `${LIMITS.label} caractères au plus.`;
+    return { label: link.label || linkLabel(link.url), url: link.url };
+  });
+}
+
 /** Vérifie la fiche d'un artiste : la fiche remise au propre, les valeurs pour la base, les erreurs par champ. */
 export function readArtistForm(input: ArtistForm): { form: ArtistForm; values: ArtistValues; errors: FieldErrors } {
   const errors: FieldErrors = {};
-  const links = input.links.map((link) => ({ label: clean(link.label), url: withScheme(clean(link.url)) })).filter((link) => link.label || link.url);
+  const links = tidyLinks(input.links);
   const form: ArtistForm = { ...input, links };
 
   const name = clean(form.name);
@@ -320,13 +341,7 @@ export function readArtistForm(input: ArtistForm): { form: ArtistForm; values: A
   const bio = longText(form.bio);
   if (bio.length > LIMITS.text) errors.bio = `${LIMITS.text} caractères au plus.`;
 
-  if (links.length > LIMITS.links) errors.links = `${LIMITS.links} liens au plus.`;
-  const values: ArtistLink[] = links.map((link, index) => {
-    if (!link.url) errors[`links.${index}.url`] = "L'adresse manque.";
-    else if (link.url.length > LIMITS.url || !isWebAddress(link.url)) errors[`links.${index}.url`] = "Une adresse complète : https://…";
-    if (link.label.length > LIMITS.label) errors[`links.${index}.label`] = `${LIMITS.label} caractères au plus.`;
-    return { label: link.label || linkLabel(link.url), url: link.url };
-  });
+  const values = readLinks(links, "links", errors);
 
   const tags = [...new Set(form.tags.filter((value) => UUID.test(value)).map((value) => value.toLowerCase()))];
   if (tags.length > LIMITS.picks) errors.tags = `${LIMITS.picks} étiquettes au plus.`;
@@ -542,5 +557,96 @@ export function readClipFile(input: ClipFileForm): { values: ClipFile; errors: F
       width,
       height,
     },
+  };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// La page À propos
+// ---------------------------------------------------------------------------------------------------------------
+
+/** Une ligne de L'ÉQUIPE ou des CRÉDITS telle que l'écran l'envoie : le lien vide s'il n'y en a pas. */
+export type AboutCreditForm = { role: string; name: string; url: string };
+
+/** La page À propos telle que l'écran l'envoie, avec le corps des mentions légales. Les listes, dans l'ordre. */
+export type AboutForm = {
+  description: string;
+  socials: ArtistLink[];
+  team: AboutCreditForm[];
+  credits: AboutCreditForm[];
+  contactEmail: string;
+  applyText: string;
+  applyUrl: string;
+  applyLabel: string;
+  filmTitle: string;
+  legal: string;
+};
+
+export type AboutValues = {
+  description: string;
+  socials: ArtistLink[];
+  team: AboutCredit[];
+  credits: AboutCredit[];
+  contactEmail: string | null;
+  applyText: string;
+  applyUrl: string | null;
+  applyLabel: string;
+  filmTitle: string;
+  legal: string;
+};
+
+const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+/** Une adresse du site lui-même (« /residents/amara »), pour mener à la page d'un résident. */
+const isSitePath = (text: string) => /^\/(?!\/)\S*$/.test(text);
+
+/** Les lignes de L'ÉQUIPE ou des CRÉDITS, sans les vides : le nom est demandé, le rôle et le lien sont facultatifs. */
+function readCredits(rows: AboutCreditForm[], field: string, errors: FieldErrors): AboutCredit[] {
+  const tidy = rows
+    .map((row) => ({ role: clean(row.role), name: clean(row.name), url: isSitePath(clean(row.url)) ? clean(row.url) : withScheme(clean(row.url)) }))
+    .filter((row) => row.role || row.name || row.url);
+  if (tidy.length > LIMITS.people) errors[field] = `${LIMITS.people} lignes au plus.`;
+  return tidy.map((row, index) => {
+    const at = (part: string) => `${field}.${index}.${part}`;
+    if (!row.name) errors[at("name")] = "Le nom manque.";
+    else if (row.name.length > LIMITS.person) errors[at("name")] = `${LIMITS.person} caractères au plus.`;
+    if (row.role.length > LIMITS.person) errors[at("role")] = `${LIMITS.person} caractères au plus.`;
+    if (row.url && (row.url.length > LIMITS.url || !(isWebAddress(row.url) || isSitePath(row.url)))) errors[at("url")] = "Une adresse complète (https://…) ou une page du site (/residents/…).";
+    return { role: row.role, name: row.name, ...(row.url ? { url: row.url } : {}) };
+  });
+}
+
+/**
+ * Vérifie la page À propos : les valeurs pour la base et les erreurs par champ (« team.2.name », « socials.0.url »…).
+ * Une adresse e-mail tapée comme lien de CANDIDATER devient un lien « mailto: ».
+ */
+export function readAboutForm(input: AboutForm): { values: AboutValues; errors: FieldErrors } {
+  const errors: FieldErrors = {};
+  const description = longText(input.description);
+  if (description.length > LIMITS.text) errors.description = `${LIMITS.text} caractères au plus.`;
+  const socials = readLinks(tidyLinks(input.socials), "socials", errors);
+  const team = readCredits(input.team, "team", errors);
+  const credits = readCredits(input.credits, "credits", errors);
+
+  const contactEmail = clean(input.contactEmail).replace(/^mailto:/i, "");
+  if (contactEmail && (contactEmail.length > LIMITS.email || !EMAIL.test(contactEmail))) errors.contactEmail = "Une adresse e-mail : nom@domaine.fr";
+
+  const applyText = longText(input.applyText);
+  if (applyText.length > LIMITS.description) errors.applyText = `${LIMITS.description} caractères au plus.`;
+  const typed = clean(input.applyUrl);
+  const applyUrl = EMAIL.test(typed.replace(/^mailto:/i, "")) ? `mailto:${typed.replace(/^mailto:/i, "")}` : withScheme(typed);
+  if (applyUrl && (applyUrl.length > LIMITS.url || !(isWebAddress(applyUrl) || applyUrl.startsWith("mailto:"))))
+    errors.applyUrl = "L'adresse du formulaire (https://…), ou une adresse e-mail.";
+  const applyLabel = clean(input.applyLabel);
+  if (!applyLabel) errors.applyLabel = "Le bouton a besoin d'un texte.";
+  else if (applyLabel.length > LIMITS.button) errors.applyLabel = `${LIMITS.button} caractères au plus.`;
+
+  const filmTitle = clean(input.filmTitle);
+  if (filmTitle.length > LIMITS.title) errors.filmTitle = `${LIMITS.title} caractères au plus.`;
+  const legal = longText(input.legal);
+  if (legal.length > LIMITS.text) errors.legal = `${LIMITS.text} caractères au plus.`;
+
+  return {
+    errors,
+    values: { description, socials, team, credits, contactEmail: contactEmail || null, applyText, applyUrl: applyUrl || null, applyLabel, filmTitle, legal },
   };
 }

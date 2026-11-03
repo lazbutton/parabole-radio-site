@@ -14,6 +14,7 @@ import {
   ExternalLinkIcon,
   HamburgerMenuIcon,
   HomeIcon,
+  InfoCircledIcon,
   LockClosedIcon,
   MagnifyingGlassIcon,
   MoonIcon,
@@ -32,8 +33,8 @@ import { initial } from "./text";
 import type { Screen, Viewer } from "./types";
 
 /**
- * Les rubriques, par groupe. Les suivantes (événements, pages, médiathèque) viendront dans « Contenus » ; l'équipe,
- * dans « Site ».
+ * Les rubriques, par groupe. Les suivantes (événements, médiathèque) viendront dans « Contenus » ; l'équipe, dans
+ * « Site ».
  */
 type Section = { href: string; label: string; icon: typeof HomeIcon; screens: Screen["name"][] };
 const HOME: Section = { href: "/admin", label: "Accueil", icon: HomeIcon, screens: ["dashboard"] };
@@ -49,6 +50,7 @@ const GROUPS: { label: string; sections: Section[] }[] = [
   {
     label: "Site",
     sections: [
+      { href: "/admin/a-propos", label: "À propos", icon: InfoCircledIcon, screens: ["about"] },
       { href: "/admin/videos", label: "Vidéos de fond", icon: VideoIcon, screens: ["clips"] },
       { href: "/admin/antenne", label: "Antenne libre", icon: ChatBubbleIcon, screens: ["antenne"] },
     ],

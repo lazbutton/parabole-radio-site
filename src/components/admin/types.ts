@@ -5,6 +5,7 @@
  * navigateur affichent le même texte.
  */
 import type {
+  AboutForm,
   AdminChatMessage,
   AdminChatSettings,
   AdminChatTerm,
@@ -189,6 +190,21 @@ export type ClipsData = { clips: ClipRow[]; uploads: boolean; maxBytes: number }
 /** La réponse du serveur à une action de l'écran des vidéos : la liste à jour, ou les erreurs. */
 export type ClipsResponse = { ok: true; data: ClipsData; message?: string } | { ok: false; errors: FieldErrors };
 
+/** Le film de la page À propos, prêt à montrer : sa vidéo, son image fixe, son cadre, et « 2:34 · 1920 × 1080 · 48 Mo ». */
+export type FilmView = { url: string; poster: string | null; width: number | null; height: number | null; facts: string };
+/**
+ * La page À propos à remplir (cms/README.md, 9.10) : ses champs, avec le corps des mentions légales ; son film ;
+ * l'envoi vers Vercel Blob (branché ou non) et le poids maximal du film.
+ */
+export type AboutSheet = { version: string; updated: string; form: AboutForm; film: FilmView | null; uploads: boolean; maxBytes: number };
+/** Null : la ligne de la page manque dans la base (migration pas appliquée). */
+export type AboutData = { sheet: AboutSheet | null };
+/**
+ * La réponse du serveur à un film mis, remplacé ou enlevé : le film, et la nouvelle version de la page si l'écran avait
+ * la dernière (null sinon : son prochain enregistrement signalera qu'on l'a modifiée entre-temps).
+ */
+export type FilmResponse = { ok: true; film: FilmView | null; version: string | null; updated: string | null; message: string } | { ok: false; errors: FieldErrors };
+
 /** Une étiquette de l'écran des étiquettes, et ce qui la porte (brouillons compris). */
 export type TagRow = AdminTagUse;
 /** Un filtre de l'écran des étiquettes : ses groupes dans l'ordre, les étiquettes de chacun dans l'ordre alphabétique. */
@@ -263,7 +279,8 @@ export type Screen =
   | { name: "password"; title: string; data: PasswordData }
   | { name: "clips"; title: string; data: ClipsData }
   | { name: "antenne"; title: string; data: AntenneData }
-  | { name: "tags"; title: string; data: TagsData };
+  | { name: "tags"; title: string; data: TagsData }
+  | { name: "about"; title: string; data: AboutData };
 
 /** Ce que la page passe à l'application : la personne connectée, l'adresse affichée et son écran. */
 export type AppProps = { viewer: Viewer; href: string; screen: Screen };

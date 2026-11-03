@@ -1,0 +1,204 @@
+/* ---------- À PROPOS (src/pages/a-propos.astro) ----------
+   Le croquis du 3 novembre : l'image fixe du film en fond (le mode photo, socle.css) et un grand ▶ au centre ; des
+   pages de la famille de PROGRAMMATION posées dessus, comme l'encart Description d'un artiste. DESCRIPTION en haut à
+   droite ; L'ÉQUIPE et les CRÉDITS à gauche, plus bas, qui passent sous le bas du premier écran ; CONTACT et
+   CANDIDATER au-dessous, qu'on découvre en descendant. Le contenu garde de l'air : une marge en haut et sur les côtés
+   (--haut-apropos, --cote), et une largeur au plus (--large), au centre. --ecran : la hauteur du premier écran. */
+.apropos {
+  --cote: clamp(20px, 7vw, 120px);
+  --haut-apropos: clamp(32px, 8vh, 88px);
+  --large: 1120px;
+  --ecran: calc(100vh - var(--barre-h) - var(--haut-apropos));
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr) minmax(300px, 380px);
+  grid-template-rows: minmax(calc(var(--ecran) * 0.56), auto) minmax(calc(var(--ecran) * 0.44), auto) auto auto;
+  column-gap: clamp(24px, 4vw, 56px);
+  padding: var(--haut-apropos) max(var(--cote), calc((100% - var(--large)) / 2)) calc(4 * var(--ecart));
+}
+@supports (height: 100dvh) { .apropos { --ecran: calc(100dvh - var(--barre-h) - var(--haut-apropos)); } }
+.apropos-centre { grid-column: 2; grid-row: 1 / 3; place-self: center; }
+.apropos-description { grid-column: 3; grid-row: 1 / 3; align-self: start; }
+.apropos-equipe { grid-column: 1; grid-row: 2 / 4; align-self: start; }
+.apropos-contact { grid-column: 2 / 4; grid-row: 3; align-self: start; justify-self: center; width: min(400px, 100%); margin-top: calc(3 * var(--ecart)); }
+.apropos-mentions { grid-column: 1 / -1; grid-row: 4; }
+/* pas de globe sur l'image fixe du film : elle tient l'écran, comme la photo d'un artiste */
+html[data-page="about"].fond-en-photo .logo-overlay { display: none; }
+
+/* Une page posée sur l'image : le cadre jaune qui bave, les lignes de balayage, la plaque floutée */
+.apropos-panneau {
+  padding-bottom: 16px;
+  border: 2px solid #fff039;
+  background: repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 3px), rgba(0,0,0,0.78);
+  -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px);
+  box-shadow: -2px 0 rgba(255,0,72,0.5), 2px 0 rgba(0,200,255,0.45);
+  color: #ffffff;
+}
+.apropos-titre {
+  padding: 13px 16px 11px; border-bottom: 1px dashed rgba(255,240,57,0.45);
+  color: #fff039; font-size: 17px; font-weight: 700; letter-spacing: 0.08em; line-height: 1; text-transform: uppercase;
+  text-shadow: -2px 0 rgba(255,0,72,0.6), 2px 0 rgba(0,200,255,0.55), 0 0 12px rgba(255,240,57,0.35);
+}
+/* le second titre d'une même page (CRÉDITS, CANDIDATER) : un trait en pointillé au-dessus */
+.apropos-panneau > * + .apropos-titre { margin-top: 18px; border-top: 1px dashed rgba(255,240,57,0.45); }
+.apropos-texte { margin: 14px 16px 0; font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
+.apropos-texte > * + * { margin-top: 10px; }
+.apropos-texte :is(ul, ol) { padding-left: 1.3em; }
+.apropos-texte a, .apropos-adresse a, .apropos-generique a { color: #fff039; text-decoration: underline; text-underline-offset: 3px; }
+.apropos-texte a:hover, .apropos-adresse a:hover, .apropos-generique a:hover { color: #ffffff; }
+.apropos-groupe { margin: 18px 16px 8px; color: #fff039; font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+.apropos-groupe + .liens { margin-top: 0; padding-top: 0; border-top: 0; }
+.apropos-panneau a:focus-visible { outline: 2px solid #ffffff; outline-offset: 3px; }
+
+/* L'ÉQUIPE et les CRÉDITS : un générique de fin, en télétexte, le rôle et le nom reliés par des points */
+.apropos-generique { display: flex; flex-direction: column; gap: 9px; margin: 14px 16px 0; font-size: 12px; line-height: 1.3; letter-spacing: 0.06em; text-transform: uppercase; }
+.apropos-generique > div { display: flex; align-items: baseline; }
+.apropos-generique > div::after {
+  content: ''; order: 1; flex: 1 1 14px; min-width: 14px; margin: 0 6px;
+  border-bottom: 2px dotted rgba(255,240,57,0.5); transform: translateY(-3px);
+}
+/* le rôle garde ses mots entiers (la moitié de la ligne au plus) ; un nom long passe à la ligne, calé à droite */
+.apropos-generique dt { order: 0; flex: 0 1 auto; max-width: 48%; color: rgba(255,255,255,0.85); overflow-wrap: break-word; }
+.apropos-generique dd { order: 2; flex: 0 1 auto; min-width: 0; color: #fff039; font-weight: 700; text-align: right; overflow-wrap: break-word; }
+/* un nom sans rôle : seul sur sa ligne, sans points */
+.apropos-generique > div[data-seul]::after { content: none; }
+.apropos-generique > div[data-seul] dd { text-align: left; }
+
+.apropos-adresse { margin: 14px 16px 0; font-size: 16px; font-weight: 700; letter-spacing: 0.03em; overflow-wrap: anywhere; }
+/* CANDIDATER : la touche jaune des contributeurs de l'accueil (ligne-du-bas.css), bleue au survol */
+.apropos-candidater {
+  display: inline-flex; align-items: center; justify-content: center; min-height: var(--touche-h); margin: 16px 16px 0; padding: 6px 18px;
+  background: #fff039; color: #000dff; text-decoration: none;
+  box-shadow: -2px 0 rgba(255,0,72,0.6), 2px 0 rgba(0,200,255,0.55);
+  font-size: 14px; font-weight: 700; letter-spacing: 0.12em; line-height: 1.1; text-transform: uppercase;
+  transition: background 0.15s, color 0.15s, transform 0.15s;
+}
+.apropos-candidater:hover { background: #000dff; color: #fff039; transform: scale(0.97); }
+
+.apropos-mentions { margin-top: calc(3 * var(--ecart)); text-align: center; }
+.apropos-mentions a {
+  color: rgba(255,255,255,0.8); font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+  text-decoration: underline; text-underline-offset: 3px; text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+}
+.apropos-mentions a:hover { color: #fff039; }
+.apropos-mentions a:focus-visible { outline: 2px solid #ffffff; outline-offset: 3px; }
+.apropos-panne { padding: 0 var(--marge); }
+.mentions-retour { margin-top: 26px; }
+
+/* ---------- LE FILM ----------
+   Au centre, un grand ▶ de magnétoscope, seul : ni cadre ni mot, jaune comme le texte télé (tele.css), aux couleurs
+   qui bavent. En pause, il revient pour reprendre. Le film passe sous l'en-tête, qui reste, et derrière les pages (il
+   est dans #page, sous son contenu) : en entier sur un écran en hauteur, recadré ailleurs, comme son image fixe. La
+   régie (avancée, pause, fermer) reste discrète, en bas. */
+.apropos-lancement { display: flex; justify-content: center; }
+.apropos-lancer {
+  --triangle: clamp(52px, 5.5vw, 76px);
+  display: grid; place-items: center; padding: 16px; background: none; border: 0; color: #fff039; cursor: pointer;
+  transition: color 0.15s, transform 0.15s;
+}
+/* le flou des couleurs sur le parent, le triangle découpé dans l'enfant : sur le même élément, la découpe effacerait
+   les ombres */
+.apropos-lancer-signe {
+  display: block;
+  filter: drop-shadow(-2px 0 rgba(255,0,72,0.65)) drop-shadow(2px 0 rgba(0,200,255,0.6)) drop-shadow(0 4px 14px rgba(0,0,0,0.55));
+}
+.apropos-lancer-signe::before {
+  content: ''; display: block; width: calc(var(--triangle) * 0.87); height: var(--triangle);
+  margin-left: calc(var(--triangle) * 0.12);   /* au centre pour l'œil : le poids d'un triangle est à gauche */
+  background: currentColor; clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+.apropos-lancer:hover { color: #ffffff; transform: scale(1.04); }
+.apropos-lancer:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+.apropos-lancer:disabled { opacity: 0.35; cursor: default; transform: none; }
+.apropos-mot-reprendre { display: none; }
+html.film-ouvert:not(.film-en-marche) .apropos-mot-regarder { display: none; }
+html.film-ouvert:not(.film-en-marche) .apropos-mot-reprendre { display: inline; }
+
+.apropos-film {
+  position: fixed; top: var(--barre-h); right: 0; bottom: 0; left: 0; z-index: -1; background: #000000;
+  opacity: 0; visibility: hidden; transition: opacity 0.35s ease, visibility 0s linear 0.35s;
+}
+.apropos-film video { display: block; width: 100%; height: 100%; object-fit: cover; }
+@media (orientation: portrait) { .apropos-film video { object-fit: contain; object-position: center top; } }
+html.film-ouvert .apropos-film { opacity: 1; visibility: visible; transition: opacity 0.35s ease; }
+/* film en marche : la touche s'efface ; en pause, elle revient pour reprendre */
+html.film-en-marche .apropos-lancement { visibility: hidden; }
+
+/* La régie, qui reste quand la page s'efface : le fil d'avancée tout au bord bas de l'écran, et dans le coin, alignés
+   sur le contenu, la durée, ❚❚ et ×, en petit et à demi transparents ; ils s'allument au survol. La bande elle-même
+   laisse passer les clics. */
+.apropos-regie {
+  --bord: max(var(--cote), calc((100vw - var(--large)) / 2));
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 1;
+  display: none; justify-content: flex-end; align-items: center; gap: 6px;
+  padding: 0 var(--bord) calc(12px + env(safe-area-inset-bottom, 0px));
+  color: #ffffff; text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+  pointer-events: none;
+}
+html.film-ouvert .apropos-regie { display: flex; }
+.apropos-regie > * { pointer-events: auto; }
+.apropos-regie-temps { order: 0; opacity: 0.6; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.apropos-regie-touche {
+  order: 1; display: grid; place-items: center; flex-shrink: 0; width: 26px; height: 26px; padding: 0;
+  background: none; border: 0; color: inherit; opacity: 0.6; font: inherit; font-size: 17px; line-height: 1; cursor: pointer;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.9)); transition: opacity 0.15s, color 0.15s;
+}
+.apropos-regie-touche .icon { width: 11px; height: 11px; }
+.apropos-regie-touche:hover { opacity: 1; color: #fff039; }
+.apropos-regie-touche:focus-visible, .apropos-regie .apropos-regie-avance:focus-visible { opacity: 1; outline: 1px solid #ffffff; outline-offset: 2px; }
+/* les icônes du site : ❚❚ en marche, ▶ en pause */
+.apropos-icone-lire, html:not(.film-en-marche) .apropos-icone-pause { display: none; }
+html:not(.film-en-marche) .apropos-icone-lire { display: block; }
+/* l'avancée : un fil de 2 px d'un bord à l'autre, jaune sur ce qui est passé (--avance, a-propos.ts), cliquable sur
+   14 px de haut ; il s'épaissit et montre son curseur au survol. (Deux classes : la règle des glissières du site,
+   socle.css, l'emporterait.) */
+.apropos-regie .apropos-regie-avance {
+  -webkit-appearance: none; appearance: none; position: absolute; left: 0; bottom: 0; width: 100%; height: 14px; margin: 0;
+  background: linear-gradient(90deg, #fff039 var(--avance, 0%), rgba(255,255,255,0.3) 0) center / 100% 2px no-repeat;
+  cursor: pointer;
+}
+.apropos-regie .apropos-regie-avance:hover { background-size: 100% 4px; }
+.apropos-regie .apropos-regie-avance::-webkit-slider-thumb { -webkit-appearance: none; width: 8px; height: 8px; border: 0; border-radius: 0; background: #fff039; opacity: 0; }
+.apropos-regie .apropos-regie-avance::-moz-range-track { height: 2px; background: transparent; }
+.apropos-regie .apropos-regie-avance::-moz-range-thumb { width: 8px; height: 8px; border: 0; border-radius: 0; background: #fff039; opacity: 0; }
+.apropos-regie .apropos-regie-avance:is(:hover, :focus-visible)::-webkit-slider-thumb { opacity: 1; }
+.apropos-regie .apropos-regie-avance:is(:hover, :focus-visible)::-moz-range-thumb { opacity: 1; }
+
+/* Par-dessus le film qui défile, les pages ne floutent plus l'image : la plaque, plus sombre, suffit (un flou recalculé
+   à chaque image ralentissait le défilement, cf. les portraits des résidents). */
+html.film-ouvert .apropos-panneau {
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  background: repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 3px), rgba(0,0,0,0.86);
+}
+
+/* ---------- LA PAGE S'EFFACE DEVANT LE FILM (a-propos.ts) ----------
+   Le film en marche et la souris immobile 2 s : les pages et le pointeur s'en vont en fondu ; ils reviennent au
+   moindre mouvement. L'en-tête et ses panneaux restent, et la régie aussi. */
+html.film-ouvert :is(.apropos-panneau, .apropos-lancement, .apropos-mentions) { transition: opacity 0.25s ease; }
+html.film-au-repos :is(.apropos-panneau, .apropos-lancement, .apropos-mentions) {
+  opacity: 0; visibility: hidden; transition: opacity 0.6s ease, visibility 0s linear 0.6s;
+}
+html.film-au-repos #page, html.film-au-repos #page * { cursor: none !important; }
+html.film-au-repos #page { scrollbar-color: transparent transparent; }
+@media (prefers-reduced-motion: reduce) {
+  .apropos-film, html.film-ouvert .apropos-film,
+  html.film-ouvert :is(.apropos-panneau, .apropos-lancement, .apropos-mentions),
+  html.film-au-repos :is(.apropos-panneau, .apropos-lancement, .apropos-mentions) { transition: none; }
+}
+
+/* ---------- SUR ÉCRAN PLUS ÉTROIT ----------
+   Des colonnes plus étroites, puis une seule : l'image fixe du film se cale en haut (socle.css), à sa hauteur, avec ▶
+   au milieu ; puis les pages, l'une sous l'autre, dans l'ordre du croquis. */
+@media (max-width: 1100px) {
+  .apropos { grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(260px, 320px); column-gap: calc(2 * var(--ecart)); }
+}
+@media (max-width: 820px) {
+  .apropos { display: flex; flex-direction: column; gap: calc(2 * var(--ecart)); }
+  .apropos-centre { display: grid; place-items: center; place-self: stretch; margin: calc(-1 * var(--haut-apropos)) calc(-1 * var(--cote)) 0; }
+  .apropos-contact { width: auto; margin-top: 0; }
+  .apropos-mentions { margin-top: var(--ecart); }
+}
+@media (max-width: 820px) and (orientation: portrait) {
+  /* à la hauteur de l'image fixe, posée sur toute la largeur sous l'en-tête */
+  .apropos-centre { aspect-ratio: var(--ratio); }
+}

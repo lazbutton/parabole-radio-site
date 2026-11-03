@@ -3,7 +3,8 @@
 // appui ou touche, et on réessaie jusqu'à ce qu'elle joue vraiment. La touche RADIO / VIDÉO de l'en-tête bascule entre
 // la radio et le son des vidéos ; les touches ÉCOUTER (celle de l'accueil, celle de l'en-tête sur les autres rubriques)
 // lancent et arrêtent la radio. Un flux coupé se reconnecte tout seul. L'élément <audio> et ce module vivent dans la
-// coque : la navigation ne les touche jamais.
+// coque : la navigation ne les touche jamais. Le film de la page À propos emprunte le son le temps de passer
+// (preterLeSon) : la radio s'arrête, puis reprend quand il le rend.
 
 const playerEl = document.getElementById("player");
 /** Le flux, donné par l'adaptateur de la station et écrit dans la page au build (TopBar.astro). */
@@ -15,6 +16,12 @@ export interface RadioControl {
   setMeta(d: { title: string; artist?: string } | null): void;
   /** Lu par BEAT : les 20 dernières ms de la grosse caisse, ou null sans analyse. */
   signal(): Float32Array<ArrayBuffer> | null;
+  /**
+   * Un autre son prend l'antenne : le film de la page À propos (a-propos.ts). La radio s'arrête et les vidéos se
+   * taisent ; la fonction rendue rend le son, et ce qui jouait reprend. Une touche ÉCOUTER, RADIO / VIDÉO ou le casque
+   * reprennent la main entre-temps : l'évènement « parabole:son-repris » le dit au film, qui s'arrête.
+   */
+  preterLeSon(): () => void;
 }
 
 export const radioControl: RadioControl | null = (function audioControl() {
@@ -134,6 +141,14 @@ export const radioControl: RadioControl | null = (function audioControl() {
     v!.play().catch(() => {});
     setLabel();
   }
+  // Le son prêté au film de la page À propos : ce qui jouait avant, pour le reprendre quand il le rend. Une touche
+  // du son, pendant ce temps, le reprend : le film l'apprend par un évènement, et s'arrête.
+  let prete: { radio: boolean } | null = null;
+  function reprendreLeSon() {
+    if (!prete) return;
+    prete = null;
+    document.dispatchEvent(new Event("parabole:son-repris"));
+  }
   // Une lecture automatique refusée laisse la radio arrêtée ; tout autre échec passe par la reconnexion ci-dessous.
   function playFailed(err: unknown) {
     if ((err as { name?: string } | null)?.name === "NotAllowedError") {
@@ -221,8 +236,10 @@ export const radioControl: RadioControl | null = (function audioControl() {
       detach();
       return;
     } // respecter le choix du visiteur
+    if (prete) return; // le film a le son
     const target = e.target as Element | null;
-    if (target && target.closest && target.closest("#soundToggle, #playerVolume, #playerMute, [data-ecouter], .window-bar")) return; // déplacer un panneau n'est pas demander du son
+    // déplacer un panneau n'est pas demander du son ; lancer le film, c'est demander le sien
+    if (target && target.closest && target.closest("#soundToggle, #playerVolume, #playerMute, [data-ecouter], .window-bar, [data-film-touche]")) return;
     playRadio().then(detach).catch(playFailed);
   }
   function detach() {
@@ -235,6 +252,7 @@ export const radioControl: RadioControl | null = (function audioControl() {
   if (btn)
     btn.addEventListener("click", () => {
       userChose = true;
+      reprendreLeSon();
       if (mode === "radio") {
         playVideos();
       } else {
@@ -247,6 +265,7 @@ export const radioControl: RadioControl | null = (function audioControl() {
   function toggleRadio() {
     userChose = true;
     detach();
+    reprendreLeSon();
     if (wanted) stopRadio();
     else playRadio().catch(playFailed);
   }
@@ -259,10 +278,12 @@ export const radioControl: RadioControl | null = (function audioControl() {
     try {
       navigator.mediaSession.setActionHandler("play", () => {
         userChose = true;
+        reprendreLeSon();
         playRadio().catch(playFailed);
       });
       navigator.mediaSession.setActionHandler("pause", () => {
         userChose = true;
+        reprendreLeSon();
         stopRadio();
       });
     } catch (e) {}
@@ -290,6 +311,21 @@ export const radioControl: RadioControl | null = (function audioControl() {
       if (!a.kickAnalyser || !a.kick) return null;
       a.kickAnalyser.getFloatTimeDomainData(a.kick);
       return a.kick;
+    },
+    preterLeSon() {
+      // Le visiteur a choisi le son du film : le premier clic ne lancera plus la radio d'office.
+      userChose = true;
+      detach();
+      prete ??= { radio: wanted };
+      if (wanted) stopRadio();
+      v.muted = true;
+      const pret = prete;
+      return () => {
+        if (prete !== pret) return; // repris entre-temps par une touche du son : rien à rendre
+        prete = null;
+        if (pret.radio) playRadio().catch(playFailed);
+        else if (mode === "video") v.muted = false;
+      };
     },
   };
 })();

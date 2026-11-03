@@ -1,0 +1,59 @@
+---
+/**
+ * Les mentions légales (/mentions-legales), obligatoires pour un site publié en France (LCEN) : l'éditeur, la direction
+ * de la publication, l'hébergeur. Une page à part, sur une feuille comme les rubriques à venir, avec un lien discret en
+ * bas de À propos ; son texte s'écrit dans l'admin (À propos, « Mentions légales »). Elle porte le numéro P501, la page
+ * de télétexte qui suit À propos (P500, src/lib/menu.ts). Rendue à la demande, gardée une minute par le cache de Vercel.
+ */
+import type { PageContent } from "@parabole/cms";
+import Interruption from "../components/Interruption.astro";
+import Sheet from "../components/Sheet.astro";
+import Base from "../layouts/Base.astro";
+import { reader } from "../lib/cms";
+import { renderMarkdown } from "../lib/markdown";
+import { STATION_TIMEZONE } from "../scripts/settings";
+
+export const prerender = false;
+
+let page: PageContent | null | undefined;
+try {
+  page = await (await reader()).getPage("mentions-legales");
+} catch (erreur) {
+  console.error("mentions-legales : la base ne répond pas", erreur);
+}
+if (page !== undefined) {
+  Astro.response.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
+  Astro.response.headers.set("Vercel-CDN-Cache-Control", "max-age=60, stale-while-revalidate=600");
+} else {
+  Astro.response.status = 503;
+  Astro.response.headers.set("Cache-Control", "no-store");
+}
+
+const corps = page?.body.trim() ? renderMarkdown(page.body) : "";
+const jour = new Intl.DateTimeFormat("fr-FR", { timeZone: STATION_TIMEZONE, day: "numeric", month: "long", year: "numeric" });
+---
+
+<Base page="about" title="Mentions légales" description="Les mentions légales du site de Parabole Radio : l'éditeur, la direction de la publication, l'hébergeur.">
+  {
+    page === undefined ? (
+      <div class="apropos-panne">
+        <Interruption quoi="Les mentions légales ne peuvent pas s'afficher pour le moment." />
+      </div>
+    ) : (
+      <Sheet title="Mentions légales" meta={page && corps ? `P501 · à jour au ${jour.format(page.updatedAt)}` : "P501"}>
+        <div class="feuille-corps">
+          {corps ? (
+            <Fragment set:html={corps} />
+          ) : (
+            <p class="brouillon">
+              <span class="a-ecrire">À écrire</span> L’éditeur du site, le directeur ou la directrice de la publication, et l’hébergeur.
+            </p>
+          )}
+          <p class="mentions-retour">
+            <a href="/a-propos">◂ À propos</a>
+          </p>
+        </div>
+      </Sheet>
+    )
+  }
+</Base>

@@ -86,7 +86,8 @@ describe("le public (anon)", () => {
     const seen = await visible(PUBLIC, CONTENT);
     const { media: _media, ...rest } = seen;
     expect(rest).toEqual(await expectedPublic());
-    expect(seen).toMatchObject({ show: 8, artist: 7, event: 6, page: 1, track: 15, facet: 5, tag_group: 30, tag_member: 327 });
+    // Les pages : l'exemple publié, et les mentions légales posées par la migration (0015_a_propos_acces.sql).
+    expect(seen).toMatchObject({ show: 8, artist: 7, event: 6, page: 2, track: 15, facet: 5, tag_group: 30, tag_member: 327 });
   });
 
   it("ne voit que les fichiers d'un contenu publié", async () => {
@@ -137,7 +138,7 @@ describe("un compte sans fiche d'équipe", () => {
 describe("un éditeur", () => {
   it("voit tout, brouillons compris", async () => {
     const all = await visible({ role: "authenticated", userId: editorId }, CONTENT);
-    expect(all).toMatchObject({ show: 9, artist: 8, event: 7, page: 2, media: 15, track: 16 });
+    expect(all).toMatchObject({ show: 9, artist: 8, event: 7, page: 3, media: 15, track: 16 });
   });
 
   it("crée, modifie et supprime des contenus", async () => {

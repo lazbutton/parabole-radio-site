@@ -1,0 +1,121 @@
+---
+/**
+ * La page À propos (cms/README.md, 9.10) : ses textes, ses listes et les mentions légales, enregistrés ensemble ; son
+ * film, changé à part, tout de suite. En GET, l'écran (HTML ou JSON) ; en POST, une action de l'écran (AboutScreen),
+ * et une réponse en JSON.
+ *
+ * Le film va directement du navigateur à Vercel Blob (src/lib/admin/blob.ts), comme les vidéos de fond : l'action
+ * « ticket » signe l'envoi d'un fichier, puis « film » ou « poster » vérifie dans le magasin qu'il est bien arrivé
+ * avant de le mettre sur la page. Les fichiers qu'une action rend inutiles (film remplacé ou enlevé, ancienne image
+ * fixe, envoi abandonné) sont effacés du magasin, dans le seul dossier du film.
+ */
+import { readAboutForm, readClipFile, type FilmPlaced } from "@parabole/cms";
+import type { Screen } from "../../components/admin/types";
+import Admin from "../../layouts/Admin.astro";
+import { blobReady, POSTER_TYPE_LIST, removeFiles, uploaded, uploadTicket } from "../../lib/admin/blob";
+import { parisDateTime } from "../../lib/admin/format";
+import { aboutFormFrom } from "../../lib/admin/forms";
+import { aboutSheet, filmView, json, wantsJson } from "../../lib/admin/views";
+
+export const prerender = false;
+
+const admin = Astro.locals.admin!;
+
+if (Astro.request.method === "POST") {
+  const data = await Astro.request.formData();
+  const text = (name: string) => String(data.get(name) ?? "");
+  const version = text("version") || undefined;
+  const refused = (errors: Record<string, string>, status = 422) => json({ ok: false, errors }, status);
+  /** Le film à jour après un changement, les fichiers devenus inutiles effacés. */
+  const placed = async (result: FilmPlaced, message: string) => {
+    await removeFiles(result.previous, "a-propos");
+    const fresh = await admin.about();
+    return json({ ok: true, film: filmView(fresh?.film ?? null), version: result.version, updated: fresh ? parisDateTime(fresh.updatedAt) : null, message });
+  };
+
+  switch (text("intent")) {
+    case "save": {
+      const read = readAboutForm(aboutFormFrom(data));
+      if (Object.keys(read.errors).length) return refused(read.errors);
+      const saved = await admin.saveAbout({ version, values: read.values });
+      if (!saved.ok) return json({ ok: false, errors: saved.errors, version: saved.version }, 422);
+      return json({ ok: true, created: false, sheet: aboutSheet((await admin.about())!) });
+    }
+
+    case "ticket": {
+      if (!blobReady()) return refused({ film: "L'envoi de vidéos n'est pas branché : il manque le magasin Vercel Blob." }, 503);
+      const ticket = await uploadTicket(text("kind") === "poster" ? "poster" : "video", text("type"), Number(text("size")), "a-propos");
+      return "error" in ticket ? refused({ film: ticket.error }) : json({ ok: true, ...ticket });
+    }
+
+    case "film": {
+      const read = readClipFile({
+        videoUrl: text("videoUrl"),
+        posterUrl: text("posterUrl"),
+        mimeType: text("mimeType"),
+        size: text("size"),
+        duration: text("duration"),
+        width: text("width"),
+        height: text("height"),
+      });
+      const sent = [read.values.videoUrl, read.values.posterUrl];
+      let problem = read.errors.video;
+      // Les fichiers doivent être dans le magasin : la taille retenue est la sienne, pas celle qu'annonce le navigateur.
+      const video = problem ? null : await uploaded(read.values.videoUrl, [read.values.mimeType]);
+      const poster = read.values.posterUrl ? await uploaded(read.values.posterUrl, POSTER_TYPE_LIST) : null;
+      if (!problem && (!video || (read.values.posterUrl && !poster))) problem = "Le film envoyé est introuvable sur le stockage. Recommence l'envoi.";
+      if (problem) {
+        await removeFiles(sent, "a-propos");
+        return refused({ film: problem });
+      }
+      const result = await admin.setAboutFilm({ ...read.values, sizeBytes: video!.size }, version);
+      if (!result.ok) {
+        await removeFiles(sent, "a-propos");
+        return refused(result.errors);
+      }
+      return placed(result, "Film mis sur la page");
+    }
+
+    case "poster": {
+      const posterUrl = text("posterUrl");
+      if (!(await uploaded(posterUrl, POSTER_TYPE_LIST))) {
+        await removeFiles([posterUrl], "a-propos");
+        return refused({ film: "L'image envoyée est introuvable sur le stockage. Recommence l'envoi." });
+      }
+      const result = await admin.setAboutPoster(posterUrl, version);
+      if (!result.ok) {
+        await removeFiles([posterUrl], "a-propos");
+        return refused(result.errors);
+      }
+      return placed(result, "Image fixe changée");
+    }
+
+    case "remove-film": {
+      const result = await admin.setAboutFilm(null, version);
+      if (!result.ok) return refused(result.errors);
+      return placed(result, "Film retiré de la page");
+    }
+
+    case "abandon": {
+      // Un envoi interrompu (l'image fixe n'est pas partie…) : ses fichiers, s'ils ne servent pas à la page.
+      const film = (await admin.about())?.film;
+      const used = new Set([film?.videoUrl, film?.posterUrl]);
+      await removeFiles(
+        data
+          .getAll("url")
+          .map(String)
+          .filter((url) => !used.has(url)),
+        "a-propos",
+      );
+      return json({ ok: true });
+    }
+  }
+  return refused({ form: "Action inconnue." }, 400);
+}
+
+const about = await admin.about();
+const screen: Screen = { name: "about", title: "À propos", data: { sheet: about ? aboutSheet(about) : null } };
+if (wantsJson(Astro.request)) return json(screen);
+---
+
+<Admin screen={screen} />

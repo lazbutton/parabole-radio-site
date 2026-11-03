@@ -117,6 +117,7 @@ describe("seed", () => {
     }
   });
 
+  // Sauf ce que posent les migrations : les étiquettes rangées dans les filtres, les mentions légales.
   it("marque tout comme exemple", async () => {
     const { db, close } = await freshDb();
     try {
@@ -125,7 +126,7 @@ describe("seed", () => {
         await db.execute(sql`select 'show ' || slug as what from show where title not like '%(exemple)' or slug not like 'exemple-%'
           union all select 'artist ' || slug from artist where name not like '%(exemple)' or slug not like 'exemple-%'
           union all select 'event ' || slug from event where title not like '%(exemple)' or slug not like 'exemple-%'
-          union all select 'page ' || slug from page where title not like '%(exemple)' or slug not like 'exemple-%'
+          union all select 'page ' || slug from page where slug <> 'mentions-legales' and (title not like '%(exemple)' or slug not like 'exemple-%')
           union all select 'tag ' || slug from tag t where (name not like '%(exemple)' or slug not like 'exemple-%')
             and not exists (select 1 from tag_group g where g.tag_id = t.id) and not exists (select 1 from tag_member m where m.tag_id = t.id)
           union all select 'media ' || key from media where key not like 'exemples/%' or alt not like '%exemple%'`),
