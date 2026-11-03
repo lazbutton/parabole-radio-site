@@ -8,7 +8,7 @@
  * filtres. Chaque action répond par le classement à jour, que le routeur affiche ; changer d'onglet ne recharge rien.
  */
 import { LABELS } from "@parabole/cms/labels";
-import type { FieldErrors } from "@parabole/cms";
+import type { DocumentChanges, FieldErrors, KeptTag } from "@parabole/cms";
 import {
   ArrowDownIcon,
   ArrowLeftIcon,
@@ -17,6 +17,7 @@ import {
   Cross2Icon,
   DotsHorizontalIcon,
   ExclamationTriangleIcon,
+  FileTextIcon,
   InfoCircledIcon,
   MagnifyingGlassIcon,
   MixIcon,
@@ -50,7 +51,7 @@ import { Field, postForm } from "./sheet";
 import { counted, normalize } from "./text";
 import { useNotify } from "./toast";
 import { TokenPicker } from "./TokenPicker";
-import { UNPLACED, type FacetScope, type FacetView, type TagRow, type TagsData, type TagsResponse } from "./types";
+import { UNPLACED, type DocumentResponse, type FacetScope, type FacetView, type TagRow, type TagsData, type TagsResponse } from "./types";
 
 const HREF = "/admin/etiquettes";
 const TITLE = "Étiquettes";
@@ -95,6 +96,7 @@ export function TagsScreen({ facets, tags, current }: TagsData) {
   const [query, setQuery] = useState("");
   const [openTag, setOpenTag] = useState<string | null>(null);
   const [facetForm, setFacetForm] = useState<FacetView | "new" | null>(null);
+  const [importing, setImporting] = useState(false);
   const [confirm, setConfirm] = useState<{ title: string; text: ReactNode; action: string; run(): Promise<unknown> } | null>(null);
 
   const byId = useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags]);
@@ -147,9 +149,14 @@ export function TagsScreen({ facets, tags, current }: TagsData) {
         title={TITLE}
         description={`${counted(placedCount, "étiquette rangée", "étiquettes rangées")} dans ${counted(facets.length, "filtre")}${unplaced.length ? ` · ${unplaced.length} à classer` : ""}`}
         actions={
-          <Button variant="soft" onClick={() => setFacetForm("new")}>
-            <PlusIcon /> Nouveau filtre
-          </Button>
+          <>
+            <Button variant="soft" color="gray" onClick={() => setImporting(true)}>
+              <FileTextIcon /> Importer le document
+            </Button>
+            <Button variant="soft" onClick={() => setFacetForm("new")}>
+              <PlusIcon /> Nouveau filtre
+            </Button>
+          </>
         }
       />
 
@@ -238,6 +245,7 @@ export function TagsScreen({ facets, tags, current }: TagsData) {
       <TagDialog key={openTag ?? ""} tag={openTag ? (byId.get(openTag) ?? null) : null} facets={facets} tags={tags} onClose={() => setOpenTag(null)} {...context} />
       <FacetDialog key={facetForm === "new" ? "new" : (facetForm?.id ?? "none")} facet={facetForm} onClose={() => setFacetForm(null)} act={act} />
       <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />
+      {importing && <DocumentDialog onClose={() => setImporting(false)} act={act} />}
     </div>
   );
 }
@@ -1036,3 +1044,297 @@ function ConfirmDialog({ confirm, onClose }: { confirm: { title: string; text: R
     </AlertDialog.Root>
   );
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Importer le document des filtres
+// ---------------------------------------------------------------------------------------------------------------
+
+const KEEP = "garder";
+const commaList = (names: string[]) => names.join(", ");
+
+/**
+ * Importer le document « Tags et filtres site web » (exporté de Google Docs en Markdown) : le choisir, voir tout ce
+ * qui changera, puis l'appliquer. Rien ne change avant « Appliquer ». Une étiquette que le document ne nomme plus mais
+ * qui est posée sur des contenus est gardée, à classer ; si le document lui donne un nouveau nom (« Detroit techno »
+ * devient « Techno de Détroit »), on peut le lui donner, et elle garde ses contenus.
+ */
+function DocumentDialog({ onClose, act }: { onClose(): void; act: Act }) {
+  const [markdown, setMarkdown] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [changes, setChanges] = useState<DocumentChanges | null>(null);
+  // Ce que dit le premier aperçu, sans renommage : les étiquettes qui sortent en servant, et les noms nouveaux.
+  const [leaving, setLeaving] = useState<KeptTag[]>([]);
+  const [targets, setTargets] = useState<string[]>([]);
+  const [renames, setRenames] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<"preview" | "apply" | null>(null);
+  const [error, setError] = useState("");
+  const picker = useRef<HTMLInputElement>(null);
+
+  const renameList = (chosen: Record<string, string>) => JSON.stringify(Object.entries(chosen).filter(([, to]) => to).map(([id, to]) => ({ id, to })));
+
+  const preview = async (text: string, chosen: Record<string, string>) => {
+    const body = new FormData();
+    body.set("intent", "document-preview");
+    body.set("document", text);
+    body.set("renames", renameList(chosen));
+    const result = await postForm<DocumentResponse>(HREF, body);
+    if (!result.ok) {
+      setError(firstError(result.errors));
+      return null;
+    }
+    setError("");
+    return result.changes;
+  };
+
+  const start = async () => {
+    setBusy("preview");
+    const first = await preview(markdown, {});
+    if (first) {
+      // Le nom proposé pour chaque étiquette qui sort en servant, déjà choisi : il reste à le confirmer.
+      const suggested = Object.fromEntries(first.kept.filter((one) => one.suggestion).map((one) => [one.id, one.suggestion!]));
+      setLeaving(first.kept);
+      setTargets(first.created);
+      setRenames(suggested);
+      setChanges(Object.keys(suggested).length ? ((await preview(markdown, suggested)) ?? first) : first);
+    }
+    setBusy(null);
+  };
+
+  const choose = async (id: string, to: string) => {
+    const next = { ...renames, [id]: to };
+    setRenames(next);
+    setBusy("preview");
+    const again = await preview(markdown, next);
+    if (again) setChanges(again);
+    setBusy(null);
+  };
+
+  const apply = async () => {
+    setBusy("apply");
+    const result = await act({ intent: "document-apply", document: markdown, renames: renameList(renames) });
+    setBusy(null);
+    if (result.ok) onClose();
+    else setError(firstError(result.errors));
+  };
+
+  const readFile = async (file: File | undefined) => {
+    if (!file) return;
+    setFileName(file.name);
+    setMarkdown(await file.text());
+    setChanges(null);
+    setError("");
+  };
+
+  return (
+    <Dialog.Root
+      open
+      onOpenChange={(isOpen) => {
+        if (!isOpen && !busy) onClose();
+      }}
+    >
+      <Dialog.Content maxWidth="720px" className="admin-document-dialog">
+        <Dialog.Title>Importer le document des filtres</Dialog.Title>
+        <Dialog.Description size="2" color="gray">
+          Le document « Tags et filtres site web », téléchargé depuis Google Docs au format Markdown (Fichier › Télécharger › Markdown). Tu verras tout ce qui
+          change avant de l'appliquer.
+        </Dialog.Description>
+
+        {!changes ? (
+          <Flex direction="column" gap="3" mt="4">
+            <input ref={picker} type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden onChange={(event) => void readFile(event.target.files?.[0])} />
+            <div
+              className="admin-drop"
+              data-filled={markdown ? true : undefined}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault();
+                void readFile(event.dataTransfer.files?.[0]);
+              }}
+            >
+              <FileTextIcon width="22" height="22" aria-hidden />
+              <Text size="2" weight="medium">
+                {fileName || (markdown ? "Texte collé" : "Dépose le fichier ici")}
+              </Text>
+              <Button type="button" variant="soft" onClick={() => picker.current?.click()}>
+                {fileName ? "Choisir un autre fichier" : "Choisir le fichier…"}
+              </Button>
+            </div>
+            <Field label="Ou colle son texte" htmlFor="document-text">
+              <TextArea
+                id="document-text"
+                rows={4}
+                value={fileName ? "" : markdown}
+                placeholder="# **TAGS ET FILTRES SITE WEB**…"
+                onChange={(event) => {
+                  setFileName("");
+                  setMarkdown(event.target.value);
+                }}
+              />
+            </Field>
+          </Flex>
+        ) : (
+          <DocumentChangesView changes={changes} leaving={leaving} targets={targets} renames={renames} onRename={(id, to) => void choose(id, to)} disabled={busy !== null} />
+        )}
+
+        {error && (
+          <Callout.Root color="red" size="1" mt="3">
+            <Callout.Icon>
+              <ExclamationTriangleIcon />
+            </Callout.Icon>
+            <Callout.Text>{error}</Callout.Text>
+          </Callout.Root>
+        )}
+
+        <Flex gap="3" mt="5" justify="end" align="center" wrap="wrap">
+          {busy === "preview" && changes && <Spinner size="2" />}
+          {changes ? (
+            <>
+              <Button type="button" variant="soft" color="gray" disabled={busy !== null} onClick={() => setChanges(null)}>
+                Changer de document
+              </Button>
+              <Button type="button" loading={busy === "apply"} disabled={busy !== null || changes.unchanged} onClick={() => void apply()}>
+                Appliquer
+              </Button>
+            </>
+          ) : (
+            <>
+              <Dialog.Close>
+                <Button type="button" variant="soft" color="gray" disabled={busy !== null}>
+                  Annuler
+                </Button>
+              </Dialog.Close>
+              <Button type="button" loading={busy === "preview"} disabled={!markdown.trim()} onClick={() => void start()}>
+                Voir les changements
+              </Button>
+            </>
+          )}
+        </Flex>
+      </Dialog.Content>
+    </Dialog.Root>
+  );
+}
+
+/** Tout ce que changera le document, filtre par filtre, puis les étiquettes créées, renommées, supprimées, gardées. */
+function DocumentChangesView({
+  changes,
+  leaving,
+  targets,
+  renames,
+  onRename,
+  disabled,
+}: {
+  changes: DocumentChanges;
+  leaving: KeptTag[];
+  targets: string[];
+  renames: Record<string, string>;
+  onRename(id: string, to: string): void;
+  disabled: boolean;
+}) {
+  const { described } = changes;
+  return (
+    <Flex direction="column" gap="4" mt="4" className="admin-document-changes">
+      <Text size="2" color="gray">
+        Le document décrit {commaList(described.facets)} : {counted(described.groups, "groupe")}, {counted(described.tags, "étiquette")}.
+      </Text>
+      {changes.unchanged && (
+        <Callout.Root color="green" size="1">
+          <Callout.Icon>
+            <InfoCircledIcon />
+          </Callout.Icon>
+          <Callout.Text>Le classement suit déjà ce document : rien à changer.</Callout.Text>
+        </Callout.Root>
+      )}
+
+      {changes.facets.map((facet) => (
+        <section key={facet.name} className="admin-document-facet">
+          <Heading as="h3" size="3" mb="2">
+            {facet.name}
+            {facet.created && " (nouveau filtre)"}
+          </Heading>
+          {facet.addedGroups.length > 0 && <Change sign="+" label="Groupes ajoutés" names={facet.addedGroups} />}
+          {facet.removedGroups.length > 0 && <Change sign="−" label="Groupes retirés" names={facet.removedGroups} />}
+          {facet.reordered && (
+            <Text as="p" size="2" color="gray">
+              L'ordre des groupes suit le document.
+            </Text>
+          )}
+          {facet.groups.map((group) => (
+            <div key={group.name} className="admin-document-group">
+              <Text size="2" weight="medium">
+                {group.name}
+              </Text>
+              {group.added.length > 0 && <Change sign="+" names={group.added} />}
+              {group.removed.length > 0 && <Change sign="−" names={group.removed} />}
+            </div>
+          ))}
+        </section>
+      ))}
+
+      {leaving.length > 0 && (
+        <section className="admin-document-facet">
+          <Heading as="h3" size="3" mb="1">
+            Plus dans le document, mais posées sur des contenus
+          </Heading>
+          <Text as="p" size="2" color="gray" mb="2">
+            Elles restent sur leurs contenus. Garde-les à classer, ou donne-leur un nom du document : elles le prennent et gardent leurs contenus.
+          </Text>
+          {leaving.map((one) => (
+            <Flex key={one.id} align="center" gap="3" wrap="wrap" className="admin-document-kept">
+              <Text size="2" weight="medium">
+                {one.name}
+              </Text>
+              <Text size="1" color="gray">
+                {[one.shows && counted(one.shows, "show"), one.artists && counted(one.artists, "artiste"), one.events && counted(one.events, "événement")].filter(Boolean).join(", ")}
+              </Text>
+              <Select.Root value={renames[one.id] || KEEP} onValueChange={(value) => onRename(one.id, value === KEEP ? "" : value)} disabled={disabled}>
+                <Select.Trigger variant="soft" aria-label={`Ce que devient « ${one.name} »`} />
+                <Select.Content position="popper" sideOffset={6}>
+                  <Select.Item value={KEEP}>La garder, à classer</Select.Item>
+                  <Select.Separator />
+                  {targets.map((name) => (
+                    <Select.Item key={name} value={name}>
+                      Devient « {name} »
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select.Root>
+            </Flex>
+          ))}
+        </section>
+      )}
+
+      {changes.renamed.length > 0 && <Change sign="→" label={`Renommées (${changes.renamed.length})`} names={changes.renamed.map((one) => `${one.from} → ${one.to}`)} />}
+      {changes.created.length > 0 && <Change sign="+" label={`Créées (${changes.created.length})`} names={changes.created} />}
+      {changes.deleted.length > 0 && <Change sign="−" label={`Supprimées : elles ne servaient à rien (${changes.deleted.length})`} names={changes.deleted} />}
+      {changes.problems.length > 0 && (
+        <Callout.Root color="amber" size="1">
+          <Callout.Icon>
+            <ExclamationTriangleIcon />
+          </Callout.Icon>
+          <Callout.Text>
+            Ce que l'import n'a pas su lire : {changes.problems.join(" ")}
+          </Callout.Text>
+        </Callout.Root>
+      )}
+    </Flex>
+  );
+}
+
+/**
+ * Une ligne de l'aperçu : « + Groupes ajoutés : A · B ». Des points entre les noms, pas des virgules : d'anciens
+ * groupes en portent (« Hip-hop, R'n'B »).
+ */
+function Change({ sign, label, names }: { sign: "+" | "−" | "→"; label?: string; names: string[] }) {
+  return (
+    <Text as="p" size="2" className="admin-document-change" data-sign={sign === "+" ? "add" : sign === "−" ? "remove" : "rename"}>
+      <span className="admin-document-sign" aria-hidden>
+        {sign}
+      </span>
+      <span>
+        {label ? <strong>{label} : </strong> : <span className="admin-sr-only">{sign === "+" ? "Ajoutées : " : "Retirées : "}</span>}
+        {names.join(" · ")}
+      </span>
+    </Text>
+  );
+}
+

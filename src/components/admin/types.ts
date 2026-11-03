@@ -4,7 +4,7 @@
  * (src/components/admin/router.tsx). Les dates arrivent déjà écrites à l'heure de Paris : le serveur et le
  * navigateur affichent le même texte.
  */
-import type {
+import type { DocumentChanges,
   AboutForm,
   AdminChatMessage,
   AdminChatSettings,
@@ -261,6 +261,8 @@ export const UNPLACED = "a-classer";
 export type TagsData = { facets: FacetView[]; tags: TagRow[]; current: string };
 /** La réponse du serveur à une action de l'écran des étiquettes : le classement à jour, ou les erreurs. */
 export type TagsResponse = { ok: true; data: TagsData; message?: string; description?: string } | { ok: false; errors: FieldErrors };
+/** L'aperçu de l'import du document des filtres : ce qui changera, ou les erreurs. */
+export type DocumentResponse = { ok: true; changes: DocumentChanges } | { ok: false; errors: FieldErrors };
 export type { FacetScope };
 /** Une couleur de pseudo de l'antenne libre : l'une des sept du télétexte (red, green…). */
 export type ChatColor = AdminChatMessage["color"];

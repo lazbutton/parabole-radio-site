@@ -4,10 +4,11 @@
  * onglet (Thème, Genre, Géographie, Activité, Catégorie…), ses groupes dans l'ordre et les étiquettes de chacun, plus
  * l'onglet des étiquettes à classer. En GET, l'écran (HTML ou JSON), l'onglet dans l'adresse (?filtre=genre). En POST,
  * une action de l'écran (TagsScreen) : le serveur vérifie la saisie, écrit sous le rôle de la personne connectée, et
- * répond en JSON par le classement à jour, ou les erreurs.
+ * répond en JSON par le classement à jour, ou les erreurs. L'import du document des filtres (cms/src/admin/document.ts)
+ * se fait en deux temps : l'aperçu de ce qui changera (« document-preview »), puis l'application (« document-apply »).
  */
-import { readFacetForm, readTagForm, readTagNames, type Taxonomy } from "@parabole/cms";
-import type { Screen, TagsResponse } from "../../components/admin/types";
+import { readFacetForm, readTagForm, readTagNames, type DocumentRename, type Taxonomy } from "@parabole/cms";
+import type { DocumentResponse, Screen, TagsResponse } from "../../components/admin/types";
 import Admin from "../../layouts/Admin.astro";
 import { json, tagsData, wantsJson } from "../../lib/admin/views";
 
@@ -125,6 +126,31 @@ if (Astro.request.method === "POST") {
       const removed = await admin.deleteFacet(id);
       if (!removed) return refused({ form: "Ce filtre n'existe plus : il a peut-être déjà été supprimé." }, 404);
       return json({ ok: true, data: tagsData(await admin.taxonomy(), null), message: `Filtre « ${removed.name} » supprimé`, description: "Ses étiquettes restent sur leurs contenus." } satisfies TagsResponse);
+    }
+
+    case "document-preview":
+    case "document-apply": {
+      const markdown = text("document");
+      if (!markdown.trim()) return refused({ document: "Choisis le fichier du document, ou colle son texte." });
+      if (markdown.length > 300_000) return refused({ document: "Ce texte est bien trop long pour être le document des filtres." });
+      let renames: DocumentRename[] = [];
+      try {
+        const parsed: unknown = JSON.parse(text("renames") || "[]");
+        if (Array.isArray(parsed)) renames = parsed.filter((one): one is DocumentRename => typeof one?.id === "string" && typeof one?.to === "string").slice(0, 300);
+      } catch {}
+      if (text("intent") === "document-preview") {
+        const changes = await admin.previewDocument(markdown, renames);
+        return changes.ok ? json({ ok: true, changes } satisfies DocumentResponse) : refused(changes.errors);
+      }
+      const applied = await admin.importDocument(markdown, renames);
+      if (!applied.ok) return refused(applied.errors);
+      const parts = [
+        applied.created.length && `${applied.created.length} étiquette${applied.created.length > 1 ? "s" : ""} créée${applied.created.length > 1 ? "s" : ""}`,
+        applied.renamed.length && `${applied.renamed.length} renommée${applied.renamed.length > 1 ? "s" : ""}`,
+        applied.deleted.length && `${applied.deleted.length} supprimée${applied.deleted.length > 1 ? "s" : ""}`,
+        applied.kept.length && `${applied.kept.length} gardée${applied.kept.length > 1 ? "s" : ""} à classer`,
+      ].filter(Boolean);
+      return done(applied.unchanged ? "Rien à changer : le classement suit déjà le document" : "Document appliqué au classement", parts.length ? `${parts.join(", ")}.` : undefined);
     }
   }
   return refused({ form: "Action inconnue." }, 400);

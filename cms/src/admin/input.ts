@@ -376,11 +376,13 @@ export function readArtistForm(input: ArtistForm): { form: ArtistForm; values: A
 const KEPT_WORDS = new Map(
   [
     ...["UK", "USA", "EDM", "IDM", "EBM", "DJ", "MC", "RnB", "R'n'B"],
-    ...["Detroit", "Chicago", "Baltimore", "Jersey", "Balkans", "Rajasthan", "Brésil", "Moyen-Orient", "Amérique", "d'Amérique", "Afrique", "Asie", "Europe", "Sud", "Nord"],
-  ].map((word) => [word.toLocaleLowerCase("fr"), word]),
+    ...["Detroit", "Détroit", "Chicago", "Baltimore", "Jersey", "Balkans", "Rajasthan", "Brésil", "Moyen-Orient", "Amérique", "d'Amérique", "Afrique", "Asie", "Europe", "Sud", "Nord"],
+    // L'accent qu'on oublie sur une capitale (« ELECTRONIQUE », « EVÉNEMENT ») revient en minuscules.
+    ...["électronique", "événement"],
+  ].map((word) => [word.normalize("NFD").replace(/^(\p{L})\p{M}+/u, "$1").normalize("NFC").toLocaleLowerCase("fr"), word]),
 );
 
-/** « AFRO HOUSE » → « Afro house », « K-POP » → « K-pop », « UK FUNKY » → « UK funky ». */
+/** « AFRO HOUSE » → « Afro house », « K-POP » → « K-pop », « UK FUNKY » → « UK funky », « ELECTRONIQUE » → « Électronique ». */
 function fromCapitals(name: string): string {
   const lower = name
     .toLocaleLowerCase("fr")

@@ -9,11 +9,13 @@
  * Un enregistrement rend { ok: true, id… } ou { ok: false, errors } : les erreurs par champ, à montrer à l'écran,
  * qu'elles viennent de la vérification de la saisie ou d'un refus de la base.
  */
+import { TransactionRollbackError } from "drizzle-orm";
 import { asMember, type Tx } from "../access.ts";
 import type { Db } from "../db.ts";
 import { importSlots, importStatus, radiocultLinks, type ImportInput } from "../radiocult/index.ts";
 import type { FacetScope } from "../schema.ts";
 import { getAbout, saveAbout, setAboutFilm, setAboutPoster, type AboutSave } from "./about.ts";
+import { readTagDocument, syncTagDocument, type DocumentChanges, type DocumentRename } from "./document.ts";
 import { artistChoices, deleteArtist, getArtist, listArtists, saveArtist, type AdminArtistFilters, type ArtistSave } from "./artists.ts";
 import {
   addChatTerm,
@@ -144,6 +146,25 @@ export function createAdmin(db: Db, userId: string) {
     moveFacet: (id: string, direction: "up" | "down") => as((tx) => moveFacet(tx, id, direction)),
     /** Supprime un filtre et ses places ; ses étiquettes restent. Rend son nom, ou null. */
     deleteFacet: (id: string) => as((tx) => deleteFacet(tx, id)),
+    /**
+     * Ce que changerait le document des filtres (texte Markdown) : l'import est joué pour de bon, puis la transaction
+     * est annulée. `renames` : des étiquettes d'avant qui prennent un nom du document.
+     */
+    previewDocument: (markdown: string, renames: DocumentRename[] = []) =>
+      saving(async () => {
+        let result: DocumentChanges | NotSaved | undefined;
+        try {
+          await as(async (tx) => {
+            result = await syncTagDocument(tx, readTagDocument(markdown), { renames });
+            tx.rollback();
+          });
+        } catch (error) {
+          if (!(error instanceof TransactionRollbackError)) throw error;
+        }
+        return result!;
+      }),
+    /** Applique le document des filtres au classement. */
+    importDocument: (markdown: string, renames: DocumentRename[] = []) => saving(() => as((tx) => syncTagDocument(tx, readTagDocument(markdown), { renames }))),
     /** Les vidéos de fond, dans l'ordre de la liste, celles mises de côté comprises. */
     listClips: () => as((tx) => listClips(tx)),
     /** Une vidéo de fond, ou null. */
@@ -214,6 +235,8 @@ export type { AdminAntenne, AdminChatAuthor, AdminChatMessage, AdminChatSettings
 export type { AdminClip, ClipAdd, ClipChange, ClipFiles } from "./clips.ts";
 export type { AdminEvent, AdminEventFilters, AdminEventPhoto, AdminEventRow, EventSave, GalleryChanged } from "./events.ts";
 export { UPLOAD_FOLDER, type AdminMedia, type MediaPlace, type MediaSlot, type MediaUpload } from "./media.ts";
+export type { DocumentChanges, DocumentFacet, DocumentRename, FacetChanges, KeptTag, TagDocument } from "./document.ts";
+export { readTagDocument } from "./document.ts";
 export type { AdminFacet, AdminFacetChoice, AdminTagChoice, AdminTagUse, TagFilterMenu, TagFilterOption, TagPlace, TagsAdded, Taxonomy } from "./tags.ts";
 export type { NotSaved, Saved } from "./common.ts";
 export {
