@@ -14,6 +14,7 @@ import type {
   ArtistForm,
   ArtistRole,
   ContentStatus,
+  EventForm,
   FacetScope,
   FieldErrors,
   ShowForm,
@@ -167,6 +168,51 @@ export type ArtistSheet = {
 };
 export type ArtistEditorData = { sheet: ArtistSheet };
 
+export type EventRow = {
+  id: string;
+  title: string;
+  /** Sa catégorie : « Fête, Événement spécial ». */
+  categories: string;
+  artists: string;
+  venue: string;
+  /** « sam. 13 juin » et « 21:00 » ; « 3 → 13 oct. » sur plusieurs jours, sans heure. */
+  day: string;
+  time: string;
+  /** Le groupe de la liste : « Juin 2026 ». */
+  month: string;
+  /** Pas encore fini : le groupe « À venir ». */
+  upcoming: boolean;
+  hasVisual: boolean;
+  photos: number;
+  status: ContentStatus;
+};
+export type EventFilters = { q: string; status: string; period: string; tag: string };
+export type EventsListData = { rows: EventRow[]; total: number; page: number; pages: number; filters: EventFilters; tags: TagFilterMenu };
+
+/** Une photo de la galerie d'un événement, prête à montrer : l'image, et sa légende (vide : aucune). */
+export type GalleryPhoto = { image: MediaView; caption: string };
+/** La réponse du serveur à un changement de la galerie : la galerie à jour, ou les erreurs. */
+export type GalleryResponse = { ok: true; photos: GalleryPhoto[] } | { ok: false; errors: FieldErrors };
+
+/** L'état d'une fiche d'événement : ce que l'écran montre, et ce que le serveur renvoie après chaque enregistrement. */
+export type EventSheet = {
+  id: string | null;
+  status: ContentStatus;
+  version: string;
+  created: string | null;
+  updated: string | null;
+  form: EventForm;
+  visual: MediaView | null;
+  /** La galerie, dans l'ordre de défilement. */
+  photos: GalleryPhoto[];
+  uploads: UploadSettings;
+  artists: Choice[];
+  tags: TagChoice[];
+  /** Le filtre des événements (Catégorie), pour choisir à la souris. */
+  facets: FacetChoice[];
+};
+export type EventEditorData = { sheet: EventSheet };
+
 export type PasswordData = { email: string };
 
 /** Une vidéo de fond, dans l'ordre de la liste. */
@@ -276,6 +322,8 @@ export type Screen =
   | { name: "show"; title: string; data: ShowEditorData }
   | { name: "artists"; title: string; data: ArtistsListData }
   | { name: "artist"; title: string; data: ArtistEditorData }
+  | { name: "events"; title: string; data: EventsListData }
+  | { name: "event"; title: string; data: EventEditorData }
   | { name: "password"; title: string; data: PasswordData }
   | { name: "clips"; title: string; data: ClipsData }
   | { name: "antenne"; title: string; data: AntenneData }
@@ -291,8 +339,9 @@ export type SaveResponse<S> =
   | { ok: true; redirect: string; message?: string }
   | { ok: false; errors: FieldErrors; version?: string };
 
-/** Ce que trouve la recherche de partout (⌘K, /admin/recherche) : quelques shows et quelques artistes. */
+/** Ce que trouve la recherche de partout (⌘K, /admin/recherche) : quelques shows, quelques artistes, quelques événements. */
 export type SearchResults = {
   shows: { id: string; title: string; artists: string; date: string; type: ShowType; status: ContentStatus }[];
   artists: { id: string; name: string; role: ArtistRole; status: ContentStatus; shows: number }[];
+  events: { id: string; title: string; date: string; venue: string; status: ContentStatus }[];
 };

@@ -41,6 +41,8 @@ export const LIMITS = {
   /** Le texte alternatif d'une image : une phrase, pas une légende. */
   alt: 300,
   credit: 120,
+  /** La légende d'une photo de la galerie d'un événement. */
+  caption: 240,
   /** Les lignes de L'ÉQUIPE et des CRÉDITS de la page À propos, et chacun de leurs champs. */
   people: 60,
   person: 120,
@@ -461,6 +463,113 @@ export function readFacetForm(input: FacetForm): { values: FacetValues; errors: 
   const description = longText(input.description);
   if (description.length > LIMITS.description) errors.description = `${LIMITS.description} caractères au plus.`;
   return { values: { name, slug, scope: scope as FacetScope, showTypes, description: description || null }, errors };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Événements
+// ---------------------------------------------------------------------------------------------------------------
+
+/** La fiche d'un événement telle que l'écran l'envoie. */
+export type EventForm = {
+  title: string;
+  slug: string;
+  /** Début et fin à Paris, au format d'un champ datetime-local : « 2026-06-13T19:00 ». La fin est facultative. */
+  startsAt: string;
+  endsAt: string;
+  /** Le lieu (« La Goutte d'Or »), et son adresse, pour le lien vers la carte. */
+  venue: string;
+  address: string;
+  description: string;
+  /** Le lien d'inscription ou de la billetterie. */
+  ticketUrl: string;
+  /** Dans l'ordre d'affichage : un identifiant, ou « nouveau:Nom ». */
+  artists: string[];
+  /** Sa catégorie (Fête, Rencontre/Talk…) : un identifiant d'étiquette, ou « nouveau:Nom ». */
+  tags: string[];
+};
+
+export type EventValues = {
+  title: string;
+  slug: string;
+  slugFromTitle: boolean;
+  startsAt: Date;
+  endsAt: Date | null;
+  venue: string | null;
+  address: string | null;
+  description: string | null;
+  ticketUrl: string | null;
+  artists: ArtistPick[];
+  tags: TagPick[];
+};
+
+export const emptyEventForm = (): EventForm => ({ title: "", slug: "", startsAt: "", endsAt: "", venue: "", address: "", description: "", ticketUrl: "", artists: [], tags: [] });
+
+/**
+ * Vérifie la fiche d'un événement. Il lui faut un titre et un début, même en brouillon ; une fin, s'il y en a une,
+ * après le début. `publish` : la fiche va être publiée, il lui faut une catégorie.
+ */
+export function readEventForm(input: EventForm, { publish = false } = {}): { form: EventForm; values: EventValues; errors: FieldErrors } {
+  const errors: FieldErrors = {};
+  const form: EventForm = { ...input, ticketUrl: withScheme(clean(input.ticketUrl)) };
+
+  const title = clean(form.title);
+  if (!title) errors.title = "Le titre est obligatoire.";
+  else if (title.length > LIMITS.title) errors.title = `${LIMITS.title} caractères au plus.`;
+  const { slug, slugFromTitle } = readSlug(clean(form.slug), title, errors);
+
+  let startsAt: Date | null = null;
+  if (!clean(form.startsAt)) errors.startsAt = "Il faut une date et une heure de début.";
+  else {
+    startsAt = fromParisInput(clean(form.startsAt));
+    if (!startsAt) errors.startsAt = "Cette date n'existe pas.";
+  }
+  let endsAt: Date | null = null;
+  if (clean(form.endsAt)) {
+    endsAt = fromParisInput(clean(form.endsAt));
+    if (!endsAt) errors.endsAt = "Cette date n'existe pas.";
+    else if (startsAt && endsAt < startsAt) errors.endsAt = "La fin vient avant le début.";
+  }
+
+  const venue = clean(form.venue);
+  if (venue.length > LIMITS.name) errors.venue = `${LIMITS.name} caractères au plus.`;
+  const address = clean(form.address);
+  if (address.length > LIMITS.description) errors.address = `${LIMITS.description} caractères au plus.`;
+  const description = longText(form.description);
+  if (description.length > LIMITS.text) errors.description = `${LIMITS.text} caractères au plus.`;
+  const ticketUrl = clean(form.ticketUrl);
+  if (ticketUrl && !isWebAddress(ticketUrl)) errors.ticketUrl = "Une adresse web, qui commence par https://.";
+  else if (ticketUrl.length > LIMITS.url) errors.ticketUrl = `${LIMITS.url} caractères au plus.`;
+
+  const artists = unique(form.artists.map(readArtistPick).filter((pick) => pick !== null));
+  if (artists.length > LIMITS.picks) errors.artists = `${LIMITS.picks} artistes au plus.`;
+  const tags = unique(form.tags.map(readTagPick).filter((pick) => pick !== null));
+  if (tags.length > LIMITS.picks) errors.tags = `${LIMITS.picks} étiquettes au plus.`;
+  for (const pick of tags) if ("name" in pick && !slugify(pick.name)) errors.tags = `« ${pick.name} » : ajoute au moins une lettre ou un chiffre.`;
+  if (publish && !tags.length) errors.tags = "Choisis sa catégorie pour publier.";
+
+  return {
+    form,
+    errors,
+    values: {
+      title,
+      slug,
+      slugFromTitle,
+      startsAt: startsAt as Date,
+      endsAt,
+      venue: venue || null,
+      address: address || null,
+      description: description || null,
+      ticketUrl: ticketUrl || null,
+      artists,
+      tags,
+    },
+  };
+}
+
+/** La légende d'une photo de la galerie : une phrase sous la photo, en plus de son texte alternatif. */
+export function readCaption(text: string): { caption: string | null; errors: FieldErrors } {
+  const caption = clean(text);
+  return caption.length > LIMITS.caption ? { caption: null, errors: { caption: `${LIMITS.caption} caractères au plus.` } } : { caption: caption || null, errors: {} };
 }
 
 // ---------------------------------------------------------------------------------------------------------------

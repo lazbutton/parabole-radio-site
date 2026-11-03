@@ -1,7 +1,7 @@
 /**
- * L'image d'une fiche (cms/README.md, 9.3) : la photo d'un artiste, la pochette d'un show. Vide, une zone où glisser
- * un fichier, ou d'où le choisir ; pleine, l'image avec son texte alternatif et son crédit, et Remplacer, Modifier le
- * texte, Retirer.
+ * L'image d'une fiche (cms/README.md, 9.3) : la photo d'un artiste, la pochette d'un show, le visuel d'un événement.
+ * Vide, une zone où glisser un fichier, ou d'où le choisir ; pleine, l'image avec son texte alternatif et son crédit,
+ * et Remplacer, Modifier le texte, Retirer. L'envoi (sendImage) sert aussi à la galerie d'un événement (GalleryField).
  *
  * Un fichier choisi s'ouvre dans une fenêtre : l'aperçu cadré comme sur le site (en carré, on fait glisser l'image pour
  * choisir ce qui reste), le texte alternatif déjà proposé, le crédit. « Envoyer » dépose l'original directement dans le
@@ -21,41 +21,43 @@ const API = "/admin/api/media";
 const TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
 /** Le type d'un fichier que le système ne nomme pas, d'après son extension. */
 const TYPES_BY_EXTENSION: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", avif: "image/avif" };
-const ACCEPT = [...TYPES, ".jpg", ".jpeg", ".png", ".webp", ".avif"].join(",");
+export const ACCEPT = [...TYPES, ".jpg", ".jpeg", ".png", ".webp", ".avif"].join(",");
 /** En dessous, l'image sera floue en grand (le fond de la page d'un artiste). */
 const SMALL_SIDE = 800;
 /** En dessous, le serveur la refuse (src/lib/admin/storage.ts, MIN_IMAGE_SIDE) : inutile de l'envoyer. */
-const MIN_SIDE = 200;
+export const MIN_SIDE = 200;
 
-export type ImageKind = "photo" | "pochette";
-const WORDS: Record<ImageKind, { the: string; a: string; fresh: string; placed: string; removed: string; kept: string }> = {
-  photo: { the: "la photo", a: "une photo", fresh: "Nouvelle photo", placed: "Photo en place", removed: "Photo retirée", kept: "La photo n'est pas retirée" },
-  pochette: { the: "la pochette", a: "une pochette", fresh: "Nouvelle pochette", placed: "Pochette en place", removed: "Pochette retirée", kept: "La pochette n'est pas retirée" },
+export type ImageKind = "photo" | "pochette" | "visuel";
+const WORDS: Record<ImageKind, { the: string; of: string; a: string; fresh: string; placed: string; removed: string; kept: string }> = {
+  photo: { the: "la photo", of: "de la photo", a: "une photo", fresh: "Nouvelle photo", placed: "Photo en place", removed: "Photo retirée", kept: "La photo n'est pas retirée" },
+  pochette: { the: "la pochette", of: "de la pochette", a: "une pochette", fresh: "Nouvelle pochette", placed: "Pochette en place", removed: "Pochette retirée", kept: "La pochette n'est pas retirée" },
+  visuel: { the: "le visuel", of: "du visuel", a: "un visuel", fresh: "Nouveau visuel", placed: "Visuel en place", removed: "Visuel retiré", kept: "Le visuel n'est pas retiré" },
 };
 
-const fields = (values: Record<string, string>) => {
+export const fields = (values: Record<string, string>) => {
   const data = new FormData();
   for (const [name, value] of Object.entries(values)) data.append(name, value);
   return data;
 };
-const firstError = (errors: FieldErrors) => errors.image ?? errors.form ?? Object.values(errors)[0] ?? "Le serveur a refusé.";
+export const firstError = (errors: FieldErrors) => errors.image ?? errors.form ?? Object.values(errors)[0] ?? "Le serveur a refusé.";
 /** « 4,2 Mo », « 85 Ko » */
-const weight = (bytes: number) =>
+export const weight = (bytes: number) =>
   bytes < 1_000_000 ? `${Math.max(1, Math.round(bytes / 1000))} Ko` : `${(bytes / 1_000_000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} Mo`;
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 
 /** Le type d'une image acceptée, ou null. */
-function typeOf(file: File): string | null {
+export function typeOf(file: File): string | null {
   if (TYPES.includes(file.type)) return file.type;
   if (file.type && file.type !== "application/octet-stream") return null;
   return TYPES_BY_EXTENSION[file.name.split(".").pop()?.toLowerCase() ?? ""] ?? null;
 }
 
 /**
- * Met une image à sa place sur une fiche (photo d'un artiste, pochette d'un show), ou l'en retire (null) : l'adresse
- * de la fiche, et la version qu'en a l'écran. Rend la réponse du serveur : l'image et la fiche à jour, ou les erreurs.
+ * Met une image à sa place sur une fiche (photo d'un artiste, pochette d'un show, visuel d'un événement), ou l'en
+ * retire (null) : l'adresse de la fiche, et la version qu'en a l'écran. Rend la réponse du serveur : l'image et la
+ * fiche à jour, ou les erreurs.
  */
-export function placeImage(sheetUrl: string, intent: "photo" | "cover", image: MediaView | null, version: string) {
+export function placeImage(sheetUrl: string, intent: "photo" | "cover" | "visual", image: MediaView | null, version: string) {
   return postForm<PlaceResponse>(sheetUrl, fields({ intent, media: image?.id ?? "", version }));
 }
 
@@ -64,13 +66,13 @@ export function placeImage(sheetUrl: string, intent: "photo" | "cover", image: M
 // ---------------------------------------------------------------------------------------------------------------
 
 /** Un fichier choisi, avant l'envoi : son aperçu dans le navigateur, et ses dimensions telles qu'il les montre. */
-type Chosen = { file: File; type: string; preview: string; width: number | null; height: number | null };
+export type Chosen = { file: File; type: string; preview: string; width: number | null; height: number | null };
 
 /**
  * L'aperçu d'un fichier et ses dimensions, orientation EXIF comprise, comme le serveur la lira. Par l'événement load,
  * pas par decode() : Chrome remet le décodage à plus tard quand la page n'est pas affichée (un autre onglet devant).
  */
-async function inspect(file: File, type: string): Promise<Chosen> {
+export async function inspect(file: File, type: string): Promise<Chosen> {
   const preview = URL.createObjectURL(file);
   const size = await new Promise<{ width: number; height: number } | null>((resolve) => {
     const image = new Image();
@@ -113,14 +115,36 @@ function putFile(url: string, file: File, onPercent: (percent: number) => void, 
   });
 }
 
-type Step = "envoi" | "preparation" | "placement";
+export type Step = "envoi" | "preparation" | "placement";
 const STEPS: Record<Step, string> = { envoi: "Envoi", preparation: "Préparation des tailles pour le site…", placement: "Mise en place sur la fiche…" };
 
 /** Le texte d'une image, tel que les fenêtres le saisissent. */
-type Described = { alt: string; credit: string; decorative: boolean };
+export type Described = { alt: string; credit: string; decorative: boolean };
 const describedFields = (text: Described) => ({ alt: text.alt, credit: text.credit, decorative: text.decorative ? "on" : "" });
 /** La même règle que le serveur (readMediaText) : un texte alternatif, sauf pour une image décorative. */
-const altMissing = (text: Described) => !text.decorative && !text.alt.trim();
+export const altMissing = (text: Described) => !text.decorative && !text.alt.trim();
+
+/**
+ * Envoie une image choisie : l'adresse signée, le dépôt de l'original, puis la préparation des versions du site par le
+ * serveur. Rend l'image inscrite, qui ne sert encore à rien (la fiche la met ensuite à sa place), ou les erreurs du
+ * serveur avec un message. Un envoi annulé lève une AbortError ; un dépôt refusé, une erreur lisible.
+ */
+export async function sendImage(
+  chosen: Pick<Chosen, "file" | "type">,
+  { shape, focus, text, onProgress, signal }: { shape: "square" | "free"; focus: number; text: Described; onProgress(progress: { step: Step; percent: number }): void; signal: AbortSignal },
+): Promise<{ ok: true; image: MediaView } | { ok: false; errors: FieldErrors; message: string }> {
+  const ticket = await postForm<{ ok: true; path: string; url: string }>(`${API}/upload`, fields({ type: chosen.type, size: String(chosen.file.size) }));
+  if (!ticket.ok) return { ok: false, errors: ticket.errors, message: firstError(ticket.errors) };
+  if (signal.aborted) throw new DOMException("Envoi annulé", "AbortError");
+  await putFile(ticket.url, chosen.file, (percent) => onProgress({ step: "envoi", percent: Math.min(99, percent) }), signal);
+  onProgress({ step: "preparation", percent: 100 });
+  const done = await postForm<{ ok: true; image: MediaView }>(`${API}/finalize`, fields({ path: ticket.path, shape, focus: String(focus), ...describedFields(text) }));
+  if (!done.ok) return { ok: false, errors: done.errors, message: done.errors.alt || done.errors.credit ? "Corrige le texte de l'image." : firstError(done.errors) };
+  return { ok: true, image: done.image };
+}
+
+/** Une image préparée qui n'a pas trouvé sa place ne reste pas dans le Storage. */
+export const abandonImage = (image: MediaView) => postForm(`${API}/abandon`, fields({ id: image.id }));
 
 // ---------------------------------------------------------------------------------------------------------------
 // Le champ
@@ -286,7 +310,7 @@ export function ImageField({ image, kind, shape, suggestion, uploads, blocked, o
             <ImageIcon width="22" height="22" />
           </span>
           <Text size="2" color="gray">
-            {blocked ?? `Pas encore de ${words.the.replace(/^la /, "")}.`}
+            {blocked ?? `Pas encore de ${words.the.replace(/^l[ae] /, "")}.`}
           </Text>
         </div>
       )}
@@ -329,7 +353,7 @@ export function ImageField({ image, kind, shape, suggestion, uploads, blocked, o
       <AlertDialog.Root open={removing} onOpenChange={setRemoving}>
         <AlertDialog.Content maxWidth="440px">
           <AlertDialog.Title>Retirer {words.the} ?</AlertDialog.Title>
-          <AlertDialog.Description size="2">Elle disparaît de la fiche et du site. Son fichier est effacé s'il ne sert nulle part ailleurs.</AlertDialog.Description>
+          <AlertDialog.Description size="2">L'image disparaît de la fiche et du site. Son fichier est effacé s'il ne sert nulle part ailleurs.</AlertDialog.Description>
           <Flex gap="3" mt="5" justify="end" direction={{ initial: "column-reverse", sm: "row" }}>
             <AlertDialog.Cancel>
               <Button variant="soft" color="gray">
@@ -450,20 +474,12 @@ function NewImageDialog({
     setProgress({ step: "envoi", percent: 0 });
     let prepared: MediaView | null = null;
     try {
-      const ticket = await postForm<{ ok: true; path: string; url: string }>(`${API}/upload`, fields({ type: chosen.type, size: String(chosen.file.size) }));
-      if (!ticket.ok) throw new Error(firstError(ticket.errors));
-      if (stopped()) return;
-      await putFile(ticket.url, chosen.file, (percent) => setProgress({ step: "envoi", percent: Math.min(99, percent) }), abort.signal);
-      setProgress({ step: "preparation", percent: 100 });
-      const done = await postForm<{ ok: true; image: MediaView }>(
-        `${API}/finalize`,
-        fields({ path: ticket.path, shape, focus: String(focus), ...describedFields(text) }),
-      );
-      if (!done.ok) {
-        setErrors(done.errors);
-        throw new Error(done.errors.alt || done.errors.credit ? "Corrige le texte de l'image." : firstError(done.errors));
+      const sent = await sendImage(chosen, { shape, focus, text, onProgress: setProgress, signal: abort.signal });
+      if (!sent.ok) {
+        setErrors(sent.errors);
+        throw new Error(sent.message);
       }
-      prepared = done.image;
+      prepared = sent.image;
       if (stopped()) throw new DOMException("Envoi annulé", "AbortError");
       setProgress({ step: "placement", percent: 100 });
       const refused = await onPlace(prepared);
@@ -471,8 +487,7 @@ function NewImageDialog({
       controller.current = null;
       onClose();
     } catch (error) {
-      // Une image préparée qui n'a pas trouvé sa place ne reste pas dans le Storage.
-      if (prepared) void postForm(`${API}/abandon`, fields({ id: prepared.id }));
+      if (prepared) void abandonImage(prepared);
       if (stopped()) return;
       setProgress(null);
       setErrors((current) => ({ ...current, image: error instanceof Error && error.message ? error.message : "Quelque chose s'est mal passé. Réessaie." }));
@@ -537,7 +552,7 @@ function NewImageDialog({
                 {STEPS[progress.step]}
                 {progress.step === "envoi" ? ` · ${Math.round(progress.percent)} %` : ""}
               </Text>
-              <Progress size="1" value={progress.step === "envoi" ? progress.percent : undefined} aria-label={`Envoi de ${words.the}`} />
+              <Progress size="1" value={progress.step === "envoi" ? progress.percent : undefined} aria-label={`Envoi ${words.of}`} />
             </Flex>
           )}
 
@@ -637,7 +652,7 @@ function CropFrame({
 }
 
 /** Le texte alternatif et le crédit d'une image déjà en place, changés partout où elle sert. */
-function DescribeDialog({ image, kind, onClose, onDone }: { image: MediaView; kind: ImageKind; onClose(): void; onDone(image: MediaView): void }) {
+export function DescribeDialog({ image, kind, onClose, onDone }: { image: MediaView; kind: ImageKind; onClose(): void; onDone(image: MediaView): void }) {
   const [text, setText] = useState<Described>({ alt: image.alt, credit: image.credit ?? "", decorative: !image.alt });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [busy, setBusy] = useState(false);
@@ -658,7 +673,7 @@ function DescribeDialog({ image, kind, onClose, onDone }: { image: MediaView; ki
     <Dialog.Root open onOpenChange={(next) => !next && !busy && onClose()}>
       <Dialog.Content maxWidth="480px" aria-describedby={undefined}>
         <form noValidate onSubmit={save}>
-          <Dialog.Title size="4">Texte de {WORDS[kind].the}</Dialog.Title>
+          <Dialog.Title size="4">Texte {WORDS[kind].of}</Dialog.Title>
           <TextFields text={text} onChange={setText} errors={errors} disabled={busy} />
           {errors.image && (
             <Callout.Root color="red" size="1" mt="4" role="alert">

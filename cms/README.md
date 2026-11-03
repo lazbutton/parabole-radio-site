@@ -579,7 +579,7 @@ npm test
 npm run typecheck
 ```
 
-225 tests, sur une base PGlite en mémoire : aucun compte, aucun réseau, une quinzaine de secondes. `npm test` marche aussi depuis la racine du projet. Ils couvrent :
+238 tests, sur une base PGlite en mémoire : aucun compte, aucun réseau, une quinzaine de secondes. `npm test` marche aussi depuis la racine du projet. Ils couvrent :
 
 - **les migrations** : elles passent sur une base vide, et leur relance ne change rien. Chaque table publique a sa RLS et ses règles. Le schéma Drizzle et la base sont d'accord. drizzle-kit n'a plus rien à générer : une migration oubliée fait échouer le test ;
 - **le seed** : il passe, se rejoue sans doublon, se retire sans toucher au reste, et marque bien tout comme exemple ;
@@ -589,6 +589,7 @@ npm run typecheck
 - **les vidéos de fond** : les clips d'origine inscrits par la migration, la liste que lit le site, les règles d'accès, puis l'ajout, le titre, la mise de côté, l'ordre, le remplacement du fichier et la suppression ;
 - **les étiquettes et les filtres** : ce que la migration inscrit (filtres, groupes dans l'ordre du document, étiquettes à deux places, noms en minuscules), la reprise d'une base d'avant (rejouée sur une copie arrêtée à `0006`), la saisie des noms (liste collée en capitales), les menus du site et des listes de l'admin, puis l'ajout, le renommage, les places, l'ordre, la fusion et la suppression des étiquettes et des filtres, et leurs règles d'accès ;
 - **l'admin** : la saisie vérifiée champ par champ, la tracklist collée, les minutages, l'heure de Paris aux changements d'heure ; puis, sous le rôle d'un éditeur, la création d'un show avec un artiste et une étiquette nés à la volée, la publication, la tracklist remplacée, l'enregistrement concurrent, la suppression ; et le refus d'un compte hors de l'équipe.
+- **les événements dans l'admin** : la saisie vérifiée (titre et début obligatoires, fin après le début, adresse d'inscription complétée, catégorie exigée pour publier, légende d'une photo) ; puis, sous le rôle d'un éditeur, la liste dans l'ordre (à venir du plus proche, puis passés du plus récent) avec ses filtres et sa recherche, la création avec un artiste né à la volée, la publication refusée sans catégorie, l'adresse prise, l'enregistrement concurrent, le visuel, la galerie (ajout sans doublon, ordre, légende, retrait, images rendues puis effacées), la suppression qui rend ses images, et le refus d'un compte hors de l'équipe ;
 - **les images** : les seaux que crée la migration (dans l'imitation du Storage de `local-supabase.ts`), le texte alternatif demandé à l'envoi, puis sous le rôle d'un éditeur l'inscription d'une image envoyée, sa place sur une fiche (photo d'un artiste, pochette d'un show) et le jeton de version rendu à l'écran, ce que le site en lit (`srcset` des versions réduites), le retrait des images qui ne servent plus (jamais les exemples), le refus d'un compte hors de l'équipe, et le retrait des exemples arrêté tant qu'une image envoyée est posée sur l'un d'eux ;
 - **l'import Radio Cult** : la traduction des réponses (clé d'un créneau seul ou répété, jour de Paris, artistes, descriptions TipTap en Markdown sans HTML ni liens douteux, réseaux en liens, type du show) ; puis l'import : brouillons créés avec leurs artistes (retrouvés par leur nom, reliés, ou créés), rejoué sans doublon, brouillon qui suit son créneau et reçoit ce qui lui manque, show publié jamais réécrit mais signalé, créneau disparu signalé, occurrence d'une série passée à un autre jour, échec noté, lancement par un membre (et refus d'un compte hors de l'équipe), ce que relit l'accueil, et le lien d'une fiche à un artiste de Radio Cult ;
 - **la page À propos** : sa ligne et les mentions légales posées par la migration, et une seule ligne ; la saisie vérifiée (lignes vides oubliées, réseau nommé d'après son adresse, lien vers une page du site, adresse e-mail devenue lien `mailto:`, chaque erreur à sa place) ; les règles d'accès (le public lit, n'écrit rien ; un compte hors de l'équipe non plus) ; l'enregistrement des textes et des mentions légales (recréées si elles manquent), l'enregistrement concurrent ; le film mis, son image fixe changée, remplacé et enlevé, avec les fichiers devenus inutiles ; les contraintes du film dans la base ;
@@ -643,7 +644,9 @@ Puis l'**import de la programmation Radio Cult** (9.4) : chaque nuit, et à la d
 
 Puis l'écran **À propos** (`/admin/a-propos`, rubrique « Site », 9.10) : la page du site rangée comme elle s'affiche (description, réseaux sociaux, équipe, crédits, contact, candidater), les mentions légales, page à part, et le film qu'on lance depuis la page.
 
-Pas encore : le reste du tableau de bord (prochains événements, textes alternatifs), les événements (leurs étiquettes de catégorie sont prêtes dans la base ; leur visuel et leur galerie attendent leur écran, l'envoi est prêt), les pages, la médiathèque, l'équipe, « Retrouver la piste » SoundCloud, « Trouver les liens Hopper », l'aperçu sur le site et l'invalidation du cache.
+Puis l'écran **Événements** (`/admin/evenements`, rubrique « Contenus », 9.11) : la liste (à venir d'abord, puis les passés par mois) et la fiche, avec sa catégorie choisie à la souris, son visuel, et sa galerie, où l'on envoie plusieurs photos d'un coup, chacune avec sa légende et son texte alternatif, rangées par glisser.
+
+Pas encore : le reste du tableau de bord (prochains événements, textes alternatifs), les pages, la médiathèque, l'équipe, « Retrouver la piste » SoundCloud, « Trouver les liens Hopper », l'aperçu sur le site et l'invalidation du cache.
 
 ### 9.1 Connexion et session
 
@@ -664,7 +667,7 @@ Pas encore : le reste du tableau de bord (prochains événements, textes alterna
 | **Shows** | Filtres statut, type, étiquette, artiste ; recherche ; tri par date | Titre*, slug (tiré du titre, modifiable), type*, statut, date et heure de diffusion (heure de Paris), durée, description (Markdown, écrite dans un petit éditeur visuel), pochette carrée (envoi et recadrage 1:1), artistes (choix multiple ordonné ; un nouvel artiste naît en brouillon), étiquettes filtre par filtre, à la souris (section 9.8 ; une étiquette hors des filtres se tape dans « Autres »), mood de 1 à 5, piste SoundCloud (adresse, puis « Retrouver la piste » : l'API de SoundCloud, `/resolve`, côté serveur, remplit l'identifiant), créneau Radio Cult (lecture seule) |
 | **Tracklist** (dans la fiche du show) | — | Tableau éditable : artiste, titre, minutage (`m:ss` ou `h:mm:ss`), lien Hopper ; réordonner par glisser ; coller une tracklist en texte (« 12:30 Artiste – Titre » par ligne) ; « Trouver les liens Hopper » : `POST https://hppr.fr/api/resolve` pour chaque morceau, avec la clé partenaire. Le lien n'est gardé que si Hopper répond 200 : un lien faux est pire qu'un lien absent. L'enregistrement remplace toute la tracklist dans une transaction |
 | **Artistes** | Index A–Z, filtres résident / invité, statut | Nom*, slug, rôle*, bio (Markdown), photo carrée, liens (libellé + adresse, ordonnés), statut, artiste Radio Cult (choisi dans la liste de la station, ou relié par l'import) ; ses shows |
-| **Événements** | À venir / passés, catégorie, statut | Titre*, slug, catégorie*, statut, début*, fin, lieu, adresse, description, visuel, billetterie, artistes ordonnés ; galerie : envoi de plusieurs photos, ordre par glisser, légende et texte alternatif pour chacune |
+| **Événements** ✓ | À venir (du plus proche) puis passés (par mois) ; filtres période, catégorie, statut ; recherche (titre, lieu, artistes) | Titre*, slug, catégorie (il en faut une pour publier), statut, début*, fin, lieu, adresse, description, visuel (son cadre gardé), inscription (billetterie), artistes ordonnés ; galerie : envoi de plusieurs photos d'un coup, ordre par glisser, légende et texte alternatif pour chacune (9.11) |
 | **Étiquettes** ✓ | Un onglet par filtre (Thème, Genre, Géographie, Activité, Catégorie…) et « À classer » ; les groupes dans l'ordre, leurs étiquettes en pastilles avec leur nombre de contenus ; la recherche dans tous les filtres | Nom, adresse ; ses places (en ajouter, en retirer) ; fusionner avec une autre ; supprimer. Ajouter une étiquette ou une liste collée à un groupe ; ajouter, ordonner, retirer les groupes ; créer, modifier, ordonner, supprimer un filtre (section 9.8) |
 | **Pages** | Titre, statut, date de modification | Titre*, slug*, corps (Markdown avec aperçu), statut. Les mentions légales, elles, s'écrivent déjà dans l'écran À propos |
 | **À propos** ✓ | — | Description, réseaux sociaux, équipe, crédits, contact, candidater (texte, bouton, formulaire), mentions légales : enregistrés ensemble, toujours en ligne. Le film : envoi direct vers Vercel Blob, image fixe choisie dans le film ou envoyée, remplacer, retirer (9.10) |
@@ -679,7 +682,7 @@ Pour chaque contenu : **Enregistrer** (brouillon), **Publier**, **Dépublier**, 
 
 ### 9.3 Envoi des images vers Supabase Storage
 
-Fait (novembre 2026) pour la photo d'un artiste et la pochette d'un show ; le visuel et la galerie d'un événement s'y brancheront avec leur écran.
+Fait (novembre 2026) pour la photo d'un artiste, la pochette d'un show, le visuel d'un événement et sa galerie (9.11). Le visuel et les photos gardent leur cadre (`shape: "free"`) : une affiche en hauteur reste entière.
 
 Les images vont dans le Storage du projet Supabase : pas d'autre compte. Deux seaux, créés avec leurs limites par la migration `0011_seaux.sql` (`npm run db:migrate`) :
 
@@ -823,7 +826,7 @@ Les étiquettes saisies avant la migration restent, avec leurs shows : celle qui
 - Une étiquette rangée seulement dans un filtre d'un autre type (un genre sur un podcast) est signalée, à retirer d'un clic. « Autres » prend une étiquette qui n'est dans aucun filtre : un nom inconnu crée une étiquette à classer.
 - Le mood se règle de 1 à 5 pour un DJ set ou une playlist (un podcast n'en garde pas). La fiche d'un artiste montre ses filtres de la même façon (Activité : Podcast, Playlist, DJ). Les listes des shows et des artistes ont un filtre « Étiquette » (« Activité » pour les artistes) rangé comme les filtres du site ; choisir un groupe garde aussi les contenus de ses étiquettes. Le tableau de bord compte les étiquettes à classer.
 
-**Sur le site**, les pages liront `listFacets()` pour leurs menus (section 7) et `listShows({ tags, energy })`, `listArtists({ tag })`, `listEvents({ tag })` pour leurs listes. Les pages Show, Résidents et Événements ne sont pas encore construites.
+**Sur le site**, les pages liront `listFacets()` pour leurs menus (section 7) et `listShows({ tags, energy })`, `listArtists({ tag })`, `listEvents({ tag })` pour leurs listes. Les pages Résidents et Événements sont construites ; la page Show ne l'est pas encore.
 
 ### 9.9 L'antenne libre (le chat)
 
@@ -855,3 +858,24 @@ La page du site (`/a-propos`), d'après le croquis du 3 novembre 2026, et son é
 3. `intent=film` : le serveur vérifie que les fichiers sont dans le magasin, puis les met sur la page. L'image fixe se change à part (un autre moment du film, ou une image de l'ordinateur : `intent=poster`), le film se retire (`intent=remove-film`). Les fichiers devenus inutiles sont effacés du magasin, et seulement sous `a-propos/`.
 
 Le film ne se charge qu'au clic sur ▶ (`preload="none"`), mais chaque lecture le télécharge sur le trafic de Vercel Blob, compté au mois et partagé avec les vidéos de fond (10 Go en Hobby, 9.7) : un film de 50 Mo vu en entier 200 fois fait 10 Go. D'où le conseil de l'écran : 720p, moins de 50 Mo. Si la page attire du monde, le film ira mieux sur Cloudflare R2 (sortie gratuite), prévu pour les sets.
+
+### 9.11 Les événements
+
+La rubrique du site (`/evenements` et `/evenements/<adresse>`), d'après le croquis du 3 novembre 2026, et son écran dans l'admin (`/admin/evenements`, rubrique « Contenus »). Les tables étaient prêtes depuis le début (section 2), les lectures `listEvents()` et `getEvent()` aussi.
+
+**Sur le site** (`src/pages/evenements/`, `src/styles/evenements.css`, `src/scripts/evenement.ts`, `src/lib/evenements.ts`) :
+
+- **La liste** pose ses affiches sur la vidéo, dans la grille des résidents : ÉVÉNEMENTS À VENIR, du plus proche au plus lointain, puis ÉVÉNEMENTS PASSÉS, du plus récent au plus ancien, par pages de 40 (`?page=2`). Une affiche, c'est un carré (le visuel, sinon la mire), puis le nom, la date et la catégorie. À venir, l'image est en couleurs, avec une pastille quand il approche (« En ce moment », qui clignote, « Aujourd'hui », « Demain ») ; passé, elle est en bichromie, comme les portraits des résidents, et retrouve ses couleurs au survol après un éclair de neige.
+- **La page d'un événement** est de la famille de celle d'un artiste : son visuel prend l'antenne (le mode photo de `background.ts` ; une affiche plus haute que l'écran défile avec la page) ; en bas du premier écran, le nom en lettres creuses, la catégorie et la date ; à droite, l'encart Description, qui commence à hauteur du nom et passe sous le bas de l'écran : le texte, le lieu et son lien vers la carte (Google Maps), les artistes (vers leur page), puis INSCRIPTION, la touche jaune S'INSCRIRE et le site où elle mène, tant que l'événement n'est pas passé. Plus bas, ses photos en rangée ; une photo s'ouvre en grand, et l'on passe à la suivante avec ◂ ▸ ou les flèches du clavier, dans un éclair de neige.
+- La date s'écrit à l'heure de Paris : « sam. 15 nov. · 19:00 » à venir, « 15 nov. 2025 » passé, « Du 3 au 13 octobre 2026 » sur 24 heures ou plus. Sans heure de fin, un événement reste à venir jusqu'à minuit, comme dans le CMS.
+- Les rangées ÉVÉNEMENTS des pages d'artistes et la loupe (P101) mènent à la page de l'événement. Vers elle, la neige tombe dès le départ, comme vers un artiste.
+- Rendue à la demande, gardée une minute par le cache de Vercel. Un événement inconnu ou en brouillon répond « Pas de signal » (404) ; une base injoignable, le carton « Interruption momentanée ».
+
+**Dans l'admin** (`src/components/admin/EventsList.tsx`, `EventEditor.tsx`, `GalleryField.tsx` ; `cms/src/admin/events.ts`) :
+
+- **La liste** : à venir d'abord, puis les passés par mois ; filtres période, catégorie et statut ; recherche par titre, lieu ou artiste ; d'un coup d'œil, le visuel et le nombre de photos. Les événements sont aussi dans la recherche de partout (⌘K).
+- **La fiche** suit celle d'un show : la catégorie se choisit à la souris dans le filtre Catégorie (il en faut une pour publier ; « Autres » prend une étiquette qui n'y est pas, à classer), le début (obligatoire) et la fin, le lieu, l'adresse, les artistes dans l'ordre, le lien d'inscription, la description. Publiée, sa page s'ouvre depuis la barre de la fiche.
+- **Le visuel** s'envoie comme la pochette d'un show, mais garde son cadre : une affiche en hauteur reste entière.
+- **La galerie** change sur place, sans enregistrer la fiche. « Ajouter des photos » en prend plusieurs d'un coup (ou on les glisse) : une fenêtre les montre, chacune avec sa légende et son texte alternatif (« Photo de « … » », à préciser), et un crédit pour toutes ; elles partent l'une après l'autre (`sendImage`, le même envoi que les autres images), puis vont au bout de la galerie (`intent=photos-add`). Une photo se range par sa poignée ou son menu (`photos-order`), change de légende (`photo-caption`) ou de texte, ou se retire (`photo-remove`) : son fichier est effacé du Storage s'il ne sert plus. Supprimer l'événement efface aussi son visuel et ses photos.
+
+Pas encore : le filtre par catégorie sur la page du site, le zapping d'un événement à l'autre, les prochains événements sur l'accueil de l'admin.

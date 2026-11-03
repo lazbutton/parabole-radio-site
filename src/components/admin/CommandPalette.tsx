@@ -10,6 +10,7 @@
 import { LABELS } from "@parabole/cms/labels";
 import {
   BookmarkIcon,
+  CalendarIcon,
   ChatBubbleIcon,
   DashboardIcon,
   DiscIcon,
@@ -47,6 +48,13 @@ type Item = {
   words?: string;
 };
 type Group = { label: string; items: Item[] };
+
+/** L'icône et le mot d'une fiche ouverte récemment. */
+const RECENT_KINDS: Record<Recent["kind"], { icon: ReactNode; hint: string }> = {
+  show: { icon: <DiscIcon />, hint: "Show" },
+  artist: { icon: <PersonIcon />, hint: "Artiste" },
+  event: { icon: <CalendarIcon />, hint: "Événement" },
+};
 
 const CommandContext = createContext<() => void>(() => {});
 
@@ -139,6 +147,7 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange(op
         items: [
           { key: "new-show", label: "Nouveau show", icon: <PlusIcon />, href: "/admin/shows/nouveau", words: "créer ajouter" },
           { key: "new-artist", label: "Nouvel artiste", icon: <PlusIcon />, href: "/admin/artistes/nouveau", words: "créer ajouter résident invité" },
+          { key: "new-event", label: "Nouvel événement", icon: <PlusIcon />, href: "/admin/evenements/nouveau", words: "créer ajouter soirée atelier rencontre expo" },
         ],
       },
       {
@@ -148,6 +157,7 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange(op
           { key: "shows", label: "Shows", icon: <DiscIcon />, href: "/admin/shows", words: "émissions archives" },
           { key: "drafts", label: "Shows en brouillon", icon: <FileTextIcon />, href: "/admin/shows?status=draft", words: "brouillons" },
           { key: "artists", label: "Artistes", icon: <PersonIcon />, href: "/admin/artistes", words: "résidents invités" },
+          { key: "events", label: "Événements", icon: <CalendarIcon />, href: "/admin/evenements", words: "soirées ateliers rencontres expos galerie photos" },
           { key: "tags", label: "Étiquettes et filtres", icon: <BookmarkIcon />, href: "/admin/etiquettes", words: "tags genres géographie thèmes catégories classer" },
           { key: "about", label: "À propos", icon: <InfoCircledIcon />, href: "/admin/a-propos", words: "page équipe crédits contact candidater réseaux film mentions légales" },
           { key: "clips", label: "Vidéos de fond", icon: <VideoIcon />, href: "/admin/videos", words: "clips accueil fond chaînes" },
@@ -178,7 +188,7 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange(op
     if (!typed) {
       const recent: Group = {
         label: "Ouverts récemment",
-        items: recents.map((item) => ({ key: item.href, label: item.title, icon: item.kind === "show" ? <DiscIcon /> : <PersonIcon />, href: item.href, hint: item.kind === "show" ? "Show" : "Artiste" })),
+        items: recents.map((item) => ({ key: item.href, label: item.title, icon: RECENT_KINDS[item.kind].icon, href: item.href, hint: RECENT_KINDS[item.kind].hint })),
       };
       return [recent, ...actions].filter((group) => group.items.length);
     }
@@ -202,12 +212,22 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange(op
       href: `/admin/artistes/${artist.id}`,
       badge: artist.status === "draft" ? <StatusBadge status="draft" /> : undefined,
     }));
+    const eventItems: Item[] = (results?.events ?? []).map((event) => ({
+      key: `event-${event.id}`,
+      label: event.title,
+      hint: [event.date, event.venue].filter(Boolean).join(" · "),
+      icon: <CalendarIcon />,
+      href: `/admin/evenements/${event.id}`,
+      badge: event.status === "draft" ? <StatusBadge status="draft" /> : undefined,
+    }));
     const q = encodeURIComponent(typed);
     if (showItems.length) showItems.push({ key: "all-shows", label: `Tous les shows pour « ${typed} »`, icon: <MagnifyingGlassIcon />, href: `/admin/shows?q=${q}` });
     if (artistItems.length) artistItems.push({ key: "all-artists", label: `Tous les artistes pour « ${typed} »`, icon: <MagnifyingGlassIcon />, href: `/admin/artistes?q=${q}` });
+    if (eventItems.length) eventItems.push({ key: "all-events", label: `Tous les événements pour « ${typed} »`, icon: <MagnifyingGlassIcon />, href: `/admin/evenements?q=${q}` });
     return [
       { label: "Shows", items: showItems },
       { label: "Artistes", items: artistItems },
+      { label: "Événements", items: eventItems },
       { label: "Actions", items: matchingActions.slice(0, 5) },
     ].filter((group) => group.items.length);
   }, [typed, found, recents, actions]);

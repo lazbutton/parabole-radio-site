@@ -1,11 +1,13 @@
 /**
  * Les données des écrans de l'application d'admin, préparées par le serveur (src/components/admin/types.ts) : la
- * personne connectée, une fiche de show ou d'artiste avec ce qu'il faut pour la remplir, et les réponses en JSON. Les
+ * personne connectée, une fiche de show, d'artiste ou d'événement avec ce qu'il faut pour la remplir, et les réponses
+ * en JSON. Les
  * dates partent déjà écrites à l'heure de Paris.
  */
 import {
   DELAY_CHOICES,
   emptyArtistForm,
+  emptyEventForm,
   emptyShowForm,
   formatTimecode,
   mediaUrl,
@@ -17,6 +19,8 @@ import {
   type AdminArtist,
   type AdminChatMessage,
   type AdminClip,
+  type AdminEvent,
+  type AdminEventPhoto,
   type AdminFilm,
   type AdminMedia,
   type AdminShow,
@@ -31,6 +35,8 @@ import {
   type DashboardData,
   type ChatMessageRow,
   type ClipsData,
+  type EventSheet,
+  type GalleryPhoto,
   type FilmView,
   type MediaView,
   type ShowSheet,
@@ -39,7 +45,7 @@ import {
 } from "../../components/admin/types";
 import { mediaBaseUrl } from "../cms";
 import { blobReady, MAX_FILM_BYTES, MAX_VIDEO_BYTES } from "./blob";
-import { aboutFormOf, artistFormOf, showFormOf } from "./forms";
+import { aboutFormOf, artistFormOf, eventFormOf, showFormOf } from "./forms";
 import { inDays, megabytes, parisDateTime, parisDay, parisDayParts, parisLongDay, parisShortDay, parisTime, since } from "./format";
 import { radiocultArtists, radiocultPanel } from "./imports";
 import { MAX_IMAGE_BYTES, storageReady } from "./storage";
@@ -101,6 +107,33 @@ export async function artistSheet(admin: Admin, artist: AdminArtist | null): Pro
     events: artist?.events ?? 0,
     facets: choices.facets,
     tags: choices.tags,
+  };
+}
+
+/** La galerie d'un événement, prête à montrer, dans l'ordre. */
+export const galleryView = (photos: AdminEventPhoto[]): GalleryPhoto[] => photos.map((photo) => ({ image: mediaView(photo.media)!, caption: photo.caption ?? "" }));
+
+/**
+ * Une fiche d'événement à afficher (vide pour un nouvel événement), avec les artistes et les étiquettes à proposer.
+ * Une étiquette de l'événement rangée seulement dans le filtre d'un autre contenu s'y ajoute, pour garder son nom.
+ */
+export async function eventSheet(admin: Admin, event: AdminEvent | null): Promise<EventSheet> {
+  const choices = await admin.eventChoices();
+  const known = new Set(choices.tags.map((tag) => tag.id));
+  const others = (event?.tags ?? []).filter((tag) => !known.has(tag.id)).map((tag) => ({ ...tag, places: [] }));
+  return {
+    id: event?.id ?? null,
+    status: event?.status ?? "draft",
+    version: event?.version ?? "",
+    created: event ? parisDateTime(event.createdAt) : null,
+    updated: event ? parisDateTime(event.updatedAt) : null,
+    form: event ? eventFormOf(event) : emptyEventForm(),
+    visual: mediaView(event?.visual ?? null),
+    photos: galleryView(event?.photos ?? []),
+    uploads: uploads(),
+    artists: choices.artists,
+    tags: [...choices.tags, ...others],
+    facets: choices.facets,
   };
 }
 

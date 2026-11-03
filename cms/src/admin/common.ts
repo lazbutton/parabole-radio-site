@@ -5,7 +5,7 @@
 import { and, eq, like, ne, or, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import type { Tx } from "../access.ts";
-import { artist, show } from "../schema.ts";
+import { artist, event, show } from "../schema.ts";
 import type { FieldErrors } from "./input.ts";
 
 /**
@@ -14,8 +14,8 @@ import type { FieldErrors } from "./input.ts";
  */
 export const versionOf = (updatedAt: AnyPgColumn) => sql<string>`((extract(epoch from ${updatedAt}) * 1000000)::bigint)::text`;
 
-/** Une adresse libre pour ce show ou cet artiste : `base`, sinon `base-2`, `base-3`… */
-export async function freeSlug(tx: Tx, table: typeof show | typeof artist, base: string, exceptId?: string): Promise<string> {
+/** Une adresse libre pour ce show, cet artiste ou cet événement : `base`, sinon `base-2`, `base-3`… */
+export async function freeSlug(tx: Tx, table: typeof show | typeof artist | typeof event, base: string, exceptId?: string): Promise<string> {
   const rows = await tx
     .select({ slug: table.slug })
     .from(table)

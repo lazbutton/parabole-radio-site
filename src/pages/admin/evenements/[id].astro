@@ -1,0 +1,88 @@
+---
+/**
+ * La fiche d'un événement : la créer (/admin/evenements/nouveau) ou la modifier (cms/README.md, 9.2). Même contrat que
+ * la fiche d'un show : l'écran en GET (HTML ou JSON), la fiche envoyée par l'écran (EventEditor) en POST, et une
+ * réponse en JSON. Le visuel se change à part (« visual »), comme la pochette d'un show ; la galerie aussi, photo par
+ * photo, sans enregistrer la fiche : ajouter des images déjà envoyées (« photos-add »), les ranger (« photos-order »),
+ * changer une légende (« photo-caption »), en retirer une (« photo-remove »). Une image qui ne sert plus est effacée
+ * du Storage.
+ */
+import { readCaption, readEventForm, type AdminEvent } from "@parabole/cms";
+import type { GalleryResponse, PlaceResponse, Screen } from "../../../components/admin/types";
+import Admin from "../../../layouts/Admin.astro";
+import { parisDateTime } from "../../../lib/admin/format";
+import { eventFormFrom, intentOf } from "../../../lib/admin/forms";
+import { seeOther } from "../../../lib/admin/paths";
+import { removeImages } from "../../../lib/admin/storage";
+import { eventSheet, galleryView, json, mediaView, wantsJson } from "../../../lib/admin/views";
+
+export const prerender = false;
+
+const admin = Astro.locals.admin!;
+const isNew = Astro.params.id === "nouveau";
+const event: AdminEvent | null = isNew ? null : await admin.getEvent(Astro.params.id ?? "");
+const posted = Astro.request.method === "POST";
+if (!isNew && !event) return posted ? json({ ok: false, errors: { form: "Cet événement n'existe plus : il a peut-être été supprimé." } }, 404) : seeOther("/admin/evenements");
+
+if (posted) {
+  const data = await Astro.request.formData();
+  const action = String(data.get("intent") ?? "");
+  const ids = data.getAll("media").map(String);
+  if (action === "visual") {
+    if (!event) return json({ ok: false, errors: { form: "Enregistre d'abord la fiche, puis ajoute son visuel." } }, 400);
+    const placed = await admin.placeMedia("visual", { id: event.id, mediaId: ids[0] || null, version: String(data.get("version") ?? "") });
+    if (!placed.ok) return json(placed, 422);
+    await removeImages(await admin.releaseMedia([placed.previous]));
+    const fresh = await admin.getEvent(event.id);
+    return json({ ok: true, image: mediaView(fresh?.visual ?? null), version: placed.version, updated: fresh ? parisDateTime(fresh.updatedAt) : null } satisfies PlaceResponse);
+  }
+  if (action.startsWith("photo")) {
+    if (!event) return json({ ok: false, errors: { form: "Enregistre d'abord la fiche, puis ajoute ses photos." } }, 400);
+    const captions = data.getAll("caption").map((text) => readCaption(String(text)));
+    const refused = captions.find((read) => Object.keys(read.errors).length);
+    if (refused) return json({ ok: false, errors: refused.errors } satisfies GalleryResponse, 422);
+    const changed =
+      action === "photos-add"
+        ? await admin.addEventPhotos(
+            event.id,
+            ids.map((mediaId, index) => ({ mediaId, caption: captions[index]?.caption ?? null })),
+          )
+        : action === "photos-order"
+          ? await admin.orderEventPhotos(event.id, ids)
+          : action === "photo-caption"
+            ? await admin.captionEventPhoto(event.id, ids[0] ?? "", captions[0]?.caption ?? null)
+            : action === "photo-remove"
+              ? await admin.removeEventPhoto(event.id, ids[0] ?? "")
+              : null;
+    if (!changed) return json({ ok: false, errors: { form: "Action inconnue." } } satisfies GalleryResponse, 404);
+    if (!changed.ok) {
+      // des images envoyées qui n'ont pas trouvé leur place ne restent pas dans le Storage
+      if (action === "photos-add") await removeImages(await admin.releaseMedia(ids));
+      return json({ ok: false, errors: changed.errors } satisfies GalleryResponse, 422);
+    }
+    await removeImages(await admin.releaseMedia(changed.released));
+    return json({ ok: true, photos: galleryView(changed.photos) } satisfies GalleryResponse);
+  }
+  const intent = intentOf(data);
+  if (intent === "delete") {
+    if (!event) return json({ ok: false, errors: { form: "Cet événement n'est pas encore créé." } }, 400);
+    const removed = await admin.deleteEvent(event.id);
+    await removeImages(await admin.releaseMedia(removed?.mediaIds ?? []));
+    return json({ ok: true, redirect: "/admin/evenements", message: `« ${removed?.title ?? event.title} » supprimé` });
+  }
+  // Publier, ou enregistrer un événement déjà publié : il lui faut une catégorie.
+  const publishing = intent === "publish" || (intent === "save" && event?.status === "published");
+  const read = readEventForm(eventFormFrom(data), { publish: publishing });
+  if (Object.keys(read.errors).length) return json({ ok: false, errors: read.errors }, 422);
+  const status = intent === "publish" ? "published" : intent === "unpublish" ? "draft" : undefined;
+  const version = String(data.get("version") ?? "");
+  const result = await admin.saveEvent({ id: event?.id, version: event ? version : undefined, values: read.values, status });
+  if (!result.ok) return json({ ok: false, errors: result.errors, version: result.version }, 422);
+  return json({ ok: true, created: isNew, newArtists: result.newArtists.length, sheet: await eventSheet(admin, await admin.getEvent(result.id)) });
+}
+
+const screen: Screen = { name: "event", title: event?.title ?? "Nouvel événement", data: { sheet: await eventSheet(admin, event) } };
+if (wantsJson(Astro.request)) return json(screen);
+---
+
+<Admin screen={screen} />

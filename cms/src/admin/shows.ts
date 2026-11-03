@@ -218,8 +218,11 @@ export async function showChoices(tx: Tx): Promise<{ artists: AdminShowArtist[];
 /** Le même nom, sans les accents ni les majuscules : « eloise vachon » retrouve « Éloïse Vachon ». */
 export const sameName =(column: typeof artist.name | typeof tag.name, name: string) => sql`private.immutable_unaccent(lower(${column})) = private.immutable_unaccent(lower(${name}))`;
 
-/** Les artistes choisis, dans l'ordre : un nom nouveau retrouve l'artiste du même nom, ou en crée un, en brouillon. */
-async function resolveArtists(tx: Tx, picks: ArtistPick[]): Promise<{ ids: string[]; created: string[] }> {
+/**
+ * Les artistes choisis, dans l'ordre : un nom nouveau retrouve l'artiste du même nom, ou en crée un, en brouillon. Sert
+ * aussi aux événements (src/admin/events.ts).
+ */
+export async function resolveArtists(tx: Tx, picks: ArtistPick[]): Promise<{ ids: string[]; created: string[] }> {
   const chosen = picks.flatMap((pick) => ("id" in pick ? [pick.id] : []));
   const existing = new Set(chosen.length ? (await tx.select({ id: artist.id }).from(artist).where(inArray(artist.id, chosen))).map((row) => row.id) : []);
   const ids: string[] = [];
@@ -243,7 +246,7 @@ async function resolveArtists(tx: Tx, picks: ArtistPick[]): Promise<{ ids: strin
 }
 
 /** Les étiquettes choisies : une étiquette nouvelle retrouve celle du même nom ou de la même adresse, ou naît, sans place. */
-async function resolveTags(tx: Tx, picks: TagPick[]): Promise<{ ids: string[]; created: string[] }> {
+export async function resolveTags(tx: Tx, picks: TagPick[]): Promise<{ ids: string[]; created: string[] }> {
   const chosen = picks.flatMap((pick) => ("id" in pick ? [pick.id] : []));
   const existing = new Set(chosen.length ? (await tx.select({ id: tag.id }).from(tag).where(inArray(tag.id, chosen))).map((row) => row.id) : []);
   const ids: string[] = [];

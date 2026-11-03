@@ -1,10 +1,11 @@
 // ---------- LA LOUPE : chercher dans tout le site, réponse en page de télétexte ----------
 // Le champ de l'en-tête (TopBar.astro) interroge /api/recherche dès deux lettres, 150 ms après la dernière frappe, une
 // requête à la fois (la précédente est abandonnée). La réponse s'affiche dans la page P101, sous la ligne ON AIR : les
-// artistes, qui mènent à leur page, puis les émissions et les événements, sans lien tant que leurs rubriques n'existent
-// pas. Pendant la recherche, le numéro de la page défile, comme un décodeur qui cherche sa page. Au clavier : « / » met le
-// curseur dans la loupe depuis n'importe où, ↓ passe aux résultats et ↑ ↓ y circulent, Entrée ouvre le premier artiste,
-// Échap ferme la page puis vide le champ. Sur téléphone, la touche loupe ouvre le champ sur toute la ligne.
+// artistes, qui mènent à leur page, puis les émissions, sans lien tant que leur rubrique n'existe pas, et les
+// événements, qui mènent à leur page. Pendant la recherche, le numéro de la page défile, comme un décodeur qui cherche
+// sa page. Au clavier : « / » met le curseur dans la loupe depuis n'importe où, ↓ passe aux résultats et ↑ ↓ y
+// circulent, Entrée ouvre le premier artiste (sinon le premier événement), Échap ferme la page puis vide le champ. Sur
+// téléphone, la touche loupe ouvre le champ sur toute la ligne.
 import type { ResultatsRecherche } from "../lib/recherche";
 import { STATION_TIMEZONE } from "./settings";
 import { mettreALHeure } from "./teletexte";
@@ -57,7 +58,8 @@ if (tete && form && champ && page && resultats && numero && titre && annonce) {
     }
     if (r.events.length) {
       lignes.push(`<p class="loupe-groupe">Événements</p>`);
-      for (const e of r.events) lignes.push(`<p class="loupe-ligne">${ligne(e.title, [dateDe(e.startsAt), e.venue ?? ""])}</p>`);
+      for (const e of r.events)
+        lignes.push(`<a class="loupe-ligne" href="/evenements/${encodeURIComponent(e.slug)}">${ligne(e.title, [dateDe(e.startsAt), e.venue ?? ""])}</a>`);
     }
     if (!lignes.length) lignes.push(`<p class="loupe-message">Aucune page ne répond à « ${escapeHtml(r.query)} ».</p>`);
     resultats!.innerHTML = lignes.join("");

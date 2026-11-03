@@ -14,6 +14,6 @@ export type ResultatsRecherche = {
   moreArtists: boolean;
   /** Les cinq premières émissions : le titre, le type (DJ set, Playlist, Podcast) et la diffusion (ISO 8601). */
   shows: { title: string; type: string; broadcastAt: string }[];
-  /** Les cinq premiers événements : le titre, le début (ISO 8601) et le lieu. */
-  events: { title: string; startsAt: string; venue: string | null }[];
+  /** Les cinq premiers événements : l'adresse de la page, le titre, le début (ISO 8601) et le lieu. */
+  events: { slug: string; title: string; startsAt: string; venue: string | null }[];
 };

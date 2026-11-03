@@ -67,8 +67,9 @@ document.getElementById("logoSquare")?.addEventListener("click", (e) => {
 // Les rubriques défilent dans <main id="page">, pas dans la fenêtre : le ClientRouter ne sait pas y retrouver sa place.
 // Avant de quitter une page, on garde sa position (par adresse, le temps de l'onglet) ; au retour arrière ou avant, on
 // la rend. On garde aussi l'adresse de la page qu'on quitte : la page d'un artiste en déduit si « ◂ RÉSIDENTS » peut
-// simplement revenir en arrière (src/scripts/artiste.ts). Vers la page d'un artiste, la neige tombe dès le départ :
-// background.ts la retire quand sa photo est là.
+// simplement revenir en arrière (src/scripts/artiste.ts), celle d'un événement si « ◂ ÉVÉNEMENTS » le peut
+// (evenement.ts). Vers la page d'un artiste ou d'un événement, la neige tombe dès le départ : background.ts la retire
+// quand sa photo est là.
 const POSITIONS = "parabole_defilement";
 export const PAGE_AVANT = "parabole_page_avant";
 const lire = (): Record<string, number> => {
@@ -93,7 +94,7 @@ document.addEventListener("astro:before-preparation", (event) => {
   }
   retour = e.navigationType === "traverse";
   const calme = !!window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!calme && /^\/residents\/[^/]+\/?$/.test(e.to.pathname)) neige.allumer();
+  if (!calme && /^\/(residents|evenements)\/[^/]+\/?$/.test(e.to.pathname)) neige.allumer();
 });
 document.addEventListener("astro:page-load", () => {
   if (!retour) return;

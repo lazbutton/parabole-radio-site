@@ -4,10 +4,10 @@
 // flèches ← → du clavier zappent vers l'artiste d'avant ou d'après, comme les touches du haut, dont les photos sont
 // chargées d'avance ; et « ◂ RÉSIDENTS » revient en arrière quand on arrive de la liste, pour la retrouver au même
 // endroit, filtres compris (router.ts). Branché sur astro:page-load : à chaque arrivée sur une page d'artiste.
+import { brancherLesRangees } from "./rangees";
 import { PAGE_AVANT } from "./router";
 import { STATION_TIMEZONE } from "./settings";
 
-const calme = () => !!window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const jourDe = new Intl.DateTimeFormat("fr-CA", { timeZone: STATION_TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit" });
 const heureDe = new Intl.DateTimeFormat("fr-FR", { timeZone: STATION_TIMEZONE, hour: "2-digit", minute: "2-digit" });
 const dateDe = new Intl.DateTimeFormat("fr-FR", { timeZone: STATION_TIMEZONE, weekday: "short", day: "numeric", month: "short" });
@@ -57,27 +57,8 @@ document.addEventListener("astro:page-load", () => {
   annoncer();
   if (prochaines.length) horloge = setInterval(annoncer, 30_000);
 
-  // Les rangées : ◂ ▸ font défiler d'une largeur, et s'éteignent au bout ; sans débordement, elles disparaissent
-  for (const rangee of racine.querySelectorAll<HTMLElement>(".rangee")) {
-    const liste = rangee.querySelector<HTMLElement>(".rangee-liste");
-    const fleches = [...rangee.querySelectorAll<HTMLButtonElement>(".rangee-fleche")];
-    if (!liste) continue;
-    const suivre = () => {
-      const deborde = liste.scrollWidth > liste.clientWidth + 2;
-      rangee.toggleAttribute("data-deborde", deborde);
-      for (const fleche of fleches) {
-        const sens = Number(fleche.dataset.sens);
-        fleche.disabled = !deborde || (sens < 0 ? liste.scrollLeft <= 2 : liste.scrollLeft + liste.clientWidth >= liste.scrollWidth - 2);
-      }
-    };
-    for (const fleche of fleches)
-      fleche.addEventListener("click", () => {
-        liste.scrollBy({ left: Number(fleche.dataset.sens) * liste.clientWidth * 0.85, behavior: calme() ? "auto" : "smooth" });
-      });
-    liste.addEventListener("scroll", suivre, { passive: true });
-    if ("ResizeObserver" in window) new ResizeObserver(suivre).observe(liste);
-    suivre();
-  }
+  // Les rangées : ◂ ▸ font défiler d'une largeur (rangees.ts)
+  brancherLesRangees(racine);
 
   // Les photos des deux voisins, chargées d'avance : le zapping n'attend pas
   const charger = () => {

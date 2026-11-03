@@ -14,6 +14,8 @@ import { ArtistsList } from "./ArtistsList";
 import { ClipsScreen } from "./ClipsScreen";
 import { CommandProvider } from "./CommandPalette";
 import { Dashboard } from "./Dashboard";
+import { EventEditor } from "./EventEditor";
+import { EventsList } from "./EventsList";
 import { PasswordScreen } from "./PasswordScreen";
 import { RouterProvider, useRouter } from "./router";
 import { ShowEditor } from "./ShowEditor";
@@ -65,6 +67,10 @@ function CurrentScreen({ viewer }: { viewer: Viewer }) {
       return <ArtistsList {...screen.data} />;
     case "artist":
       return <ArtistEditor key={visit} {...screen.data} />;
+    case "events":
+      return <EventsList {...screen.data} />;
+    case "event":
+      return <EventEditor key={visit} {...screen.data} />;
     case "password":
       return <PasswordScreen key={visit} viewer={viewer} {...screen.data} />;
     case "clips":
