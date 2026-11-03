@@ -1,32 +1,20 @@
 /**
- * Radio Cult, où tourne Parabole en attendant BUTTON. Son API (https://www.radiocult.fm/docs/api) se lit avec une clé
- * publishable (PUBLIC_RADIOCULT_KEY, astro.config.mjs), qui n'ouvre que la lecture. Sans clé, seuls le direct, la
- * programmation et l'historique répondent : le site marche comme avant, sans le temps réel, ni les artistes des
- * créneaux, ni les passages des résidents. La programmation et l'historique ne s'ouvrent qu'à son propre site dans un
- * navigateur (CORS) : c'est notre serveur qui les lit. Le direct en temps réel, lui, arrive dans la page (subscribe).
+ * Radio Cult, où tourne Parabole en attendant BUTTON. Son API (https://www.radiocult.fm/docs/api, lue par
+ * ../radiocult.ts) se lit avec une clé publishable (PUBLIC_RADIOCULT_KEY, astro.config.mjs), qui n'ouvre que la
+ * lecture. Sans clé, seuls le direct, la programmation et l'historique répondent : le site marche comme avant, sans le
+ * temps réel, ni les artistes des créneaux, ni les passages des résidents. La programmation et l'historique ne
+ * s'ouvrent qu'à son propre site dans un navigateur (CORS) : c'est notre serveur qui les lit. Le direct en temps réel,
+ * lui, arrive dans la page (subscribe).
  *
  * Chaque réponse est traduite dans le format Radiocompas (types.ts), le seul que la page connaisse.
  */
-import { PUBLIC_RADIOCULT_KEY } from "astro:env/client";
+import { KEY, ORIGIN, radiocult as get, STATION } from "../radiocult";
 import type { History, NowPlaying, Schedule, ScheduleItem, Track } from "./types";
-
-const STATION = "parabole-radio-b02d5385";
-const ORIGIN = "https://api.radiocult.fm";
-const API = `${ORIGIN}/api/station/${STATION}`;
-const KEY = PUBLIC_RADIOCULT_KEY || "";
 
 /** Le flux de la station (Icecast, MP3 160 kb/s), que le lecteur lit directement. */
 export const stream = `https://${STATION}.radiocult.fm/stream`;
 /** Le fuseau de la station : les panneaux donnent les heures de Paris. */
 export const timezone = "Europe/Paris";
-
-async function get(path: string): Promise<any> {
-  const headers: Record<string, string> = { Accept: "application/json" };
-  if (KEY) headers["x-api-key"] = KEY;
-  const answer = await fetch(API + path, { headers, signal: AbortSignal.timeout(8000) });
-  if (!answer.ok) throw new Error(`Radio Cult ${path} : HTTP ${answer.status}`);
-  return answer.json();
-}
 
 // Les tags de Radio Cult finissent parfois par une espace.
 const tagText = (s: unknown) => String(s ?? "").trim();

@@ -1,6 +1,7 @@
 /**
  * L'accueil : de quoi savoir quoi faire en arrivant. Les prochaines diffusions, ce qui reste à compléter (chaque
- * ligne mène à la liste filtrée, avec le même nombre), les brouillons à reprendre, et les chiffres des rubriques.
+ * ligne mène à la liste filtrée, avec le même nombre), les brouillons à reprendre, les chiffres des rubriques, et
+ * l'import de la programmation Radio Cult : son dernier passage, ce qu'il reste à relire, et « Importer maintenant ».
  */
 import { LABELS } from "@parabole/cms/labels";
 import {
@@ -8,6 +9,8 @@ import {
   BookmarkIcon,
   CheckCircledIcon,
   DiscIcon,
+  DownloadIcon,
+  ExclamationTriangleIcon,
   FileTextIcon,
   ImageIcon,
   InfoCircledIcon,
@@ -16,16 +19,20 @@ import {
   PersonIcon,
   PlusIcon,
   SpeakerLoudIcon,
+  UpdateIcon,
 } from "@radix-ui/react-icons";
-import { Badge, Button, Card, Flex, Heading, Kbd, Text } from "@radix-ui/themes";
-import type { ReactNode } from "react";
+import { Badge, Button, Callout, Card, Flex, Heading, Kbd, Text } from "@radix-ui/themes";
+import { useState, type ReactNode } from "react";
 import { PageHeader } from "./AdminShell";
 import { useCommand } from "./CommandPalette";
 import { StatusBadge, useModKey } from "./marks";
+import { useRouter } from "./router";
+import { postForm } from "./sheet";
 import { counted } from "./text";
-import type { DashboardData, Viewer } from "./types";
+import { useNotify } from "./toast";
+import type { DashboardData, ImportLine, ImportResponse, RadioCultPanel, Viewer } from "./types";
 
-export function Dashboard({ viewer, today, stats, upcoming, missing, drafts }: DashboardData & { viewer: Viewer }) {
+export function Dashboard({ viewer, today, stats, upcoming, missing, drafts, radiocult }: DashboardData & { viewer: Viewer }) {
   const firstName = viewer.name.split(" ")[0];
   const openCommand = useCommand();
   const mod = useModKey();
@@ -90,7 +97,7 @@ export function Dashboard({ viewer, today, stats, upcoming, missing, drafts }: D
                 ))}
               </ul>
             ) : (
-              <Empty icon={<DiscIcon />}>Aucun show daté à venir. Les créneaux de Radio Cult arriveront ici quand l'import sera branché.</Empty>
+              <Empty icon={<DiscIcon />}>Aucun show daté à venir. Les créneaux de Radio Cult arrivent ici chaque nuit, ou avec « Importer maintenant ».</Empty>
             )}
           </Panel>
 
@@ -123,6 +130,8 @@ export function Dashboard({ viewer, today, stats, upcoming, missing, drafts }: D
         </Flex>
 
         <Flex direction="column" gap="5" minWidth="0">
+          <RadioCult panel={radiocult} />
+
           <Panel title="À compléter">
             {todo.length ? (
               <ul className="admin-rows">
@@ -167,6 +176,146 @@ export function Dashboard({ viewer, today, stats, upcoming, missing, drafts }: D
         </Flex>
       </div>
     </div>
+  );
+}
+
+/** Les lignes montrées par groupe : au-delà, le nombre des autres. */
+const SHOWN = 5;
+
+/**
+ * L'import de la programmation Radio Cult (cms/README.md, 9.4) : le dernier passage, puis ce qu'il reste à relire,
+ * d'abord ce qui demande une correction (un show publié dont le créneau a bougé, un créneau disparu), puis les
+ * brouillons créés ou mis à jour et les artistes créés. « Importer maintenant » lance l'import tout de suite, au nom
+ * de la personne connectée, et l'accueil se met à jour.
+ */
+function RadioCult({ panel }: { panel: RadioCultPanel }) {
+  const router = useRouter();
+  const notify = useNotify();
+  const [busy, setBusy] = useState(false);
+  const { last, lastOk } = panel;
+  const fixes = [...panel.moved, ...panel.gone];
+  const quiet = !fixes.length && !panel.created.length && !panel.updated.length && !panel.artists.length;
+
+  async function run() {
+    setBusy(true);
+    const body = new FormData();
+    body.set("intent", "radiocult");
+    const result = await postForm<ImportResponse>("/admin", body);
+    setBusy(false);
+    if ("data" in result) {
+      // Les listes (shows, artistes) ont changé ; l'accueil prend ses nouvelles données.
+      router.invalidate();
+      router.replace("/admin", { name: "dashboard", title: "Accueil", data: result.data });
+    }
+    if (result.ok) notify({ kind: "success", title: "Programmation importée", description: result.message });
+    else notify({ kind: "error", title: "Import impossible", description: "errors" in result ? result.errors.form : result.message });
+  }
+
+  if (panel.unavailable)
+    return (
+      <Panel title="Programmation Radio Cult">
+        <Callout.Root color="amber" size="1" variant="surface">
+          <Callout.Icon>
+            <ExclamationTriangleIcon />
+          </Callout.Icon>
+          <Callout.Text>{panel.unavailable}</Callout.Text>
+        </Callout.Root>
+      </Panel>
+    );
+
+  return (
+    <Panel title="Programmation Radio Cult">
+      {!last ? (
+        <Text as="p" size="2" color="gray" mb="2">
+          Pas encore d'import. Il passe chaque nuit vers 6 h et crée un brouillon pour chaque créneau des 14 jours à venir ; « Importer maintenant » le
+          lance tout de suite.
+        </Text>
+      ) : last.ok ? (
+        <Text as="p" size="2" color="gray" mb="2" title={last.date}>
+          Dernier import {last.when}, par {last.by} : {last.summary.charAt(0).toLowerCase() + last.summary.slice(1)}
+        </Text>
+      ) : (
+        <Callout.Root color="red" size="1" variant="surface" mb="3">
+          <Callout.Icon>
+            <ExclamationTriangleIcon />
+          </Callout.Icon>
+          <Callout.Text>
+            Le dernier import, {last.when} ({last.by}), n'a rien changé : {last.summary}
+            {lastOk ? ` Le précédent, ${lastOk.when}, avait réussi.` : ""}
+          </Callout.Text>
+        </Callout.Root>
+      )}
+      <Flex mb="1">
+        <Button size="1" variant="soft" loading={busy} onClick={() => void run()}>
+          <DownloadIcon /> Importer maintenant
+        </Button>
+      </Flex>
+
+      {fixes.length > 0 && (
+        <ImportGroup
+          label="À corriger à la main"
+          hint="L'import ne touche ni aux shows publiés ni aux créneaux disparus : corrige la fiche, ou le créneau chez Radio Cult."
+          lines={fixes}
+          icon={<ExclamationTriangleIcon />}
+          alert
+        />
+      )}
+      {panel.created.length > 0 && <ImportGroup label="Nouveaux brouillons" lines={panel.created} icon={<FileTextIcon />} />}
+      {panel.updated.length > 0 && <ImportGroup label="Brouillons mis à jour" lines={panel.updated} icon={<UpdateIcon />} />}
+      {panel.artists.length > 0 && <ImportGroup label="Artistes créés" lines={panel.artists} icon={<PersonIcon />} />}
+      {last?.ok && quiet && <Empty icon={<CheckCircledIcon />}>Rien à relire : les shows suivent la programmation.</Empty>}
+
+      {(panel.notes.length > 0 || !panel.key) && (
+        <Flex direction="column" gap="1" mt="2">
+          {[...new Set([...panel.notes, ...(panel.key ? [] : ["Sans la clé publishable de Radio Cult (PUBLIC_RADIOCULT_KEY), les artistes des créneaux ne sont pas lus."])])].map((note) => (
+            <Text key={note} as="p" size="1" color="gray">
+              {note}
+            </Text>
+          ))}
+        </Flex>
+      )}
+    </Panel>
+  );
+}
+
+/** Un groupe de fiches citées par l'import : son titre, une aide, et les premières lignes. */
+function ImportGroup({ label, hint, lines, icon, alert }: { label: string; hint?: string; lines: ImportLine[]; icon: ReactNode; alert?: boolean }) {
+  return (
+    <Flex direction="column" gap="1" mt="2">
+      <Text as="p" size="1" weight="medium" color={alert ? "amber" : "gray"}>
+        {label} · {lines.length}
+      </Text>
+      {hint && (
+        <Text as="p" size="1" color="gray">
+          {hint}
+        </Text>
+      )}
+      <ul className="admin-rows">
+        {lines.slice(0, SHOWN).map((line) => (
+          <li key={line.href + line.detail}>
+            <a className={`admin-row-link${alert ? " admin-todo" : ""}`} href={line.href} data-astro-prefetch="false">
+              <span className="admin-row-icon" aria-hidden>
+                {icon}
+              </span>
+              <span className="admin-row-main">
+                <Text as="span" size="2" weight="medium" highContrast className="admin-break">
+                  {line.title}
+                </Text>
+                <Text as="span" size="1" color="gray">
+                  {line.detail}
+                </Text>
+              </span>
+              <ArrowRightIcon className="admin-row-arrow" aria-hidden />
+            </a>
+          </li>
+        ))}
+      </ul>
+      {lines.length > SHOWN && (
+        <Text as="p" size="1" color="gray">
+          Et {counted(lines.length - SHOWN, "autre")}.
+        </Text>
+      )}
+    </Flex>
   );
 }
 

@@ -7,7 +7,7 @@
 import { LABELS } from "@parabole/cms/labels";
 import type { ArtistForm, FieldErrors } from "@parabole/cms";
 import { ArrowDownIcon, ArrowUpIcon, BookmarkIcon, DotsHorizontalIcon, DragHandleDots2Icon, ExternalLinkIcon, PersonIcon, PlusIcon, TrashIcon } from "@radix-ui/react-icons";
-import { Badge, Button, DataList, DropdownMenu, Flex, IconButton, SegmentedControl, Text, TextField } from "@radix-ui/themes";
+import { Badge, Button, DataList, DropdownMenu, Flex, IconButton, SegmentedControl, Select, Text, TextField } from "@radix-ui/themes";
 import { useEffect, useMemo, useState } from "react";
 import { FacetPicker } from "./FacetPicker";
 import { ImageField, placeImage } from "./ImageField";
@@ -31,7 +31,8 @@ const toEditor = (form: ArtistForm): EditorForm => ({ ...form, links: form.links
 const filled = (link: LinkRow) => Boolean(link.label.trim() || link.url.trim());
 const fingerprint = (form: EditorForm) => JSON.stringify({ ...form, tags: [...form.tags].sort(), links: form.links.filter(filled).map(({ key: _key, ...link }) => link) });
 
-function formData(form: EditorForm, intent: Intent, version: string): FormData {
+/** `radiocult` : la liste de Radio Cult était là, le choix s'envoie ; sinon le lien de la fiche ne change pas. */
+function formData(form: EditorForm, intent: Intent, version: string, radiocult: boolean): FormData {
   const data = new FormData();
   data.set("intent", intent);
   data.set("version", version);
@@ -41,8 +42,12 @@ function formData(form: EditorForm, intent: Intent, version: string): FormData {
     data.append("linkLabel", link.label);
     data.append("linkUrl", link.url);
   }
+  if (radiocult) data.set("radiocultArtistId", form.radiocultArtistId ?? "");
   return data;
 }
+
+/** La valeur « aucun » de la liste des artistes de Radio Cult (une valeur vide n'est pas permise). */
+const NO_RADIOCULT = "aucun";
 
 const DONE: Record<SaveIntent, string> = { save: "Fiche enregistrée", publish: "Artiste publié", unpublish: "Artiste dépublié : repassé en brouillon" };
 
@@ -70,7 +75,7 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
     if (busy) return false;
     setBusy(intent);
     const sent = form;
-    const result = await postForm<SaveResponse<ArtistSheet>>(url, formData(form, intent, sheet.version));
+    const result = await postForm<SaveResponse<ArtistSheet>>(url, formData(form, intent, sheet.version, sheet.radiocult.choices !== null));
     setBusy(null);
     if (result.ok && "sheet" in result) {
       setSheet(result.sheet);
@@ -107,7 +112,7 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
 
   async function remove() {
     setBusy("delete");
-    const result = await postForm<SaveResponse<ArtistSheet>>(url, formData(form, "delete", sheet.version));
+    const result = await postForm<SaveResponse<ArtistSheet>>(url, formData(form, "delete", sheet.version, false));
     if (result.ok && "redirect" in result) {
       forgetRecent(url);
       router.invalidate();
@@ -230,7 +235,14 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
                   className="admin-mono"
                 />
               </Field>
-              {(sheet.created || sheet.radiocultArtistId) && (
+              <RadioCultField
+                value={form.radiocultArtistId ?? ""}
+                choices={sheet.radiocult.choices}
+                taken={sheet.radiocult.taken}
+                error={errors.radiocultArtistId}
+                onChange={(value) => set("radiocultArtistId", value)}
+              />
+              {sheet.created && (
                 <DataList.Root size="1" className="admin-facts">
                   {sheet.created && (
                     <DataList.Item>
@@ -244,14 +256,6 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
                       <DataList.Value>{sheet.updated}</DataList.Value>
                     </DataList.Item>
                   )}
-                  {sheet.radiocultArtistId && (
-                    <DataList.Item>
-                      <DataList.Label minWidth="80px">Radio Cult</DataList.Label>
-                      <DataList.Value>
-                        <Text className="admin-break">{sheet.radiocultArtistId}, relié par l'import de la programmation</Text>
-                      </DataList.Value>
-                    </DataList.Item>
-                  )}
                 </DataList.Root>
               )}
             </SidePanel>
@@ -259,6 +263,54 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
         </div>
       </div>
     </form>
+  );
+}
+
+/**
+ * L'artiste de Radio Cult de la fiche, choisi dans la liste de la station : l'import de la programmation relie ses
+ * créneaux à cette fiche. Un artiste déjà relié à une autre fiche est grisé, avec son nom. Sans la liste (pas de clé
+ * publishable, ou Radio Cult ne répond pas), le lien reste tel quel.
+ */
+function RadioCultField({
+  value,
+  choices,
+  taken,
+  error,
+  onChange,
+}: {
+  value: string;
+  choices: { id: string; name: string }[] | null;
+  taken: Record<string, string>;
+  error?: string;
+  onChange(value: string): void;
+}) {
+  const label = (choice: { id: string; name: string }) => choice.name || `Sans nom (${choice.id.slice(0, 8)})`;
+  const hint = "Ses créneaux dans la grille de Radio Cult deviennent ses shows, à chaque import.";
+  if (!choices)
+    return (
+      <Field label="Artiste Radio Cult" optional hint={hint} error={error}>
+        <Text size="2" color="gray">
+          {value ? "Relié à un artiste de Radio Cult." : "Relié à aucun artiste."} La liste de Radio Cult ne répond pas : le lien reste tel quel.
+        </Text>
+      </Field>
+    );
+  // Un artiste relié puis retiré de Radio Cult reste visible, pour qu'on voie le lien à défaire.
+  const listed = value && !choices.some((choice) => choice.id === value) ? [...choices, { id: value, name: "" }] : choices;
+  return (
+    <Field label="Artiste Radio Cult" htmlFor="radiocult" optional hint={hint} error={error}>
+      <Select.Root value={value || NO_RADIOCULT} onValueChange={(next) => onChange(next === NO_RADIOCULT ? "" : next)}>
+        <Select.Trigger id="radiocult" color={error ? "red" : undefined} />
+        <Select.Content position="popper">
+          <Select.Item value={NO_RADIOCULT}>Aucun</Select.Item>
+          {listed.length > 0 && <Select.Separator />}
+          {listed.map((choice) => (
+            <Select.Item key={choice.id} value={choice.id} disabled={choice.id in taken}>
+              {choice.id in taken ? `${label(choice)}, relié à ${taken[choice.id]}` : choices.includes(choice) ? label(choice) : `Introuvable chez Radio Cult (${choice.id.slice(0, 8)})`}
+            </Select.Item>
+          ))}
+        </Select.Content>
+      </Select.Root>
+    </Field>
   );
 }
 

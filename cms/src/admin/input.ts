@@ -260,6 +260,8 @@ export type ArtistForm = {
   links: ArtistLink[];
   /** Les identifiants de ses étiquettes (ce qu'il fait : podcast, playlist, DJ). */
   tags: string[];
+  /** Son artiste chez Radio Cult, choisi dans la liste de la station ; vide : aucun ; absent : inchangé. */
+  radiocultArtistId?: string;
 };
 
 export type ArtistValues = {
@@ -270,9 +272,11 @@ export type ArtistValues = {
   bio: string | null;
   links: ArtistLink[];
   tags: string[];
+  /** Null : relié à aucun ; absent : inchangé. */
+  radiocultArtistId?: string | null;
 };
 
-export const emptyArtistForm = (): ArtistForm => ({ name: "", slug: "", role: "guest", bio: "", links: [], tags: [] });
+export const emptyArtistForm = (): ArtistForm => ({ name: "", slug: "", role: "guest", bio: "", links: [], tags: [], radiocultArtistId: "" });
 
 /** Les noms des sites les plus courants, pour un lien saisi sans libellé. */
 const KNOWN_SITES: [RegExp, string][] = [
@@ -327,7 +331,24 @@ export function readArtistForm(input: ArtistForm): { form: ArtistForm; values: A
   const tags = [...new Set(form.tags.filter((value) => UUID.test(value)).map((value) => value.toLowerCase()))];
   if (tags.length > LIMITS.picks) errors.tags = `${LIMITS.picks} étiquettes au plus.`;
 
-  return { form, errors, values: { name, slug, slugFromTitle, role: role as ArtistRole, bio: bio || null, links: values, tags } };
+  // Un identifiant de la liste de Radio Cult (un uuid aujourd'hui) : rien d'autre ne s'y tape.
+  const radiocultArtistId = form.radiocultArtistId === undefined ? undefined : clean(form.radiocultArtistId) || null;
+  if (radiocultArtistId && !/^[A-Za-z0-9_-]{1,64}$/.test(radiocultArtistId)) errors.radiocultArtistId = "Choisis un artiste dans la liste de Radio Cult.";
+
+  return {
+    form,
+    errors,
+    values: {
+      name,
+      slug,
+      slugFromTitle,
+      role: role as ArtistRole,
+      bio: bio || null,
+      links: values,
+      tags,
+      ...(radiocultArtistId === undefined ? {} : { radiocultArtistId }),
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------------------------------------------

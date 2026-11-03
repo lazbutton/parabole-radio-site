@@ -18,6 +18,7 @@ const CONSTRAINTS: Record<string, [field: string, message: string]> = {
   track_start: ["tracks", "Un minutage ne peut pas être négatif."],
   artist_slug_unique: ["slug", "Cette adresse sert déjà à un autre artiste."],
   artist_slug_format: ["slug", "Minuscules, chiffres et tirets seulement."],
+  artist_radiocult_artist_id_unique: ["radiocultArtistId", "Cet artiste de Radio Cult vient d'être relié à une autre fiche."],
   tag_slug_format: ["tags", "Une étiquette doit contenir au moins une lettre ou un chiffre."],
   tag_slug_unique: ["tags", "Une autre étiquette vient de prendre cette adresse. Réessaie : elle sera reprise telle quelle."],
   tag_member_not_its_group: ["form", "Un groupe ne se range pas dans lui-même : il vaut déjà pour lui."],
