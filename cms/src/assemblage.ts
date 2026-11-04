@@ -272,24 +272,32 @@ export function youTubeDurations(body: unknown): Map<string, number> {
 }
 
 /**
- * SoundCloud, avec l'appli de la publication (9.14) : GET https://api.soundcloud.com/resolve?url=<adresse d'une
- * playlist>, une playlist entière. L'artiste vient des métadonnées de l'éditeur, sinon du titre (« Artiste - Titre »),
- * sinon du compte qui a posté le morceau.
+ * SoundCloud, avec le compte relié de la publication (9.14) : GET https://api.soundcloud.com/resolve?url=<adresse>
+ * mène à la playlist (GET /playlists/<urn>, ses morceaux compris). Si elle n'en rend qu'une partie (moins que
+ * `track_count`), `next` donne l'adresse de ses morceaux (`tracks_uri`), à lire par pages
+ * (?linked_partitioning=true : `collection`, puis `next_href`), et ses morceaux à elle sont laissés de côté. L'artiste
+ * vient du champ « artiste » du morceau, sinon de son titre (« Artiste - Titre »), sinon du compte qui l'a posté.
  */
 export function listeSoundCloud(body: unknown): PlatformPage {
   const root = record(body);
-  if (text(root.kind) && text(root.kind) !== "playlist") throw new Error("Ce lien SoundCloud ne mène pas à une playlist.");
+  const paged = Object.hasOwn(root, "collection");
+  if (!paged && text(root.kind) !== "playlist") throw new Error("Ce lien SoundCloud ne mène pas à une playlist.");
+  const items = list(paged ? root.collection : root.tracks);
+  const count = typeof root.track_count === "number" ? root.track_count : null;
+  const partial = !paged && count !== null && items.length < count && text(root.tracks_uri) !== "";
   return {
     title: text(root.title),
-    tracks: list(root.tracks).flatMap((item) => {
-      const track = record(item);
-      const raw = text(track.title);
-      if (!raw) return [];
-      const publisher = text(record(track.publisher_metadata).artist);
-      const parts = raw.split(/\s+[-–—]\s+/);
-      const [artist, title] = publisher ? [publisher, raw] : parts.length > 1 ? [parts[0]!, parts.slice(1).join(" - ")] : [text(record(track.user).username), raw];
-      return [{ artist, title, duration: seconds(track.duration, 1000) }];
-    }),
-    next: null,
+    tracks: partial
+      ? []
+      : items.flatMap((item) => {
+          const track = record(item);
+          const raw = text(track.title);
+          if (!raw) return [];
+          const named = text(track.metadata_artist) || text(record(track.publisher_metadata).artist);
+          const parts = raw.split(/\s+[-–—]\s+/);
+          const [artist, title] = named ? [named, raw] : parts.length > 1 ? [parts[0]!, parts.slice(1).join(" - ")] : [text(record(track.user).username), raw];
+          return [{ artist, title, duration: seconds(track.duration, 1000) }];
+        }),
+    next: paged ? text(root.next_href) || null : partial ? text(root.tracks_uri) : null,
   };
 }

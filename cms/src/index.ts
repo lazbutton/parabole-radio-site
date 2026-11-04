@@ -10,7 +10,9 @@
  *   - l'heure de Paris et les minutages (aussi dans le navigateur : @parabole/cms/tracklist) ;
  *   - les envois des résidents (createEnvois, pour la page /envoyer/<jeton>) et leur rattachement aux créneaux
  *     (rattacherEnvois, pour la tâche de nuit) ; leurs fichiers et leur calendrier aussi dans le navigateur
- *     (@parabole/cms/envois).
+ *     (@parabole/cms/envois) ;
+ *   - la publication sur SoundCloud : le compte relié (OAuth 2.1 avec PKCE) et l'envoi des émissions diffusées
+ *     (aPublier, publier, pour la tâche du matin ; prendre puis envoyer, pour « Publier maintenant »).
  */
 export { asMember, asPublic, withViewer, type Tx, type Viewer } from "./access.ts";
 export * from "./admin/index.ts";
@@ -47,6 +49,23 @@ export {
   type Envois,
 } from "./envois/index.ts";
 export { rattacherEnvois } from "./envois/rattacher.ts";
+export {
+  aPublier,
+  authorizeUrl,
+  compteSoundCloud,
+  delierSoundCloud,
+  envoyer,
+  jetonSoundCloud,
+  pkce,
+  prendre,
+  publier,
+  relierSoundCloud,
+  SoundCloudError,
+  type Job,
+  type Published,
+  type PublishDeps,
+  type SoundCloudApp,
+} from "./soundcloud/index.ts";
 export * from "./envois/navigateur.ts";
 export {
   createReader,

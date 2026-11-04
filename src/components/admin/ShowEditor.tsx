@@ -359,7 +359,21 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
             </SidePanel>
             <SubmissionPanel url={url} envoi={sheet.envoi} dirty={dirty} />
             <SidePanel title="Son">
-              <ReceivedSound url={url} envoi={sheet.envoi} onChange={(envoi) => setSheet((current) => ({ ...current, envoi }))} />
+              <ReceivedSound
+                url={url}
+                envoi={sheet.envoi}
+                dirty={dirty}
+                scheduled={Boolean(sheet.form.broadcastAt)}
+                onChange={(envoi) => setSheet((current) => ({ ...current, envoi }))}
+                onPublished={(fresh) => {
+                  // SoundCloud a répondu : la fiche prend la piste, son statut, sa nouvelle version ; une saisie en cours reste.
+                  const next = toEditor(fresh.form);
+                  setForm((current) => mergeSaved(current, toEditor(sheet.form), next));
+                  setSaved(fingerprint(next));
+                  setSheet(fresh);
+                  router.invalidate();
+                }}
+              />
               <Field label="Piste SoundCloud" htmlFor="soundcloudUrl" optional error={errors.soundcloudUrl}>
                 <TextField.Root
                   id="soundcloudUrl"

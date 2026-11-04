@@ -21,15 +21,14 @@ import { toParisInput } from "../paris.ts";
 import { artist, audioFile, broadcastCycle, show, showArtist, showType, submission, tag, uploadLink, type AudioStatus, type ShowType } from "../schema.ts";
 import { formatTimecode, type TrackLine } from "../tracklist.ts";
 import { proposedBlocks, type Block, type Cycle, type Group } from "./calendrier.ts";
-import { audioKey, audioRefusal, audioTypeOf, MAX_MAIN_BYTES, MAX_PART_BYTES, MAX_PARTS, MAX_PLAYLIST_BYTES, type AudioRole } from "./fichiers.ts";
+import { audioKey, audioRefusal, audioTypeOf, MAX_MAIN_BYTES, MAX_PART_BYTES, MAX_PARTS, MAX_PLAYLIST_BYTES, STUCK_SENDING_MS, type AudioRole } from "./fichiers.ts";
 
 /** Un jeton de lien : 32 octets aléatoires en base64url. */
 export const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 export const newToken = (): string => randomBytes(32).toString("base64url");
 
-/** Un fichier en cours d'envoi depuis plus d'un jour est abandonné ; un envoi vers SoundCloud de plus de 15 minutes, interrompu. */
+/** Un fichier en cours d'envoi depuis plus d'un jour est abandonné (un envoi vers SoundCloud : STUCK_SENDING_MS). */
 const STALE_UPLOAD_MS = 24 * 3600_000;
-const STUCK_SENDING_MS = 15 * 60_000;
 /** Ce qu'un même lien peut avoir en cours d'envoi en même temps. */
 const MAX_PENDING = MAX_PARTS + 10;
 

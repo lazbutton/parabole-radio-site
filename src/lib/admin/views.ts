@@ -5,6 +5,7 @@
  * dates partent déjà écrites à l'heure de Paris.
  */
 import {
+  compteSoundCloud,
   dayLabel,
   DELAY_CHOICES,
   emptyArtistForm,
@@ -14,6 +15,7 @@ import {
   mediaUrl,
   MUTE_CHOICES,
   SLOW_CHOICES,
+  STUCK_SENDING_MS,
   type AdminAbout,
   type Admin,
   type AdminAntenne,
@@ -48,7 +50,8 @@ import {
   type Viewer,
 } from "../../components/admin/types";
 import { isRubrique, MOOD_TAB, SCOPE_OF_RUBRIQUE } from "../../components/admin/rubriques";
-import { mediaBaseUrl } from "../cms";
+import { database, mediaBaseUrl } from "../cms";
+import { soundcloudReady } from "../soundcloud";
 import { blobReady, MAX_FILM_BYTES, MAX_VIDEO_BYTES } from "./blob";
 import { aboutFormOf, artistFormOf, eventFormOf, showFormOf } from "./forms";
 import { inDays, megabytes, parisDateTime, parisDay, parisDayParts, parisLongDay, parisShortDay, parisTime, since } from "./format";
@@ -89,7 +92,7 @@ export async function showSheet(admin: Admin, show: AdminShow | null): Promise<S
     artists: choices.artists,
     tags: [...choices.tags, ...others],
     facets: choices.facets,
-    envoi: show ? await envoiView(admin, show.id) : { submission: null, main: null, parts: [], candidates: [], ready: r2Ready() },
+    envoi: show ? await envoiView(admin, show.id) : { submission: null, main: null, parts: [], candidates: [], ready: r2Ready(), soundcloud: soundcloudReady() ? "unlinked" : "off" },
   };
 }
 
@@ -99,13 +102,20 @@ export async function showSheet(admin: Admin, show: AdminShow | null): Promise<S
  */
 export async function envoiView(admin: Admin, showId: string): Promise<EnvoiView> {
   const [sent, files] = await Promise.all([admin.submissionOf(showId), admin.audioFilesOf(showId)]);
-  const candidates = sent?.waiting ? await admin.attachCandidates(showId) : [];
+  const main = files.find((file) => file.role === "main");
+  const [candidates, account] = await Promise.all([
+    sent?.waiting ? admin.attachCandidates(showId) : [],
+    // Le compte SoundCloud ne compte que pour un son à publier.
+    main && soundcloudReady() ? database().then(compteSoundCloud).catch(() => null) : null,
+  ]);
+  const now = Date.now();
   const audio = (file: (typeof files)[number]) => ({
     id: file.id,
     fileName: file.fileName,
     size: file.sizeBytes ? megabytes(file.sizeBytes) : "",
     status: file.status,
     error: file.error,
+    stalled: file.status === "sending" && now - file.updatedAt.getTime() > STUCK_SENDING_MS,
     listen: `/admin/api/son/${file.id}`,
     download: `/admin/api/son/${file.id}?telecharger`,
     artist: file.trackArtist ?? "",
@@ -113,7 +123,6 @@ export async function envoiView(admin: Admin, showId: string): Promise<EnvoiView
     duration: file.durationSeconds ? formatTimecode(file.durationSeconds) : "",
     seconds: file.durationSeconds,
   });
-  const main = files.find((file) => file.role === "main");
   return {
     submission: sent
       ? {
@@ -133,6 +142,7 @@ export async function envoiView(admin: Admin, showId: string): Promise<EnvoiView
     parts: files.filter((file) => file.role === "part").map(audio),
     candidates: candidates.map((slot) => ({ id: slot.id, title: slot.title, when: parisDateTime(slot.broadcastAt) })),
     ready: r2Ready(),
+    soundcloud: !soundcloudReady() ? "off" : account ? "linked" : "unlinked",
   };
 }
 
@@ -210,7 +220,7 @@ async function importStatusOf(admin: Admin) {
 
 /** L'accueil : les prochaines diffusions, ce qui reste à compléter, les brouillons, les chiffres et l'import Radio Cult. */
 export async function dashboardData(admin: Admin, now = new Date()): Promise<DashboardData> {
-  const [overview, imports, cycle] = await Promise.all([admin.overview({ now }), importStatusOf(admin), admin.cycle()]);
+  const [overview, imports, cycle, account] = await Promise.all([admin.overview({ now }), importStatusOf(admin), admin.cycle(), database().then(compteSoundCloud).catch(() => null)]);
   return {
     today: parisLongDay(now),
     stats: { shows: overview.shows, artists: overview.artists },
@@ -236,6 +246,7 @@ export async function dashboardData(admin: Admin, now = new Date()): Promise<Das
       residents: panel.residents.map((resident) => ({ id: resident.id, name: resident.name, sent: resident.sent, link: resident.token ? `/envoyer/${resident.token}` : null })),
     })),
     cycle: cycle ? { group1Start: cycle.group1Start, blockDays: cycle.blockDays, deadlineDays: cycle.deadlineDays } : null,
+    soundcloud: { ready: soundcloudReady(), account: account ? { username: account.username, url: account.permalinkUrl, since: parisDay(account.linkedAt) } : null },
     drafts: overview.drafts.map((draft) => ({
       href: `/admin/${draft.kind === "show" ? "shows" : "artistes"}/${draft.id}`,
       title: draft.title,

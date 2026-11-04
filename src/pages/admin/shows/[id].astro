@@ -10,11 +10,15 @@
  * fichier (« delete-audio »), et rattacher un envoi qui attend son créneau à l'un des créneaux de la grille
  * (« attach ») : on arrive alors sur la fiche du créneau. Supprimer un show efface aussi ses fichiers du seau.
  *
+ * « soundcloud-publish » (9.14) envoie tout de suite sur SoundCloud le son validé (ou en échec, ou interrompu), en
+ * public ou en privé : l'envoi part sans être attendu, la fiche se relit pendant ce temps.
+ *
  * L'assemblage d'une playlist (9.13) en a deux : « assembly-ticket » réserve le dépôt du son fait dans le navigateur
  * (une adresse signée pour une seule clé) ; « assembly-register », une fois le fichier arrivé (vérifié dans le seau),
  * en fait le son de l'émission, avec sa setlist minutée pour tracklist, et renvoie la fiche à jour.
  */
-import { readShowForm, type AdminShow, type TrackLine } from "@parabole/cms";
+import { compteSoundCloud, envoyer, prendre, readShowForm, type AdminShow, type TrackLine } from "@parabole/cms";
+import { waitUntil } from "@vercel/functions";
 import type { AssemblyResponse, AssemblyTicket, AttachResponse, EnvoiResponse, PlaceResponse, Screen } from "../../../components/admin/types";
 import Admin from "../../../layouts/Admin.astro";
 import { parisDateTime } from "../../../lib/admin/format";
@@ -22,7 +26,9 @@ import { intentOf, showFormFrom } from "../../../lib/admin/forms";
 import { seeOther } from "../../../lib/admin/paths";
 import { removeImages } from "../../../lib/admin/storage";
 import { envoiView, json, mediaView, showSheet, wantsJson } from "../../../lib/admin/views";
+import { database } from "../../../lib/cms";
 import { headSize, r2Ready, removeFiles, uploadUrl } from "../../../lib/r2";
+import { publishDeps, soundcloudApp } from "../../../lib/soundcloud";
 
 export const prerender = false;
 
@@ -70,6 +76,27 @@ if (posted) {
     if (!key) return json({ ok: false, errors: { form: "Ce son part vers SoundCloud : il ne s'efface pas pendant l'envoi." } }, 409);
     await removeFiles([key]);
     return json({ ok: true, envoi: await envoiView(admin, show.id), message: file.role === "main" ? "Son effacé" : "Morceau effacé" } satisfies EnvoiResponse);
+  }
+  if (asked === "soundcloud-publish") {
+    if (!show) return json({ ok: false, errors: { form: "Cette émission n'est pas encore créée." } }, 400);
+    const app = soundcloudApp(Astro.url.origin);
+    if (!app) return json({ ok: false, errors: { form: "SoundCloud n'est pas branché : il manque SOUNDCLOUD_CLIENT_ID et SOUNDCLOUD_CLIENT_SECRET." } }, 503);
+    const db = await database();
+    if (!(await compteSoundCloud(db))) return json({ ok: false, errors: { form: "SoundCloud n'est pas relié : un admin le relie depuis l'accueil de l'admin." } }, 409);
+    const job = await prendre(db, show.id);
+    if (!job) return json({ ok: false, errors: { form: "Ce son ne peut pas partir : il doit être validé, en échec ou interrompu. Il est peut-être déjà en route." } }, 409);
+    const sharing = data.get("sharing") === "private" ? "private" : "public";
+    // L'envoi part sans être attendu : jusqu'à 750 Mo à faire passer, la fiche se relit pendant ce temps.
+    waitUntil(
+      envoyer(db, job, publishDeps(app), { sharing }).then(
+        async (done) => {
+          if (done.ok) await removeFiles(done.removedKeys);
+          console.log(done.ok ? `SoundCloud : « ${show.title} » publiée (${done.url}).` : `SoundCloud : « ${show.title} » en échec : ${done.error}`);
+        },
+        (failure: unknown) => console.error("SoundCloud : l'envoi a échoué", failure),
+      ),
+    );
+    return json({ ok: true, envoi: await envoiView(admin, show.id), message: sharing === "private" ? "Envoi vers SoundCloud lancé, en privé" : "Envoi vers SoundCloud lancé" } satisfies EnvoiResponse);
   }
   if (asked === "assembly-ticket") {
     if (!show) return json({ ok: false, errors: { form: "Cette émission n'est pas encore créée." } }, 400);

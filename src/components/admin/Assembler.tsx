@@ -2,7 +2,7 @@
  * L'outil d'assemblage d'une playlist (cms/README.md, 9.13), dans la fiche d'une émission « playlist ». Les morceaux
  * du curateur (reçus dans le seau) et ceux que l'équipe glisse depuis son ordinateur (téléchargés de son côté : l'outil
  * ne télécharge rien) sont rangés dans l'ordre de la playlist :
- *   - avec une liste, lue sur Deezer ou YouTube depuis le lien du curateur, ou collée, chaque fichier va à sa place
+ *   - avec une liste, lue sur Deezer, YouTube ou SoundCloud depuis le lien du curateur, ou collée, chaque fichier va à sa place
  *     (rapprocher) ; une place restée vide ou mal remplie se choisit dans un menu ; la setlist prend l'artiste et le
  *     titre de la liste ;
  *   - sans liste, les morceaux se rangent par glisser, et la setlist prend ce qu'on a écrit sur chaque ligne.

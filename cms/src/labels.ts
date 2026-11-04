@@ -15,7 +15,7 @@ export const LABELS = {
     approved: "Validé",
     sending: "Envoi vers SoundCloud",
     sent: "Sur SoundCloud",
-    failed: "Refusé par SoundCloud",
+    failed: "Envoi en échec",
   } satisfies Record<AudioStatus, string>,
   /** Les deux bouts de l'échelle du mood (show.energy). */
   energy: { low: "Calme", high: "Énergique" },

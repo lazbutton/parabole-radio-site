@@ -4,18 +4,18 @@
  *     désactiver ;
  *   - dans la fiche d'un show, l'envoi (qui, quand, pour quel bloc, son mot, le lien de sa playlist) et les créneaux où
  *     le rattacher s'il attend le sien ; le son reçu, à écouter, valider, télécharger (le MP3 à charger dans Radio Cult)
- *     ou effacer ; les morceaux d'une playlist.
+ *     ou effacer, et à publier tout de suite sur SoundCloud (9.14) ; les morceaux d'une playlist.
  * Chaque action part tout de suite, à l'adresse de la fiche, sans enregistrer le reste.
  */
 import { LABELS } from "@parabole/cms/labels";
-import { CheckIcon, CopyIcon, DownloadIcon, ExternalLinkIcon, TrashIcon } from "@radix-ui/react-icons";
-import { AlertDialog, Badge, Button, Callout, DataList, Flex, IconButton, Text, TextField } from "@radix-ui/themes";
-import { useEffect, useState, type ReactNode } from "react";
+import { CheckIcon, CopyIcon, DownloadIcon, ExternalLinkIcon, TrashIcon, UploadIcon } from "@radix-ui/react-icons";
+import { AlertDialog, Badge, Button, Callout, DataList, Flex, IconButton, RadioCards, Spinner, Text, TextField } from "@radix-ui/themes";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "./router";
 import { postForm, Section, SidePanel } from "./sheet";
 import { counted } from "./text";
 import { useNotify } from "./toast";
-import type { AttachResponse, AudioView, EnvoiResponse, EnvoiView, UploadLinkResponse, UploadLinkView } from "./types";
+import type { AttachResponse, AudioView, EnvoiResponse, EnvoiView, ShowSheet, UploadLinkResponse, UploadLinkView } from "./types";
 
 const TONES: Record<AudioView["status"], "gray" | "amber" | "green" | "blue" | "red"> = { uploading: "gray", received: "amber", approved: "green", sending: "blue", sent: "green", failed: "red" };
 
@@ -264,20 +264,178 @@ function useAudioActions(url: string, onChange: (envoi: EnvoiView) => void) {
   return { busy, run };
 }
 
-/** Le son reçu d'un show, en tête du panneau Son : le lecteur, sa place dans le circuit, et ses actions. */
-export function ReceivedSound({ url, envoi, onChange }: { url: string; envoi: EnvoiView; onChange(envoi: EnvoiView): void }) {
+/** Où en est le son, en une phrase sous ses boutons. */
+function soundHint(main: AudioView, scheduled: boolean): string {
+  if (main.status === "received") return "Écoute-le, puis valide-le : validé, il part tout seul sur SoundCloud le lendemain matin de sa diffusion.";
+  if (main.status === "approved")
+    return scheduled
+      ? "Le MP3 à charger dans Radio Cult pour la diffusion. Il part tout seul sur SoundCloud le lendemain matin."
+      : "Le MP3 à charger dans Radio Cult. Sans date de diffusion, il ne part pas tout seul sur SoundCloud.";
+  if (main.status === "sending")
+    return main.stalled ? "L'envoi vers SoundCloud s'est interrompu : relance-le." : "En route vers SoundCloud : la fiche se met à jour toute seule. Tu peux la quitter, l'envoi continue.";
+  if (main.status === "sent") return "Publié sur SoundCloud : sa piste est ci-dessous.";
+  if (main.status === "failed") return "Règle ce qui bloque, puis « Publier maintenant » le renvoie.";
+  return "Le MP3 à charger dans Radio Cult pour la diffusion.";
+}
+
+/** Le choix avant de publier tout de suite : en public (la page de l'émission suit) ou en privé, pour un essai. */
+function PublishDialog({ open, scheduled, busy, onPublish, onClose }: { open: boolean; scheduled: boolean; busy: boolean; onPublish(sharing: "public" | "private"): void; onClose(): void }) {
+  const [sharing, setSharing] = useState<"public" | "private">("public");
+  return (
+    <AlertDialog.Root open={open} onOpenChange={(next) => !next && onClose()}>
+      <AlertDialog.Content maxWidth="460px">
+        <AlertDialog.Title>Publier sur SoundCloud ?</AlertDialog.Title>
+        <AlertDialog.Description size="2">
+          Le son part tout de suite sur le compte de Parabole, avec ce qui est enregistré dans la fiche : titre, artistes, description, tracklist, étiquettes et
+          pochette.
+        </AlertDialog.Description>
+        <RadioCards.Root value={sharing} onValueChange={(value) => setSharing(value === "private" ? "private" : "public")} columns="1" gap="2" mt="3" size="1">
+          <RadioCards.Item value="public">
+            <Flex direction="column" width="100%">
+              <Text size="2" weight="bold">
+                En public
+              </Text>
+              <Text size="1" color="gray">
+                {scheduled ? "Visible de tous, et la page de l'émission est publiée sur le site." : "Visible de tous. La page de l'émission reste en brouillon : elle n'a pas de date de diffusion."}
+              </Text>
+            </Flex>
+          </RadioCards.Item>
+          <RadioCards.Item value="private">
+            <Flex direction="column" width="100%">
+              <Text size="2" weight="bold">
+                En privé, pour un essai
+              </Text>
+              <Text size="1" color="gray">
+                Seul le compte de Parabole la voit, et la page ne change pas. Pour l'ouvrir à tous ensuite : passe-la en public sur SoundCloud, puis publie la page
+                ici.
+              </Text>
+            </Flex>
+          </RadioCards.Item>
+        </RadioCards.Root>
+        <Flex gap="3" mt="4" justify="end">
+          <AlertDialog.Cancel>
+            <Button variant="soft" color="gray" disabled={busy}>
+              Annuler
+            </Button>
+          </AlertDialog.Cancel>
+          <Button loading={busy} onClick={() => onPublish(sharing)}>
+            Publier
+          </Button>
+        </Flex>
+      </AlertDialog.Content>
+    </AlertDialog.Root>
+  );
+}
+
+/** La fiche d'un show telle que l'enregistre le serveur (l'écran en JSON), ou null s'il ne la rend pas. */
+async function readSheet(url: string): Promise<ShowSheet | null> {
+  const screen = (await fetch(url, { headers: { Accept: "application/json" } })
+    .then((response) => (response.ok ? response.json() : null))
+    .catch(() => null)) as { name?: string; data?: { sheet?: ShowSheet } } | null;
+  return (screen?.name === "show" && screen.data?.sheet) || null;
+}
+
+/** La fiche, relue toutes les 5 secondes tant que son son est en route vers SoundCloud : onDone la reçoit dès qu'il ne l'est plus. */
+function useSendingWatch(url: string, sending: boolean, onDone: (sheet: ShowSheet) => void) {
+  const latest = useRef(onDone);
+  latest.current = onDone;
+  useEffect(() => {
+    if (!sending) return;
+    let live = true;
+    const timer = window.setInterval(async () => {
+      const fresh = await readSheet(url);
+      if (!live || !fresh) return;
+      const main = fresh.envoi.main;
+      if (main?.status === "sending" && !main.stalled) return;
+      live = false;
+      window.clearInterval(timer);
+      latest.current(fresh);
+    }, 5000);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+    };
+  }, [url, sending]);
+}
+
+/**
+ * Le son reçu d'un show, en tête du panneau Son : le lecteur, sa place dans le circuit, et ses actions. « Publier
+ * maintenant » l'envoie sur SoundCloud sans attendre le lendemain matin, ou le renvoie après un échec ; pendant
+ * l'envoi, la fiche se relit toutes les 5 secondes, puis prend la piste (onPublished).
+ */
+export function ReceivedSound({
+  url,
+  envoi,
+  dirty,
+  scheduled,
+  onChange,
+  onPublished,
+}: {
+  url: string;
+  envoi: EnvoiView;
+  /** La fiche a des changements pas enregistrés : SoundCloud ne recevrait pas ce qu'on y voit. */
+  dirty: boolean;
+  /** La fiche a une date de diffusion (un créneau de la grille). */
+  scheduled: boolean;
+  onChange(envoi: EnvoiView): void;
+  onPublished(sheet: ShowSheet): void;
+}) {
+  const notify = useNotify();
   const { busy, run } = useAudioActions(url, onChange);
   const [asking, setAsking] = useState(false);
+  const [publishing, setPublishing] = useState<"ask" | "busy" | null>(null);
   const main = envoi.main;
+  const sending = main?.status === "sending" && !main.stalled;
+
+  /** L'envoi est fini : la fiche prend la piste (ou l'échec), et on dit comment ça s'est passé. */
+  function finish(fresh: ShowSheet) {
+    onPublished(fresh);
+    const now = fresh.envoi.main;
+    if (now?.status === "sent")
+      notify({ kind: "success", title: "Publié sur SoundCloud", description: fresh.status === "published" ? "La page de l'émission est en ligne aussi." : "La page de l'émission n'a pas changé." });
+    else if (now?.status === "failed") notify({ kind: "error", title: "SoundCloud n'a pas pris le son", description: now.error ?? undefined });
+    else if (now?.stalled) notify({ kind: "error", title: "L'envoi vers SoundCloud s'est interrompu", description: "Relance-le avec « Publier maintenant »." });
+  }
+  useSendingWatch(url, sending, finish);
+
+  async function publish(sharing: "public" | "private") {
+    setPublishing("busy");
+    const result = await postForm<EnvoiResponse>(url, fields({ intent: "soundcloud-publish", sharing }));
+    if (!result.ok) {
+      setPublishing("ask");
+      notify({ kind: "error", title: "Pas envoyé", description: result.errors.form });
+      return;
+    }
+    setPublishing(null);
+    onChange(result.envoi);
+    if (result.envoi.main?.status === "sending") {
+      notify({ kind: "success", title: result.message, description: "La fiche se met à jour toute seule ; tu peux la quitter, l'envoi continue." });
+      return;
+    }
+    // Déjà fini (un refus tout de suite) : la fiche se relit sans attendre.
+    const fresh = await readSheet(url);
+    if (fresh) finish(fresh);
+  }
+
   if (!main) return null;
+  const publishable = main.status === "approved" || main.status === "failed" || (main.status === "sending" && main.stalled);
+  const blocked =
+    envoi.soundcloud === "off"
+      ? "SoundCloud n'est pas branché : il manque son appli (SOUNDCLOUD_CLIENT_ID et SOUNDCLOUD_CLIENT_SECRET)."
+      : envoi.soundcloud === "unlinked"
+        ? "SoundCloud n'est pas relié : un admin le relie depuis l'accueil de l'admin."
+        : dirty
+          ? "Enregistre d'abord la fiche : SoundCloud reçoit ce qui est enregistré."
+          : null;
   return (
     <Flex direction="column" gap="2" className="admin-received">
       <Flex justify="between" align="start" gap="2">
         <Text size="2" weight="medium" className="admin-break">
           {main.fileName}
         </Text>
-        <Badge color={TONES[main.status]} className="admin-nowrap">
-          {LABELS.audioStatus[main.status]}
+        <Badge color={main.stalled ? "red" : TONES[main.status]} className="admin-nowrap">
+          {sending && <Spinner size="1" />}
+          {main.stalled ? "Interrompu" : LABELS.audioStatus[main.status]}
         </Badge>
       </Flex>
       {main.size && (
@@ -314,15 +472,19 @@ export function ReceivedSound({ url, envoi, onChange }: { url: string; envoi: En
             </a>
           </Button>
         )}
+        {publishable && (
+          <Button type="button" size="2" variant={main.status === "approved" ? "soft" : "solid"} disabled={blocked !== null} onClick={() => setPublishing("ask")}>
+            <UploadIcon /> Publier maintenant
+          </Button>
+        )}
         <IconButton type="button" size="2" variant="ghost" color="red" aria-label="Effacer le son" title="Effacer le son" disabled={main.status === "sending"} onClick={() => setAsking(true)}>
           <TrashIcon />
         </IconButton>
       </Flex>
       <Text size="1" color="gray">
-        {main.status === "received"
-          ? "Écoute-le, puis valide-le : validé, il part tout seul sur SoundCloud le lendemain matin de sa diffusion."
-          : "Le MP3 à charger dans Radio Cult pour la diffusion."}
+        {publishable && blocked ? blocked : soundHint(main, scheduled)}
       </Text>
+      <PublishDialog open={publishing !== null} scheduled={scheduled} busy={publishing === "busy"} onPublish={(sharing) => void publish(sharing)} onClose={() => setPublishing(null)} />
       <Confirm
         open={asking}
         title="Effacer le son ?"

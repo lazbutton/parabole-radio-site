@@ -5,14 +5,18 @@
  *
  *   - Deezer : l'API publique, sans clé ;
  *   - YouTube et YouTube Music : l'API Data, avec YOUTUBE_API_KEY ;
+ *   - SoundCloud : avec le compte relié de la publication (9.14), l'adresse résolue par l'API (les liens courts
+ *     on.soundcloud.com compris) ;
  *   - Spotify : plus possible depuis février 2026 (une appli en mode développement ne lit que les playlists de son
- *     propriétaire) ; SoundCloud viendra avec l'appli de la publication (9.14) ; ailleurs (Apple Music, Tidal…) : on
- *     colle la liste.
+ *     propriétaire) ; ailleurs (Apple Music, Tidal…) : on colle la liste.
  *
  * Le serveur n'interroge que les adresses de ces API (et les liens courts de Deezer), jamais l'adresse donnée.
  */
-import { listeDeezer, listeYouTube, youTubeDurations, youTubeIds, type ListedTrack } from "@parabole/cms/assemblage";
+import { compteSoundCloud, jetonSoundCloud } from "@parabole/cms";
+import { listeDeezer, listeSoundCloud, listeYouTube, youTubeDurations, youTubeIds, type ListedTrack } from "@parabole/cms/assemblage";
 import { YOUTUBE_API_KEY } from "astro:env/server";
+import { database } from "../cms";
+import { soundcloudApp } from "../soundcloud";
 
 export type PlaylistAnswer = { ok: true; platform: string; title: string; tracks: ListedTrack[] } | { ok: false; error: string };
 
@@ -20,7 +24,13 @@ export type PlaylistAnswer = { ok: true; platform: string; title: string; tracks
 const MAX_TRACKS = 200;
 const TIMEOUT = 10_000;
 
-type Source = { platform: "deezer"; id: string } | { platform: "deezer-short"; url: string } | { platform: "youtube"; id: string } | { platform: "spotify" } | { platform: "soundcloud" } | { platform: "apple" };
+type Source =
+  | { platform: "deezer"; id: string }
+  | { platform: "deezer-short"; url: string }
+  | { platform: "youtube"; id: string }
+  | { platform: "soundcloud"; url: string }
+  | { platform: "spotify" }
+  | { platform: "apple" };
 
 /** La plateforme d'une adresse de playlist, et ce qu'il faut pour la lire ; null pour une adresse inconnue. */
 export function sourceOf(input: string): Source | null {
@@ -42,7 +52,9 @@ export function sourceOf(input: string): Source | null {
     return id && /^[\w-]{10,64}$/.test(id) ? { platform: "youtube", id } : null;
   }
   if (host === "open.spotify.com" || host === "spotify.link") return { platform: "spotify" };
-  if (host === "soundcloud.com" || host === "on.soundcloud.com") return { platform: "soundcloud" };
+  // Une playlist (« /compte/sets/nom », et son jeton secret si elle est privée), ou un lien court : l'API les résout.
+  if (host === "soundcloud.com" || host === "m.soundcloud.com") return /^\/[\w-]+\/sets\/[\w-]+(?:\/s-[\w-]+)?\/?$/.test(url.pathname) ? { platform: "soundcloud", url: `https://soundcloud.com${url.pathname}` } : null;
+  if (host === "on.soundcloud.com") return /^\/[\w-]+\/?$/.test(url.pathname) ? { platform: "soundcloud", url: `https://on.soundcloud.com${url.pathname}` } : null;
   if (host === "music.apple.com") return { platform: "apple" };
   return null;
 }
@@ -91,10 +103,63 @@ async function youtube(id: string): Promise<PlaylistAnswer> {
   return { ok: true, platform: "YouTube", title: "", tracks: tracks.slice(0, MAX_TRACKS) };
 }
 
+const SOUNDCLOUD_API = "https://api.soundcloud.com/";
+/** Tous les morceaux, même ceux que SoundCloud ne laisse pas écouter d'ici : seuls leurs titres comptent. */
+const ALL_ACCESS = "playable,preview,blocked";
+
+/**
+ * SoundCloud : avec le jeton du compte relié, l'adresse est résolue (GET /resolve, qui répond par l'adresse de la
+ * playlist dans l'API), puis la playlist lue, ses morceaux compris ; une longue playlist se lit par pages. Seules les
+ * adresses de l'API sont suivies.
+ */
+async function soundcloud(url: string): Promise<PlaylistAnswer> {
+  const app = soundcloudApp();
+  if (!app) return { ok: false, error: "La lecture des playlists SoundCloud n'est pas branchée (il manque l'appli SoundCloud) : colle la liste." };
+  const db = await database();
+  if (!(await compteSoundCloud(db))) return { ok: false, error: "SoundCloud n'est pas relié (un admin le relie depuis l'accueil) : colle la liste." };
+  const headers = { Accept: "application/json; charset=utf-8", Authorization: `OAuth ${await jetonSoundCloud(db, app)}` };
+  async function read(href: string, manual = false): Promise<{ status: number; location: string | null; body: unknown }> {
+    const answer = await fetch(href, { headers, redirect: manual ? "manual" : "follow", signal: AbortSignal.timeout(TIMEOUT) });
+    if (answer.status === 401) throw new Error("SoundCloud refuse l'accès : un admin relie le compte de nouveau depuis l'accueil.");
+    const body: unknown = await answer.json().catch(() => null);
+    const said = body && typeof body === "object" && "location" in body && typeof body.location === "string" ? body.location : null;
+    return { status: answer.status, location: answer.headers.get("location") ?? said, body };
+  }
+  const resolved = await read(`${SOUNDCLOUD_API}resolve?${new URLSearchParams({ url })}`, true);
+  if (resolved.status === 404) return { ok: false, error: "SoundCloud ne trouve pas cette playlist (elle est peut-être privée, ou supprimée) : colle la liste." };
+  let body = resolved.body;
+  if (resolved.status >= 300 && resolved.status < 400) {
+    if (!resolved.location?.startsWith(SOUNDCLOUD_API)) throw new Error("SoundCloud répond par une adresse inattendue.");
+    const target = new URL(resolved.location);
+    target.searchParams.set("access", ALL_ACCESS);
+    const playlist = await read(target.href);
+    if (playlist.status !== 200) throw new Error(`SoundCloud ne rend pas la playlist (${playlist.status}).`);
+    body = playlist.body;
+  } else if (resolved.status !== 200) throw new Error(`SoundCloud ne résout pas ce lien (${resolved.status}).`);
+  const first = listeSoundCloud(body);
+  const tracks = [...first.tracks];
+  // Une longue playlist n'a pas rendu tous ses morceaux : on les lit par pages, depuis le premier.
+  let next: string | null = null;
+  if (first.next?.startsWith(SOUNDCLOUD_API)) {
+    const pages = new URL(first.next);
+    pages.searchParams.set("linked_partitioning", "true");
+    pages.searchParams.set("access", ALL_ACCESS);
+    next = pages.href;
+  }
+  while (next?.startsWith(SOUNDCLOUD_API) && tracks.length < MAX_TRACKS) {
+    const page = await read(next);
+    if (page.status !== 200) throw new Error(`SoundCloud ne rend pas les morceaux de la playlist (${page.status}).`);
+    const more = listeSoundCloud(page.body);
+    tracks.push(...more.tracks);
+    next = more.next;
+  }
+  return { ok: true, platform: "SoundCloud", title: first.title, tracks: tracks.slice(0, MAX_TRACKS) };
+}
+
 /** La liste d'une playlist d'après son adresse, ou pourquoi on ne peut pas la lire (et quoi faire à la place). */
 export async function readPlaylist(input: string): Promise<PlaylistAnswer> {
   const source = sourceOf(input);
-  if (!source) return { ok: false, error: "Ce lien n'est pas celui d'une playlist Deezer ou YouTube : colle la liste à la place." };
+  if (!source) return { ok: false, error: "Ce lien n'est pas celui d'une playlist Deezer, YouTube ou SoundCloud : colle la liste à la place." };
   try {
     switch (source.platform) {
       case "deezer":
@@ -106,7 +171,7 @@ export async function readPlaylist(input: string): Promise<PlaylistAnswer> {
       case "spotify":
         return { ok: false, error: "Spotify ne laisse plus lire les playlists des autres (depuis février 2026) : colle la liste, ou demande-la au curateur." };
       case "soundcloud":
-        return { ok: false, error: "Les playlists SoundCloud se liront avec la publication sur SoundCloud, pas encore branchée : colle la liste." };
+        return await soundcloud(source.url);
       case "apple":
         return { ok: false, error: "Apple Music ne se lit pas d'ici : colle la liste." };
     }

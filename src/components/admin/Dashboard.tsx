@@ -3,8 +3,8 @@
  * prochaine deadline (qui a envoyé, qui relancer, cms/README.md, 9.12) ; puis ce qui reste à compléter, en un seul bloc
  * depuis les retours du 4 novembre 2026 : ce qui manque et ce qui attend (chaque ligne mène à la liste filtrée, avec le
  * même nombre), et les derniers brouillons à reprendre. À droite, l'import de la programmation Radio Cult (son dernier
- * passage, ce qu'il reste à relire, et « Importer maintenant ») et les chiffres des rubriques. Créer une fiche se fait
- * depuis sa rubrique, ou la recherche (⌘K).
+ * passage, ce qu'il reste à relire, et « Importer maintenant »), le compte SoundCloud où partent les émissions (9.14)
+ * et les chiffres des rubriques. Créer une fiche se fait depuis sa rubrique, ou la recherche (⌘K).
  */
 import { LABELS } from "@parabole/cms/labels";
 import {
@@ -19,6 +19,7 @@ import {
   FileTextIcon,
   ImageIcon,
   LayersIcon,
+  Link2Icon,
   ListBulletIcon,
   MagnifyingGlassIcon,
   PersonIcon,
@@ -27,8 +28,8 @@ import {
   TextAlignLeftIcon,
   UpdateIcon,
 } from "@radix-ui/react-icons";
-import { Badge, Button, Callout, Card, Dialog, Flex, Heading, IconButton, Kbd, Select, Text, TextField } from "@radix-ui/themes";
-import { useState, type ReactNode } from "react";
+import { AlertDialog, Badge, Button, Callout, Card, Dialog, Flex, Heading, IconButton, Kbd, Link, Select, Text, TextField } from "@radix-ui/themes";
+import { useEffect, useState, type ReactNode } from "react";
 import { PageHeader } from "./AdminShell";
 import { useCommand } from "./CommandPalette";
 import { StatusBadge, useModKey } from "./marks";
@@ -36,15 +37,34 @@ import { useRouter } from "./router";
 import { Field, postForm } from "./sheet";
 import { counted } from "./text";
 import { useNotify } from "./toast";
-import type { CycleResponse, DashboardData, DeadlineView, ImportLine, ImportResponse, RadioCultPanel, Viewer } from "./types";
+import type { CycleResponse, DashboardData, DeadlineView, Flash, ImportLine, ImportResponse, RadioCultPanel, Viewer } from "./types";
 
 /** « Émission diffusée », « Émissions diffusées » : le début d'une ligne de « À compléter ». */
 const aired = (count: number) => (count > 1 ? "Émissions diffusées" : "Émission diffusée");
 
-export function Dashboard({ viewer, today, stats, upcoming, missing, envois, deadlines, cycle, drafts, radiocult }: DashboardData & { viewer: Viewer }) {
+/** Le retour de « Relier SoundCloud » (/admin/soundcloud/retour), dit par l'adresse : /admin?soundcloud=… */
+const SOUNDCLOUD_RETURNS: Record<string, Flash> = {
+  relie: { kind: "success", title: "SoundCloud relié", description: "Les émissions validées y partiront chaque matin, après leur diffusion." },
+  refus: { kind: "error", title: "SoundCloud n'est pas relié", description: "La connexion a été refusée sur SoundCloud." },
+  echec: { kind: "error", title: "SoundCloud n'est pas relié", description: "La connexion n'a pas abouti : recommence avec « Relier SoundCloud »." },
+  reglages: { kind: "error", title: "SoundCloud n'est pas branché", description: "Il manque SOUNDCLOUD_CLIENT_ID et SOUNDCLOUD_CLIENT_SECRET dans Vercel." },
+};
+
+export function Dashboard({ viewer, today, stats, upcoming, missing, envois, deadlines, cycle, drafts, radiocult, soundcloud }: DashboardData & { viewer: Viewer }) {
   const firstName = viewer.name.split(" ")[0];
   const openCommand = useCommand();
   const mod = useModKey();
+  const router = useRouter();
+  const notify = useNotify();
+
+  // De retour de SoundCloud : on dit comment ça s'est passé, puis l'adresse redevient /admin.
+  useEffect(() => {
+    const said = new URLSearchParams(location.search).get("soundcloud");
+    if (said === null) return;
+    const notice = SOUNDCLOUD_RETURNS[said];
+    if (notice) notify(notice);
+    router.replace("/admin", router.screen);
+  }, []);
   const todo: { count: number; label: string; href: string; icon: ReactNode }[] = [
     { count: envois.review, label: `${envois.review > 1 ? "Sons envoyés" : "Son envoyé"} à écouter`, href: "/admin/shows?missing=review", icon: <PlayIcon /> },
     { count: envois.failed, label: `${envois.failed > 1 ? "Publications" : "Publication"} SoundCloud en échec`, href: "/admin/shows?missing=failed", icon: <ExclamationTriangleIcon /> },
@@ -162,6 +182,7 @@ export function Dashboard({ viewer, today, stats, upcoming, missing, envois, dea
 
         <Flex direction="column" gap="5" minWidth="0">
           <RadioCult panel={radiocult} />
+          <SoundCloud panel={soundcloud} admin={viewer.role === "admin"} />
 
           <Panel title="En chiffres">
             <div className="admin-stats">
@@ -456,6 +477,107 @@ function RadioCult({ panel }: { panel: RadioCultPanel }) {
           ))}
         </Flex>
       )}
+    </Panel>
+  );
+}
+
+/**
+ * Le compte SoundCloud de Parabole (cms/README.md, 9.14) : relié, chaque émission validée y part toute seule le
+ * lendemain matin de sa diffusion, puis sa page est publiée sur le site. Un admin le relie (OAuth, chez SoundCloud) ou
+ * le délie.
+ */
+function SoundCloud({ panel, admin }: { panel: DashboardData["soundcloud"]; admin: boolean }) {
+  const router = useRouter();
+  const notify = useNotify();
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const { account } = panel;
+
+  async function unlink() {
+    setBusy(true);
+    const body = new FormData();
+    body.set("intent", "soundcloud-unlink");
+    const result = await postForm<CycleResponse>("/admin", body);
+    setBusy(false);
+    if (!result.ok) {
+      notify({ kind: "error", title: "SoundCloud n'est pas délié", description: result.errors.form });
+      return;
+    }
+    setAsking(false);
+    router.replace("/admin", { name: "dashboard", title: "Accueil", data: result.data });
+    notify({ kind: "success", title: result.message });
+  }
+
+  if (!panel.ready)
+    return (
+      <Panel title="SoundCloud">
+        <Text as="p" size="2" color="gray">
+          Pas encore branché : il manque l'appli SoundCloud de Parabole (SOUNDCLOUD_CLIENT_ID et SOUNDCLOUD_CLIENT_SECRET dans Vercel). D'ici là, rien ne part sur
+          SoundCloud.
+        </Text>
+      </Panel>
+    );
+
+  return (
+    <Panel title="SoundCloud">
+      {account ? (
+        <Text as="p" size="2" color="gray" mb={admin ? "2" : undefined}>
+          Relié au compte{" "}
+          {account.url ? (
+            <Link href={account.url} target="_blank" rel="noopener noreferrer" weight="medium">
+              {account.username}
+            </Link>
+          ) : (
+            <Text weight="medium">{account.username}</Text>
+          )}{" "}
+          depuis le {account.since}. Chaque émission validée y part toute seule le lendemain matin de sa diffusion, puis sa page est publiée sur le site.
+        </Text>
+      ) : (
+        <Text as="p" size="2" color="gray" mb="2">
+          Pas encore relié. Une fois relié, chaque émission validée part toute seule sur SoundCloud le lendemain matin de sa diffusion, puis sa page est publiée
+          sur le site.
+        </Text>
+      )}
+      {admin && !account && (
+        <Flex>
+          <Button size="1" variant="soft" asChild>
+            <a href="/admin/soundcloud/relier" target="_self" data-astro-prefetch="false">
+              <Link2Icon /> Relier SoundCloud
+            </a>
+          </Button>
+        </Flex>
+      )}
+      {!admin && !account && (
+        <Text as="p" size="1" color="gray">
+          Un admin le relie, une fois pour toutes.
+        </Text>
+      )}
+      {admin && account && (
+        <Flex>
+          <Button size="1" variant="soft" color="gray" onClick={() => setAsking(true)}>
+            Délier
+          </Button>
+        </Flex>
+      )}
+      <AlertDialog.Root open={asking} onOpenChange={(next) => !next && setAsking(false)}>
+        <AlertDialog.Content maxWidth="440px">
+          <AlertDialog.Title>Délier SoundCloud ?</AlertDialog.Title>
+          <AlertDialog.Description size="2">
+            Plus rien ne partira sur SoundCloud, ni le matin ni avec « Publier maintenant », jusqu'à ce qu'un admin le relie. Les pistes déjà publiées restent en
+            ligne.
+          </AlertDialog.Description>
+          <Flex gap="3" mt="4" justify="end">
+            <AlertDialog.Cancel>
+              <Button variant="soft" color="gray" disabled={busy}>
+                Annuler
+              </Button>
+            </AlertDialog.Cancel>
+            <Button color="red" loading={busy} onClick={() => void unlink()}>
+              Délier
+            </Button>
+          </Flex>
+        </AlertDialog.Content>
+      </AlertDialog.Root>
     </Panel>
   );
 }

@@ -75,6 +75,8 @@ export type DashboardData = {
   deadlines: DeadlineView[];
   /** Le calendrier des groupes, réglable par un admin ; null s'il n'est pas réglé. */
   cycle: { group1Start: string; blockDays: number; deadlineDays: number } | null;
+  /** La publication sur SoundCloud (9.14) : l'appli réglée, et le compte relié (son nom, son adresse, depuis quand). */
+  soundcloud: { ready: boolean; account: { username: string; url: string | null; since: string } | null };
   drafts: { href: string; title: string; kind: "show" | "artist"; since: string }[];
   radiocult: RadioCultPanel;
 };
@@ -178,6 +180,8 @@ export type AudioView = {
   size: string;
   status: AudioStatus;
   error: string | null;
+  /** En route vers SoundCloud depuis plus d'un quart d'heure : l'envoi s'est interrompu, on peut le reprendre. */
+  stalled: boolean;
   /** Écouter et télécharger : des adresses de l'admin (/admin/api/son/<id>), qui signent la lecture dans le seau. */
   listen: string;
   download: string;
@@ -209,6 +213,8 @@ export type EnvoiView = {
   candidates: { id: string; title: string; when: string }[];
   /** Le seau des fichiers son est branché. */
   ready: boolean;
+  /** La publication sur SoundCloud (9.14) : pas branchée (l'appli manque), pas reliée (aucun compte), ou prête. */
+  soundcloud: "off" | "unlinked" | "linked";
 };
 
 export type EnvoiResponse = { ok: true; envoi: EnvoiView; message: string } | { ok: false; errors: FieldErrors };

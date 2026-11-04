@@ -12,6 +12,11 @@ export const MAX_PARTS = 60;
 export const MAX_PLAYLIST_BYTES = 2_000_000_000;
 /** Le débit demandé pour le son d'un show ; un débit plus bas est signalé, pas refusé. */
 export const WANTED_KBPS = 320;
+/**
+ * Un envoi vers SoundCloud « en route » depuis plus de 15 minutes s'est interrompu (une fonction Vercel s'arrête au
+ * bout de 5) : « Publier maintenant » peut le reprendre, et le ménage de nuit le passe en échec.
+ */
+export const STUCK_SENDING_MS = 15 * 60_000;
 
 export type AudioRole = "main" | "part";
 

@@ -177,21 +177,39 @@ describe("la lecture des plateformes", () => {
     expect(() => listeYouTube({ error: { code: 404, message: "The playlist identified with the request's playlistId parameter cannot be found." } })).toThrow("cannot be found");
   });
 
-  it("SoundCloud : l'artiste de l'éditeur, du titre, ou du compte ; un lien qui n'est pas une playlist", () => {
+  it("SoundCloud : l'artiste du morceau, du titre, ou du compte ; une playlist lue par pages ; un lien qui n'est pas une playlist", () => {
     const page = listeSoundCloud({
       kind: "playlist",
       title: "Sélection",
+      track_count: 4,
+      tracks_uri: "https://api.soundcloud.com/playlists/soundcloud:playlists:12345/tracks",
       tracks: [
-        { title: "Rain", duration: 410_000, user: { username: "parabole" }, publisher_metadata: { artist: "Kerri Chandler" } },
+        { title: "Rain", duration: 410_000, user: { username: "parabole" }, metadata_artist: "Kerri Chandler" },
+        { title: "Shades Of Jae", duration: 397_000, user: { username: "kdj" }, publisher_metadata: { artist: "Moodymann" } },
         { title: "Étienne de Crécy - Prix choc", duration: 360_400, user: { username: "parabole" } },
         { title: "Café Del Mar", duration: 540_000, user: { username: "energy52" } },
       ],
     });
-    expect(page.tracks).toEqual([
-      { artist: "Kerri Chandler", title: "Rain", duration: 410 },
-      { artist: "Étienne de Crécy", title: "Prix choc", duration: 360 },
-      { artist: "energy52", title: "Café Del Mar", duration: 540 },
-    ]);
+    expect(page).toEqual({
+      title: "Sélection",
+      tracks: [
+        { artist: "Kerri Chandler", title: "Rain", duration: 410 },
+        { artist: "Moodymann", title: "Shades Of Jae", duration: 397 },
+        { artist: "Étienne de Crécy", title: "Prix choc", duration: 360 },
+        { artist: "energy52", title: "Café Del Mar", duration: 540 },
+      ],
+      next: null,
+    });
+    // Une longue playlist ne rend qu'une partie de ses morceaux : on les lit par pages, depuis le premier.
+    const partial = listeSoundCloud({ kind: "playlist", title: "Longue", track_count: 300, tracks_uri: "https://api.soundcloud.com/playlists/soundcloud:playlists:9/tracks", tracks: [{ title: "Rain" }] });
+    expect(partial).toEqual({ title: "Longue", tracks: [], next: "https://api.soundcloud.com/playlists/soundcloud:playlists:9/tracks" });
+    expect(listeSoundCloud({ collection: [{ title: "Rain", duration: 410_000, metadata_artist: "Kerri Chandler" }], next_href: "https://api.soundcloud.com/playlists/soundcloud:playlists:9/tracks?cursor=2" })).toEqual({
+      title: "",
+      tracks: [{ artist: "Kerri Chandler", title: "Rain", duration: 410 }],
+      next: "https://api.soundcloud.com/playlists/soundcloud:playlists:9/tracks?cursor=2",
+    });
+    expect(listeSoundCloud({ collection: [], next_href: null }).next).toBeNull();
     expect(() => listeSoundCloud({ kind: "track", title: "Rain" })).toThrow("playlist");
+    expect(() => listeSoundCloud({})).toThrow("playlist");
   });
 });
