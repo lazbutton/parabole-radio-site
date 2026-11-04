@@ -1,0 +1,404 @@
+---
+/**
+ * Émissions : les archives de Parabole (podcasts, playlists, DJ sets), d'après le croquis du 4 novembre, posées sur la
+ * vidéo comme la grille des résidents. En haut, la rangée qui reste collée au défilement : TOUT · PODCAST · PLAYLIST ·
+ * DJ SET, puis TRIER PAR (les filtres de l'admin qui valent pour ce type : Genre et Géographie, ou Thème, puis le
+ * mood), qui ouvre son panneau de télétexte à droite de la grille : les groupes du filtre, alignés à droite, et sous
+ * le groupe choisi ses étiquettes. À gauche, le rail des mois (« 05.26 »), du plus récent au plus ancien, comme la
+ * grille ; le premier show de chaque mois porte ce mois dans son coin.
+ *
+ * Toutes les archives sont dans la page : src/scripts/emissions.ts filtre sur place, sans recharger, au premier clic
+ * (le même calcul que le serveur, src/lib/emissions.ts) ; le panneau reste où il est, chaque pastille dit combien
+ * d'émissions elle donnerait, et l'adresse suit (?type=dj-set&genre=soul&mood=4&trier=genre). Sans script, la page
+ * est rendue déjà filtrée d'après son adresse, et les pastilles sont des liens. Gardée une minute par le cache de
+ * Vercel, comme les résidents.
+ */
+import { ENERGY, LABELS, type FacetMenu, type ShowCard } from "@parabole/cms";
+import Interruption from "../../components/Interruption.astro";
+import Carte from "../../components/emissions/Carte.astro";
+import Base from "../../layouts/Base.astro";
+import { reader } from "../../lib/cms";
+import {
+  adresseDe,
+  ancreDuMois,
+  avecMood,
+  cleDe,
+  compter,
+  correspond,
+  facettesDuType,
+  libelleMois,
+  lireEtat,
+  moisDe,
+  moisEnClair,
+  MOOD,
+  MOODS,
+  ONGLETS,
+  TYPES_AVEC_MOOD,
+  type Couvertures,
+  type EtatListe,
+} from "../../lib/emissions";
+
+export const prerender = false;
+
+/** Les archives se lisent par lots de 100 (le plus que rend le CMS d'un coup). */
+const LOT = 100;
+const maintenant = new Date();
+const params = Astro.url.searchParams;
+
+let etat: EtatListe = lireEtat(params, []);
+let facettes: FacetMenu[] = [];
+let archives: ShowCard[] | null = null;
+try {
+  const cms = await reader();
+  // tous les filtres des shows (chacun dit les types qu'il range), avec leurs seules étiquettes en service
+  const lire = (offset: number) => cms.listShows({ period: "past", now: maintenant, limit: LOT, offset });
+  const [menus, premier] = await Promise.all([cms.listFacets({ scope: "show" }), lire(0)]);
+  facettes = menus;
+  const lues = [...premier.items];
+  while (lues.length < premier.total) {
+    const suite = await lire(lues.length);
+    if (!suite.items.length) break;
+    lues.push(...suite.items);
+  }
+  archives = lues;
+} catch (erreur) {
+  console.error("emissions : la base ne répond pas", erreur);
+}
+if (archives) {
+  Astro.response.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
+  Astro.response.headers.set("Vercel-CDN-Cache-Control", "max-age=60, stale-while-revalidate=600");
+} else {
+  Astro.response.status = 503;
+  Astro.response.headers.set("Cache-Control", "no-store");
+}
+
+// Ce que couvre chaque choix d'un filtre : un groupe, ses étiquettes ; une étiquette, elle-même (si elle n'est pas
+// aussi un groupe du filtre)
+const couvertures: Couvertures = new Map();
+for (const facette of facettes)
+  for (const groupe of facette.groups) couvertures.set(cleDe(facette.slug, groupe.slug), [groupe.slug, ...groupe.tags.map((tag) => tag.slug)]);
+for (const facette of facettes)
+  for (const groupe of facette.groups)
+    for (const tag of groupe.tags) if (!couvertures.has(cleDe(facette.slug, tag.slug))) couvertures.set(cleDe(facette.slug, tag.slug), [tag.slug]);
+
+etat = lireEtat(params, facettes);
+// une étiquette que son filtre ne connaît pas (une vieille adresse) ne filtre rien
+for (const [facette, slug] of Object.entries(etat.filtres)) if (!couvertures.has(cleDe(facette, slug))) delete etat.filtres[facette];
+
+const cartes = (archives ?? []).map((show) => ({
+  show,
+  type: show.type,
+  etiquettes: show.tags.map((tag) => tag.slug),
+  mood: show.energy,
+  mois: moisDe(show.broadcastAt),
+}));
+const vues = cartes.filter((carte) => correspond(carte, etat, couvertures));
+const visible = new Set(vues);
+// le premier show visible de chaque mois porte le mois et son ancre
+const reperes = new Set(vues.filter((carte, rang) => rang === 0 || vues[rang - 1]!.mois !== carte.mois));
+const moisVus = new Map<string, number>();
+for (const carte of vues) moisVus.set(carte.mois, (moisVus.get(carte.mois) ?? 0) + 1);
+const tousLesMois = [...new Set(cartes.map((carte) => carte.mois))];
+const parType = new Map(ONGLETS.map((onglet) => [onglet.cle, cartes.filter((carte) => !onglet.type || carte.type === onglet.type).length]));
+const valables = new Set(facettesDuType(etat.type, facettes).map((facette) => facette.slug));
+// tout de suite : les dix premières pochettes affichées ; les autres au défilement
+const premieres = new Set(vues.slice(0, 10));
+
+// Les filtres en service, en pastilles qu'on retire d'un clic
+const nomDe = (facette: FacetMenu, slug: string) =>
+  facette.groups.find((groupe) => groupe.slug === slug)?.name ?? facette.groups.flatMap((groupe) => groupe.tags).find((tag) => tag.slug === slug)?.name ?? slug;
+const sans = (facette: string) => {
+  const { [facette]: _retire, ...autres } = etat.filtres;
+  return autres;
+};
+const actifs = [
+  ...facettes
+    .filter((facette) => etat.filtres[facette.slug])
+    .map((facette) => ({ facette: facette.slug, quoi: facette.name, mot: nomDe(facette, etat.filtres[facette.slug]!), href: adresseDe({ ...etat, filtres: sans(facette.slug) }) })),
+  ...(etat.mood ? [{ facette: MOOD, quoi: "Mood", mot: `Mood ${etat.mood}`, href: adresseDe({ ...etat, mood: null }) }] : []),
+];
+/** Choisir une étiquette dans un filtre (ou la retirer si c'est déjà elle), en gardant le panneau ouvert. */
+const avecFiltre = (facette: string, slug: string) =>
+  adresseDe({ ...etat, filtres: etat.filtres[facette] === slug ? sans(facette) : { ...sans(facette), [facette]: slug }, trier: facette });
+const avecMoodChoisi = (n: number | null) => adresseDe({ ...etat, mood: etat.mood === n ? null : n, trier: MOOD });
+const nombre = (facette: string, slug: string) => compter(cartes, etat, couvertures, facette, slug);
+// le numéro de page de télétexte de chaque panneau : P210, P220…, le mood en dernier
+const numero = (rang: number) => `P2${rang + 1}0`;
+const nommer = (n: number, un: string, plusieurs: string) => `${n} ${n > 1 ? plusieurs : un}`;
+const filtre = actifs.length > 0;
+---
+
+<Base page="show" title="Émissions" description="Les archives de Parabole Radio : podcasts, playlists et DJ sets, à réécouter sans couper le direct.">
+  <div class="emissions" data-emissions>
+    <h1 class="sr-only">Émissions de Parabole Radio</h1>
+    {
+      !archives ? (
+        <Interruption quoi="Les émissions ne peuvent pas s'afficher pour le moment." />
+      ) : archives.length === 0 ? (
+        <div class="residents-vide">
+          <div class="bientot">
+            <p class="bientot-titre">Les émissions arrivent</p>
+            <p>Les podcasts, les playlists et les DJ sets de Parabole s'afficheront ici, du plus récent au plus ancien, à réécouter sans couper le direct.</p>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div class="regie emissions-regie">
+            <nav class="regie-roles" aria-label="Type d'émission">
+              {ONGLETS.map((onglet) => (
+                <a
+                  class="regie-touche"
+                  href={adresseDe({ type: onglet.type, filtres: {}, mood: null, trier: "" })}
+                  data-type={onglet.cle}
+                  aria-current={etat.type === onglet.type ? "true" : undefined}
+                >
+                  {onglet.mot}
+                  <span class="regie-nombre">{parType.get(onglet.cle) ?? 0}</span>
+                </a>
+              ))}
+            </nav>
+            <div class="trier">
+              <span class="trier-mot" aria-hidden="true">
+                Trier par
+              </span>
+              <div class="trier-touches" role="group" aria-label="Trier par">
+                {facettes.map((facette) => (
+                  <a
+                    class="trier-touche"
+                    href={adresseDe({ ...etat, trier: etat.trier === facette.slug ? "" : facette.slug })}
+                    data-trier={facette.slug}
+                    data-types={facette.showTypes.join(" ")}
+                    aria-controls={`panneau-${facette.slug}`}
+                    aria-expanded={etat.trier === facette.slug ? "true" : "false"}
+                    data-filtre={etat.filtres[facette.slug] ? "" : undefined}
+                    aria-disabled={!valables.has(facette.slug) ? "true" : undefined}
+                    tabindex={!valables.has(facette.slug) ? -1 : undefined}
+                  >
+                    {facette.name}
+                  </a>
+                ))}
+                <a
+                  class="trier-touche"
+                  href={adresseDe({ ...etat, trier: etat.trier === MOOD ? "" : MOOD })}
+                  data-trier={MOOD}
+                  data-types={TYPES_AVEC_MOOD.join(" ")}
+                  aria-controls={`panneau-${MOOD}`}
+                  aria-expanded={etat.trier === MOOD ? "true" : "false"}
+                  data-filtre={etat.mood ? "" : undefined}
+                  aria-disabled={!avecMood(etat.type) ? "true" : undefined}
+                  tabindex={!avecMood(etat.type) ? -1 : undefined}
+                >
+                  Mood
+                </a>
+              </div>
+            </div>
+            <div class="trier-actifs" data-actifs>
+              <span class="trier-total" data-total>
+                {nommer(vues.length, "émission", "émissions")}
+              </span>
+              <ul class="trier-pastilles" aria-label="Filtres en service" data-pastilles>
+                {actifs.map((actif) => (
+                  <li>
+                    <a class="regie-puce" href={actif.href} data-retirer={actif.facette} aria-label={`Retirer le filtre ${actif.quoi} : ${actif.mot}`}>
+                      {actif.mot}
+                      <span class="trier-retirer" aria-hidden="true">
+                        &times;
+                      </span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+              <a class="trier-effacer" href={adresseDe({ ...etat, filtres: {}, mood: null })} data-effacer hidden={!filtre}>
+                Tout effacer
+              </a>
+            </div>
+          </div>
+
+          <div class="emissions-corps" data-trier={etat.trier || undefined}>
+            <nav class="rail-mois" aria-label="Aller au mois">
+              <ol>
+                {tousLesMois.map((mois) => {
+                  const n = moisVus.get(mois) ?? 0;
+                  return (
+                    <li>
+                      <a
+                        href={`#${ancreDuMois(mois)}`}
+                        data-mois={mois}
+                        aria-disabled={!n ? "true" : undefined}
+                        tabindex={!n ? -1 : undefined}
+                        title={`${moisEnClair(mois)} · ${nommer(n, "émission", "émissions")}`}
+                        aria-label={`${moisEnClair(mois)}, ${nommer(n, "émission", "émissions")}`}
+                        aria-current={mois === vues[0]?.mois ? "location" : undefined}
+                      >
+                        {libelleMois(mois)}
+                      </a>
+                    </li>
+                  );
+                })}
+              </ol>
+            </nav>
+
+            <div class="emissions-liste">
+              <ul class="grille grille-emissions">
+                {cartes.map((carte) => (
+                  <li
+                    id={reperes.has(carte) ? ancreDuMois(carte.mois) : undefined}
+                    data-type={carte.type}
+                    data-etiquettes={carte.etiquettes.join(" ")}
+                    data-mood={carte.mood ?? undefined}
+                    data-mois={carte.mois}
+                    data-repere={reperes.has(carte) ? libelleMois(carte.mois) : undefined}
+                    hidden={!visible.has(carte)}
+                  >
+                    <Carte show={carte.show} tot={premieres.has(carte)} />
+                  </li>
+                ))}
+              </ul>
+              <div class="residents-aucun" data-aucun hidden={vues.length > 0}>
+                <p class="residents-aucun-titre">Pas de signal</p>
+                <p>Aucune émission ne répond à ces filtres pour l'instant.</p>
+                <a class="regie-touche" href={adresseDe({ ...etat, filtres: {}, mood: null })} data-effacer>
+                  Tout revoir
+                </a>
+              </div>
+            </div>
+
+            <div class="panneaux">
+              {facettes.map((facette, rang) => (
+                <section
+                  id={`panneau-${facette.slug}`}
+                  class="panneau-trier teletexte"
+                  aria-labelledby={`panneau-${facette.slug}-titre`}
+                  data-facette={facette.slug}
+                  hidden={etat.trier !== facette.slug}
+                >
+                  <div class="teletexte-tete">
+                    <span class="teletexte-numero" aria-hidden="true">
+                      {numero(rang)}
+                    </span>
+                    <h2 id={`panneau-${facette.slug}-titre`} class="teletexte-titre">
+                      {facette.name}
+                    </h2>
+                    <a class="panneau-fermer" href={adresseDe({ ...etat, trier: "" })} data-fermer aria-label={`Fermer le panneau ${facette.name}`}>
+                      &times;
+                    </a>
+                  </div>
+                  <ul class="panneau-groupes">
+                    <li>
+                      <a
+                        class="panneau-puce"
+                        href={adresseDe({ ...etat, filtres: sans(facette.slug), trier: facette.slug })}
+                        data-facette={facette.slug}
+                        data-etiquette=""
+                        aria-current={!etat.filtres[facette.slug] ? "true" : undefined}
+                      >
+                        Tout
+                        <span class="regie-nombre">{nombre(facette.slug, "")}</span>
+                      </a>
+                    </li>
+                    {facette.groups.map((groupe) => {
+                      const choisi = etat.filtres[facette.slug];
+                      const ouvert = choisi === groupe.slug || groupe.tags.some((tag) => tag.slug === choisi);
+                      const n = nombre(facette.slug, groupe.slug);
+                      return (
+                        <li class="panneau-groupe" data-groupe={groupe.slug} data-ouvert={ouvert ? "" : undefined}>
+                          <a
+                            class="panneau-puce panneau-puce-groupe"
+                            href={avecFiltre(facette.slug, groupe.slug)}
+                            data-facette={facette.slug}
+                            data-etiquette={groupe.slug}
+                            data-nom={groupe.name}
+                            data-couvre={couvertures.get(cleDe(facette.slug, groupe.slug))?.join(" ")}
+                            aria-current={choisi === groupe.slug ? "true" : undefined}
+                            aria-expanded={groupe.tags.length ? (ouvert ? "true" : "false") : undefined}
+                            aria-disabled={!n && !ouvert ? "true" : undefined}
+                          >
+                            {groupe.name}
+                            <span class="regie-nombre">{n}</span>
+                          </a>
+                          {groupe.tags.length > 0 && (
+                            <ul class="panneau-etiquettes" aria-label={`Dans ${groupe.name}`} hidden={!ouvert}>
+                              {groupe.tags.map((tag) => {
+                                const m = nombre(facette.slug, tag.slug);
+                                return (
+                                  <li>
+                                    <a
+                                      class="panneau-puce"
+                                      href={avecFiltre(facette.slug, tag.slug)}
+                                      data-facette={facette.slug}
+                                      data-etiquette={tag.slug}
+                                      data-groupe={groupe.slug}
+                                      data-nom={tag.name}
+                                      data-couvre={couvertures.get(cleDe(facette.slug, tag.slug))?.join(" ")}
+                                      aria-current={choisi === tag.slug ? "true" : undefined}
+                                      aria-disabled={!m && choisi !== tag.slug ? "true" : undefined}
+                                    >
+                                      {tag.name}
+                                      <span class="regie-nombre">{m}</span>
+                                    </a>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              ))}
+              <section id={`panneau-${MOOD}`} class="panneau-trier teletexte" aria-labelledby={`panneau-${MOOD}-titre`} data-facette={MOOD} hidden={etat.trier !== MOOD}>
+                <div class="teletexte-tete">
+                  <span class="teletexte-numero" aria-hidden="true">
+                    {numero(facettes.length)}
+                  </span>
+                  <h2 id={`panneau-${MOOD}-titre`} class="teletexte-titre">
+                    Mood
+                  </h2>
+                  <a class="panneau-fermer" href={adresseDe({ ...etat, trier: "" })} data-fermer aria-label="Fermer le panneau Mood">
+                    &times;
+                  </a>
+                </div>
+                <ul class="panneau-groupes panneau-moods">
+                  <li>
+                    <a class="panneau-puce" href={adresseDe({ ...etat, mood: null, trier: MOOD })} data-facette={MOOD} data-etiquette="" aria-current={!etat.mood ? "true" : undefined}>
+                      Tout
+                      <span class="regie-nombre">{nombre(MOOD, "")}</span>
+                    </a>
+                  </li>
+                  {MOODS.map((n) => {
+                    const m = nombre(MOOD, String(n));
+                    return (
+                      <li>
+                        <a
+                          class="panneau-puce panneau-mood"
+                          href={avecMoodChoisi(n)}
+                          data-facette={MOOD}
+                          data-etiquette={String(n)}
+                          data-nom={`Mood ${n}`}
+                          aria-current={etat.mood === n ? "true" : undefined}
+                          aria-disabled={!m && etat.mood !== n ? "true" : undefined}
+                          aria-label={`Mood ${n} sur ${ENERGY.max}${n === ENERGY.min ? `, ${LABELS.energy.low.toLowerCase()}` : n === ENERGY.max ? `, ${LABELS.energy.high.toLowerCase()}` : ""}`}
+                        >
+                          {n === ENERGY.min && <span class="mood-mot">{LABELS.energy.low}</span>}
+                          {n === ENERGY.max && <span class="mood-mot">{LABELS.energy.high}</span>}
+                          <span class="mood-barres" style={`--n:${n}`} aria-hidden="true" />
+                          <span class="mood-chiffre">{n}</span>
+                          <span class="regie-nombre">{m}</span>
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p class="panneau-note">De calme à énergique, le mood des DJ sets et des playlists.</p>
+              </section>
+            </div>
+          </div>
+          <p class="sr-only" aria-live="polite" data-annonce>
+            {filtre ? nommer(vues.length, "émission trouvée", "émissions trouvées") : nommer(vues.length, "émission", "émissions")}
+          </p>
+        </>
+      )
+    }
+  </div>
+</Base>

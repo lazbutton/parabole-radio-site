@@ -22,7 +22,7 @@ const admin = Astro.locals.admin!;
 const [index, tags] = await Promise.all([admin.listArtists(filters), admin.tagFilter("artist")]);
 const screen: Screen = {
   name: "artists",
-  title: "Artistes",
+  title: "Résidents",
   data: {
     groups: index.groups.map((group) => ({
       letter: group.letter,

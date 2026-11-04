@@ -5,6 +5,7 @@
  * l'indicateur de chargement. La connexion, elle, garde le design du site (src/layouts/AdminGate.astro).
  */
 import {
+  ArchiveIcon,
   BookmarkIcon,
   CalendarIcon,
   ChatBubbleIcon,
@@ -30,35 +31,47 @@ import { useAppearance, type Appearance } from "./appearance";
 import { useCommand } from "./CommandPalette";
 import { useModKey } from "./marks";
 import { useRouter } from "./router";
+import { RUBRIQUES, rubriqueHref, rubriqueOf } from "./rubriques";
 import { initial } from "./text";
-import type { Screen, Viewer } from "./types";
+import { UNPLACED, type Screen, type Viewer } from "./types";
 
 /**
- * Les rubriques, par groupe. Les suivantes (événements, médiathèque) viendront dans « Contenus » ; l'équipe, dans
- * « Site ».
+ * Les rubriques, par groupe, d'après le schéma des retours du 4 novembre 2026 : les contenus (émissions, résidents,
+ * événements, à propos), leurs filtres (rubriques.ts), puis le site (vidéos de fond, antenne libre).
  */
-type Section = { href: string; label: string; icon: typeof HomeIcon; screens: Screen["name"][] };
-const HOME: Section = { href: "/admin", label: "Accueil", icon: HomeIcon, screens: ["dashboard"] };
+type Section = { href: string; label: string; icon: typeof HomeIcon; active(screen: Screen): boolean };
+const on =
+  (...names: Screen["name"][]) =>
+  (screen: Screen) =>
+    names.includes(screen.name);
+const HOME: Section = { href: "/admin", label: "Accueil", icon: HomeIcon, active: on("dashboard") };
 const GROUPS: { label: string; sections: Section[] }[] = [
   {
     label: "Contenus",
     sections: [
-      { href: "/admin/shows", label: "Shows", icon: DiscIcon, screens: ["shows", "show"] },
-      { href: "/admin/artistes", label: "Artistes", icon: PersonIcon, screens: ["artists", "artist"] },
-      { href: "/admin/evenements", label: "Événements", icon: CalendarIcon, screens: ["events", "event"] },
-      { href: "/admin/etiquettes", label: "Étiquettes", icon: BookmarkIcon, screens: ["tags"] },
+      { href: "/admin/shows", label: "Émissions", icon: DiscIcon, active: on("shows", "show") },
+      { href: "/admin/artistes", label: "Résidents", icon: PersonIcon, active: on("artists", "artist") },
+      { href: "/admin/evenements", label: "Événements", icon: CalendarIcon, active: on("events", "event") },
+      { href: "/admin/a-propos", label: "À propos", icon: InfoCircledIcon, active: on("about") },
     ],
+  },
+  {
+    label: "Filtres",
+    sections: RUBRIQUES.map((rubrique) => ({
+      href: rubriqueHref(rubrique.slug),
+      label: rubrique.label,
+      icon: rubrique.slug === UNPLACED ? ArchiveIcon : BookmarkIcon,
+      active: (screen: Screen) => screen.name === "tags" && rubriqueOf(screen.data) === rubrique.slug,
+    })),
   },
   {
     label: "Site",
     sections: [
-      { href: "/admin/a-propos", label: "À propos", icon: InfoCircledIcon, screens: ["about"] },
-      { href: "/admin/videos", label: "Vidéos de fond", icon: VideoIcon, screens: ["clips"] },
-      { href: "/admin/antenne", label: "Antenne libre", icon: ChatBubbleIcon, screens: ["antenne"] },
+      { href: "/admin/videos", label: "Vidéos de fond", icon: VideoIcon, active: on("clips") },
+      { href: "/admin/antenne", label: "Antenne libre", icon: ChatBubbleIcon, active: on("antenne") },
     ],
   },
 ];
-const SECTIONS = [HOME, ...GROUPS.flatMap((group) => group.sections)];
 
 /** Le site public, dans un autre onglet. */
 const SITE = "/";
@@ -78,9 +91,9 @@ export function AdminShell({ viewer, children }: { viewer: Viewer; children: Rea
       <a className="admin-skip" href="#contenu">
         Aller au contenu
       </a>
-      <Sidebar viewer={viewer} current={screen.name} />
+      <Sidebar viewer={viewer} current={screen} />
       <div className="admin-body">
-        <TopBar viewer={viewer} current={screen.name} />
+        <TopBar viewer={viewer} current={screen} />
         <main id="contenu" className="admin-main" tabIndex={-1}>
           {children}
         </main>
@@ -113,7 +126,7 @@ function Brand() {
   );
 }
 
-function Sidebar({ viewer, current }: { viewer: Viewer; current: Screen["name"] }) {
+function Sidebar({ viewer, current }: { viewer: Viewer; current: Screen }) {
   const openCommand = useCommand();
   const mod = useModKey();
   return (
@@ -162,8 +175,8 @@ function Sidebar({ viewer, current }: { viewer: Viewer; current: Screen["name"] 
   );
 }
 
-function NavLink({ section, current }: { section: Section; current: Screen["name"] }) {
-  const active = section.screens.includes(current);
+function NavLink({ section, current }: { section: Section; current: Screen }) {
+  const active = section.active(current);
   const Icon = section.icon;
   return (
     <a className="admin-nav-item" href={section.href} data-active={active || undefined} aria-current={active ? "page" : undefined} data-astro-prefetch="false">
@@ -174,8 +187,20 @@ function NavLink({ section, current }: { section: Section; current: Screen["name
 }
 
 /** Sur téléphone et tablette : le menu des rubriques, la marque, la recherche et le compte. */
-function TopBar({ viewer, current }: { viewer: Viewer; current: Screen["name"] }) {
+function TopBar({ viewer, current }: { viewer: Viewer; current: Screen }) {
   const openCommand = useCommand();
+  const item = (section: Section) => {
+    const Icon = section.icon;
+    const active = section.active(current);
+    return (
+      <DropdownMenu.Item key={section.href} asChild>
+        <a href={section.href} data-astro-prefetch="false" aria-current={active ? "page" : undefined}>
+          <Icon /> {section.label}
+          {active && <CheckIcon className="admin-menu-check" />}
+        </a>
+      </DropdownMenu.Item>
+    );
+  };
   return (
     <header className="admin-topbar">
       <DropdownMenu.Root>
@@ -185,18 +210,13 @@ function TopBar({ viewer, current }: { viewer: Viewer; current: Screen["name"] }
           </IconButton>
         </DropdownMenu.Trigger>
         <DropdownMenu.Content align="start" sideOffset={8} size="2" className="admin-menu">
-          {SECTIONS.map((section) => {
-            const Icon = section.icon;
-            const active = section.screens.includes(current);
-            return (
-              <DropdownMenu.Item key={section.href} asChild>
-                <a href={section.href} data-astro-prefetch="false" aria-current={active ? "page" : undefined}>
-                  <Icon /> {section.label}
-                  {active && <CheckIcon className="admin-menu-check" />}
-                </a>
-              </DropdownMenu.Item>
-            );
-          })}
+          {item(HOME)}
+          {GROUPS.map((group) => (
+            <DropdownMenu.Group key={group.label}>
+              <DropdownMenu.Label>{group.label}</DropdownMenu.Label>
+              {group.sections.map(item)}
+            </DropdownMenu.Group>
+          ))}
           <DropdownMenu.Separator />
           <DropdownMenu.Item asChild>
             <a href={SITE} target="_blank" rel="noopener">

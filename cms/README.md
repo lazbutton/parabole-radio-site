@@ -99,7 +99,7 @@ erDiagram
         enum status "draft, published"
         timestamptz broadcast_at "diffusion"
         int duration_seconds
-        smallint energy "mood, 1 calme à 5 énergique"
+        smallint energy "mood, 1 calme à 4 énergique"
         text description "Markdown"
         uuid cover_id FK "image carrée"
         text soundcloud_url
@@ -258,7 +258,7 @@ erDiagram
 
 | Table | Ce qu'elle garde | À savoir |
 |---|---|---|
-| `show` | Un épisode archivé ou à venir | Publier exige une date de diffusion. `energy` : le mood d'un DJ set ou d'une playlist, de 1 (calme) à 5 (énergique), le curseur des filtres du site. Le son est sur le compte SoundCloud de Parabole : le lecteur joue `soundcloud_track_id` (URN `soundcloud:tracks:<id>`), `soundcloud_url` mène à la piste (crédit exigé par SoundCloud). `radiocult_event_id` relie le show au créneau Radio Cult importé (l'identifiant d'un créneau seul ; « série@jour » pour une occurrence d'un créneau répété, section 9.4) |
+| `show` | Un épisode archivé ou à venir | Publier exige une date de diffusion. `energy` : le mood d'un DJ set ou d'une playlist, de 1 (calme) à 4 (énergique), le curseur des filtres du site (la contrainte accepte encore 5, l'ancienne échelle : lu 4 partout, `clampEnergy`). Le son est sur le compte SoundCloud de Parabole : le lecteur joue `soundcloud_track_id` (URN `soundcloud:tracks:<id>`), `soundcloud_url` mène à la piste (crédit exigé par SoundCloud). `radiocult_event_id` relie le show au créneau Radio Cult importé (l'identifiant d'un créneau seul ; « série@jour » pour une occurrence d'un créneau répété, section 9.4) |
 | `track` | La tracklist d'un show | Une ligne par morceau, `position` 1, 2, 3… sans doublon. Le minutage est en secondes depuis le début du show. Le lien Hopper commence forcément par `https://hppr.fr/` |
 | `artist` | Un résident ou un invité | Le rôle est celui de l'artiste (filtres Resident / Guest). `links` : une liste `[{ "label": "Instagram", "url": "…" }]`. `broadcast_group` : son groupe de diffusion, 1 ou 2 (section 9.12) |
 | `show_artist` | Les artistes d'un show | Dans l'ordre d'affichage (« A b2b B ») |
@@ -550,8 +550,9 @@ Toutes les lectures se font sous le rôle `anon`, en lecture seule. Elles ne voi
 
 | Fonction | Paramètres | Rend |
 |---|---|---|
-| `listShows(filtres)` | `type`, `tags` (adresses d'étiquettes, toutes exigées ; une étiquette de groupe vaut pour tout son groupe : `"club"` trouve aussi les shows Amapiano), `energy` (`{ min, max }`, de 1 à 5), `artist` (slug), `period` (`"past"` : archives, `"upcoming"` : à venir), `limit` (24 par défaut, 100 au plus), `offset`, `now` | `{ items: ShowCard[], total, limit, offset }`, du plus récent au plus ancien (à venir : du plus proche au plus lointain) |
-| `getShow(slug)` | | `ShowDetail` : la vignette, plus la description, la piste SoundCloud, le créneau Radio Cult et la tracklist dans l'ordre. Ou `null` |
+| `listShows(filtres)` | `type`, `tags` (adresses d'étiquettes, toutes exigées ; une étiquette de groupe vaut pour tout son groupe : `"club"` trouve aussi les shows Amapiano), `energy` (`{ min, max }`, de 1 à 4), `artist` (slug), `period` (`"past"` : archives, `"upcoming"` : à venir), `limit` (24 par défaut, 100 au plus), `offset`, `now` | `{ items: ShowCard[], total, limit, offset }`, du plus récent au plus ancien (à venir : du plus proche au plus lointain) |
+| `listShowMonths(filtres)` | les filtres de `listShows`, sans `limit` ni `offset` | `[{ month: "2026-05", count }]` : les mois de la liste (l'heure de Paris décide du mois), dans son ordre. Le rail des mois de la page Émissions, et la page de la liste où commence chaque mois |
+| `getShow(slug)` | | `ShowDetail` : la vignette, plus la description, la piste SoundCloud, le créneau Radio Cult et la tracklist dans l'ordre ; ses artistes portent leurs liens (`links`). Ou `null` |
 | `listFacets({ scope, type, all })` | ce que montre la page (`"show"`, `"artist"`, `"event"`), le type de show, `all` : garder les étiquettes sans contenu | Les menus des filtres de la page : `[{ slug, name, groups: [{ slug, name, count, tags: [{ slug, name, count }] }] }]`, filtres et groupes dans l'ordre de l'admin, étiquettes dans l'ordre alphabétique, avec leur nombre de contenus publiés (un groupe compte ceux de toutes ses étiquettes, chacun une fois) |
 | `listArtists({ role, tag })` | `"resident"` ou `"guest"`, adresse d'étiquette (`"dj"`) | `{ total, groups: [{ letter, artists }] }` : l'index A–Z, à la française (« Éloïse » sous E), « # » pour les chiffres, à la fin. Chaque portrait porte ses étiquettes |
 | `getArtist(slug)` | | `ArtistDetail` : photo, bio, liens, ses étiquettes, ses shows, ses événements, les étiquettes de ses shows (`showTags`). Ou `null` |
@@ -589,7 +590,7 @@ npm test
 npm run typecheck
 ```
 
-273 tests, sur une base PGlite en mémoire : aucun compte, aucun réseau, une quinzaine de secondes. `npm test` marche aussi depuis la racine du projet. Ils couvrent :
+277 tests, sur une base PGlite en mémoire : aucun compte, aucun réseau, une quinzaine de secondes. `npm test` marche aussi depuis la racine du projet. Ils couvrent :
 
 - **les migrations** : elles passent sur une base vide, et leur relance ne change rien. Chaque table publique a sa RLS et ses règles. Le schéma Drizzle et la base sont d'accord. drizzle-kit n'a plus rien à générer : une migration oubliée fait échouer le test ;
 - **le seed** : il passe, se rejoue sans doublon, se retire sans toucher au reste, et marque bien tout comme exemple ;
@@ -817,7 +818,7 @@ La lecture du document, pour s'y retrouver :
 - dans les listes de genres, un passage en gras est un groupe, et les noms qui suivent sont ses étiquettes (« **HIP-HOP, R'N'B,** DRILL, RNB, RAP, TRAP » : le groupe « Hip-hop, R'n'B » et quatre étiquettes) ;
 - une étiquette qui porte le nom de son groupe (SOUL dans SOUL, CLUB dans CLUB) n'est pas recopiée dedans : le groupe se choisit lui-même ;
 - les noms passent des capitales du document aux minuscules, sigles et noms propres gardés (« Rap UK », « K-pop », « Folk du Rajasthan », « Techno de Détroit »), et l'accent oublié sur une capitale revient (« ELECTRONIQUE » donne « Électronique ») ;
-- le mood (« calme — énergique ») n'est pas une étiquette : c'est `show.energy`, de 1 à 5 ;
+- le mood (« calme — énergique ») n'est pas une étiquette : c'est `show.energy`, de 1 à 4 (5 avant le 4 novembre 2026) ;
 - les résidents et les invités restent le rôle d'un artiste ; leur sous-filtre (podcast, playlist, DJ) est le filtre Activité ;
 - la lecture s'arrête à « À propos » ou à « POUBELLE ».
 
@@ -849,7 +850,7 @@ Ce que l'import n'a pas su lire (une rubrique inconnue, des étiquettes avant to
 - Un grand filtre (Genre, Géographie) montre ses groupes ; un clic sur un groupe ouvre ses étiquettes en dessous, avec « Tout « Club » » pour choisir le groupe lui-même. Ce qui est choisi reste visible en haut, à retirer d'un clic, et une recherche trouve une étiquette dans le filtre (Entrée la coche).
 - Une pastille choisie se colore ; un groupe montre combien de ses étiquettes sont choisies. Une étiquette à deux places (Amapiano) se coche dans les deux filtres à la fois.
 - Une étiquette rangée seulement dans un filtre d'un autre type (un genre sur un podcast) est signalée, à retirer d'un clic. « Autres » prend une étiquette qui n'est dans aucun filtre : un nom inconnu crée une étiquette à classer.
-- Le mood se règle de 1 à 5 pour un DJ set ou une playlist (un podcast n'en garde pas). La fiche d'un artiste montre ses filtres de la même façon (Activité : Podcast, Playlist, DJ). Les listes des shows et des artistes ont un filtre « Étiquette » (« Activité » pour les artistes) rangé comme les filtres du site ; choisir un groupe garde aussi les contenus de ses étiquettes. Le tableau de bord compte les étiquettes à classer.
+- Le mood se règle de 1 à 4 pour un DJ set ou une playlist (un podcast n'en garde pas). La fiche d'un artiste montre ses filtres de la même façon (Activité : Podcast, Playlist, DJ). Les listes des shows et des artistes ont un filtre « Étiquette » (« Activité » pour les artistes) rangé comme les filtres du site ; choisir un groupe garde aussi les contenus de ses étiquettes. Le tableau de bord compte les étiquettes à classer.
 
 **Sur le site**, les pages liront `listFacets()` pour leurs menus (section 7) et `listShows({ tags, energy })`, `listArtists({ tag })`, `listEvents({ tag })` pour leurs listes. Les pages Résidents et Événements sont construites ; la page Show ne l'est pas encore.
 
@@ -942,3 +943,42 @@ L'émission devient un show **en brouillon**, sans date tant qu'elle attend son 
 4. Poser dans Vercel (Production et Preview) `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ACCESS_KEY_ID` et `R2_SECRET_ACCESS_KEY` (section 5).
 
 Pas encore : l'assemblage des playlists (9.13), la publication sur SoundCloud et la page du show publiée toute seule (9.14), les relances par e-mail avant la deadline, les semaines sans antenne dans le calendrier, les envois qu'on peut reprendre après une coupure.
+
+### 9.15 Les émissions et la ligne ARCHIVE
+
+La rubrique du site (`/emissions` et `/emissions/<adresse>`), d'après les croquis du 4 novembre 2026. Rien à changer dans la base : les shows, leurs étiquettes, leur mood et leur tracklist y étaient (section 2), et l'écran Shows de l'admin les remplit. S'y ajoutent une lecture, `listShowMonths()`, et les liens des artistes dans `getShow()`.
+
+**La liste** (`src/pages/emissions/index.astro`, `src/scripts/emissions.ts`, `src/styles/emissions.css`, `src/lib/emissions.ts`) pose les archives sur la vidéo, dans la grille des résidents, de la plus récente à la plus ancienne :
+
+- en haut, collés au défilement, les onglets TOUT · PODCAST · PLAYLIST · DJ SET, avec leur nombre, puis TRIER PAR : les filtres de l'admin qui valent pour ce type (Thème pour les podcasts, Genre et Géographie pour les DJ sets et les playlists, les trois pour TOUT), puis MOOD, sauf pour les podcasts ;
+- une touche de TRIER PAR ouvre son panneau à droite, une page de télétexte (P210, P220…) : les groupes du filtre alignés à droite, et sous le groupe choisi ses étiquettes ; il se pose par-dessus la droite de la grille, comme sur le croquis, sans la pousser. Le mood se choisit de 1 (calme) à 5 (énergique). Tout filtre **sur place, sans recharger** : un clic allume la pastille et la grille suit aussitôt ; le panneau ne bouge pas ; chaque pastille dit combien d'émissions elle donnerait avec les autres filtres, et celles qui ne donneraient rien s'éteignent. Un groupe choisi déplie ses étiquettes ; une étiquette choisie, cliquée de nouveau, ramène à son groupe. Les filtres en service s'affichent sous TRIER PAR, avec le nombre d'émissions, en pastilles qu'on retire d'un clic, et TOUT EFFACER. Un onglet garde les filtres qui valent encore pour son type ;
+- à gauche, le rail des mois (« 05.26 ») ; le premier show de chaque mois porte ce mois dans son coin. Le rail allume le mois qu'on parcourt et mène à la page où commence chaque mois ;
+- une carte : la pochette en bichromie (une archive, comme un événement passé), qui retrouve ses couleurs au survol, puis la date (« 12.05.26 »), le titre, les résidents, le type et deux étiquettes ;
+- toutes les archives (diffusées) sont dans la page, lues par lots de 100 : `src/scripts/emissions.ts` refait le calcul du serveur (`src/lib/emissions.ts`) dans le navigateur. Tout est dans l'adresse (`?type=dj-set&genre=soul&mood=4&trier=genre`), qui suit sans s'empiler dans l'historique : sans script, la page se rend déjà filtrée et ses pastilles sont des liens. Échap ferme le panneau. Rien ne change de place quand on filtre : la rangée du haut garde sa hauteur (la ligne du nombre d'émissions est toujours là), les touches de TRIER PAR d'un autre type et les mois du rail sans émission s'éteignent sans disparaître, et la place de la barre de défilement est gardée (`scrollbar-gutter`, `src/styles/pages.css`), comme sur toutes les rubriques, qui ne défilent plus en largeur. Au-delà de quelques centaines d'archives, il faudra repasser à des pages, ou à une lecture en JSON.
+
+**La page d'une émission** (`src/pages/emissions/[slug].astro`) est de la famille de celle d'un événement : la pochette prend l'antenne ; en bas du premier écran, la date et la durée, le titre en lettres creuses, les résidents (vers leur page), le type (vers sa liste), les étiquettes, le mood et ▶ ÉCOUTER ; à droite, la TRACKLIST (NOM, TITRE, le lien Hopper), dont chaque minutage lance l'archive à cet endroit, et où le morceau qui passe s'allume. Sous le premier écran : la description, les réseaux des résidents, la piste sur SoundCloud, puis AUTRES ÉMISSIONS en rangée (celles du premier résident d'abord, puis les plus récentes du même type). Sans tracklist (un podcast n'en a pas forcément), la description monte dans l'encart de droite (`src/components/emissions/Description.astro`). Les rangées ÉMISSIONS des pages d'artistes et la loupe (P101) y mènent.
+
+**La ligne ARCHIVE** (`src/components/TopBar.astro`, `src/scripts/archive.ts`, `src/styles/archive.css`) est la troisième ligne de l'en-tête, jaune, sous la ligne ON AIR. Elle apparaît quand une émission est en main : celle de la page qu'on regarde (prête à jouer), ou celle qu'on écoute, qui continue d'une page à l'autre. On y trouve son nom (vers sa page), ▶, l'avancée (l'onde de la piste, qu'on fait glisser), le volume (celui du site, partagé avec la ligne ON AIR), −30 / +30, SoundCloud ↗ et ×. Une émission jamais lancée part avec sa page ; × ferme la ligne. L'en-tête grandit d'autant (`--archive-h`) : les pages commencent dessous, et JUSTE AVANT comme la loupe (P101) se déplient sous elle.
+
+- **Le son** vient du lecteur intégré de SoundCloud, piloté par son API JavaScript (`https://w.soundcloud.com/player/api.js`), sans clé : il suffit de l'identifiant de la piste, celui de la fiche du show. Le lecteur ne se charge qu'au premier ▶ (rien ne part chez SoundCloud avant), dans un cadre minuscule et invisible de l'en-tête, jamais déplacé ; une autre émission s'y charge à la place. Le lecteur entièrement maison prévu (le flux de l'API dans notre propre `<audio>`, avec hls.js) attend l'application SoundCloud de la radio (l'abonnement Artist Pro, partie C de l'envoi des sets) : il remplacera `lecteurPour()` sans changer la ligne.
+- **Un navigateur qui exige un toucher dans le lecteur lui-même** (l'iPhone) : sans son au bout de 5 s, le lecteur de SoundCloud se montre sous la ligne, en page de télétexte, le temps de ce premier toucher ; la ligne reprend ensuite la main. Pas encore essayé sur un vrai iPhone.
+- **Les conditions de SoundCloud** (API Terms of Use, relues le 4 novembre 2026) : créditer l'auteur (le titre et les résidents de la ligne), citer SoundCloud comme source, et un lien visible vers la page de la piste (SoundCloud ↗ dans la ligne, « La piste sur SoundCloud » sur la page). Toutes les archives sont sur le compte de Parabole.
+- **Le direct et l'archive ne jouent jamais ensemble** : l'archive emprunte le son (`preterLeSon()`, `audio.ts`, qui compte maintenant ses emprunteurs : le film d'À propos et l'archive) et le rend quand on ferme la ligne ou que l'émission finit ; le direct reprend alors s'il jouait. ▶ ON AIR, RADIO / VIDÉO ou le casque reprennent la main : l'archive se met en pause. Le film d'À propos et l'archive se mettent en pause l'un l'autre.
+- Une piste introuvable (un identifiant faux) : « Introuvable sur SoundCloud » dans la ligne, et « Indisponible » sur la page. Un show sans piste montre « Bientôt en écoute ».
+
+Rendues à la demande, gardées une minute par le cache de Vercel. Une émission inconnue ou en brouillon répond « Pas de signal » (404) ; une base injoignable, le carton « Interruption momentanée ».
+
+Pas encore : le zapping d'une émission à l'autre, reprendre une émission là où on l'avait laissée, le lecteur maison (avec l'application SoundCloud).
+
+### 9.16 Les retours du 4 novembre 2026 sur l'admin
+
+Notes de l'équipe sur l'admin en ligne, appliquées sans changer la base (aucune migration) :
+
+- **Barre latérale** rangée comme le schéma : Contenus (Émissions, Résidents, Événements, À propos), Filtres (Émissions, Résidents, Événements, À classer), Site (Vidéos de fond, Antenne libre). Les adresses ne changent pas (`/admin/shows`, `/admin/artistes`) ; « shows » devient « émissions » dans tous les textes.
+- **Filtres** (`/admin/etiquettes`) : une rubrique par contenu (`src/components/admin/rubriques.ts`, `?rubrique=residents` ouvre son premier filtre). Pour les émissions, « Podcast » (Thème) puis « Playlist + DJ sets » (Genre, Géographie et l'onglet Mood, qui explique l'échelle).
+- **Accueil** : plus de boutons « Nouvel artiste » et « Nouveau show » (on crée depuis la rubrique, ou ⌘K) ; « Brouillons à reprendre » rejoint « À compléter », qui compte aussi les émissions diffusées sans pochette, sans description ou sans étiquette ; la note périmée sur les pages du site est partie.
+- **Émissions** : les pastilles Statut et À compléter côte à côte ; À compléter propose aussi « sans pochette », « sans description », « sans étiquette » (`lacksCover`, `lacksDescription`, `lacksTags`) ; la colonne « Contenu » devient « À compléter » et dit ce qui manque. Un podcast sans tracklist ne manque de rien (`lacksTracklist`).
+- **Fiche d'une émission** : le mood passe à 4 crans (`ENERGY.max`), sur le site aussi ; un 5 déjà enregistré se lit 4 et s'enregistre 4 à la prochaine sauvegarde.
+- **Fiche d'un résident** : « Ses émissions » dans la colonne principale ; « Lien de la page » et « Fiche Radio Cult » expliquent ce qu'ils font.
+- **Événements** : deux parties titrées, « À venir » et « Passés » (par mois), et un menu « … » au bout de chaque ligne : Modifier, Supprimer (confirmé).
+- **Antenne libre** : messages au bandeau, mode lent, différé et liens ne se règlent plus ici ; ils gardent leur valeur en base. Restent : ouverte ou fermée, mode prudent, signalements.

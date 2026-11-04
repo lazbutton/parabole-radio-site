@@ -47,6 +47,7 @@ import {
   type UploadLinkView,
   type Viewer,
 } from "../../components/admin/types";
+import { isRubrique, MOOD_TAB, SCOPE_OF_RUBRIQUE } from "../../components/admin/rubriques";
 import { mediaBaseUrl } from "../cms";
 import { blobReady, MAX_FILM_BYTES, MAX_VIDEO_BYTES } from "./blob";
 import { aboutFormOf, artistFormOf, eventFormOf, showFormOf } from "./forms";
@@ -244,10 +245,19 @@ export async function dashboardData(admin: Admin, now = new Date()): Promise<Das
   };
 }
 
-/** Les étiquettes et les filtres, et l'onglet à montrer : celui demandé s'il existe, sinon le premier filtre. */
-export function tagsData(taxonomy: Taxonomy, wanted: string | null): TagsData {
-  const current = wanted === UNPLACED || taxonomy.facets.some((facet) => facet.slug === wanted) ? wanted! : (taxonomy.facets[0]?.slug ?? UNPLACED);
-  return { ...taxonomy, current };
+/**
+ * Les étiquettes et les filtres, et l'onglet à montrer : celui demandé s'il existe (un filtre, le mood, « à classer »),
+ * sinon le premier filtre de la rubrique demandée (?rubrique=residents, rubriques.ts), sinon le tout premier. Une
+ * rubrique encore sans filtre s'ouvre sur elle-même (les émissions, sur le mood).
+ */
+export function tagsData(taxonomy: Taxonomy, wanted: string | null, rubrique: string | null = null): TagsData {
+  if (wanted === UNPLACED || wanted === MOOD_TAB || taxonomy.facets.some((facet) => facet.slug === wanted)) return { ...taxonomy, current: wanted! };
+  const asked = isRubrique(rubrique) ? rubrique : isRubrique(wanted) ? wanted : null;
+  if (asked) {
+    const first = taxonomy.facets.find((facet) => facet.scope === SCOPE_OF_RUBRIQUE[asked]);
+    return { ...taxonomy, current: first?.slug ?? (asked === "emissions" ? MOOD_TAB : asked) };
+  }
+  return { ...taxonomy, current: taxonomy.facets[0]?.slug ?? UNPLACED };
 }
 
 /** Les vidéos de fond, dans l'ordre : le numéro de chaîne compte celles de la rotation. */

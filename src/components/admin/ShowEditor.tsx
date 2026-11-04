@@ -1,5 +1,5 @@
 /**
- * La fiche d'un show (cms/README.md, 9.2). En haut, la barre de la fiche (sheet.tsx) : toutes les actions au même
+ * La fiche d'une émission (cms/README.md, 9.2). En haut, la barre de la fiche (sheet.tsx) : toutes les actions au même
  * endroit. Dessous, le titre en grand, puis les propriétés en lignes — type, diffusion, durée, artistes, étiquettes,
  * mood —, la description et la tracklist ; à côté, la pochette, le son et les informations. Enregistrer, Publier et
  * Dépublier envoient la fiche sans quitter l'écran : le serveur vérifie, écrit sous le rôle de la personne connectée,
@@ -20,7 +20,7 @@ import { useBlocker, useRouter } from "./router";
 import { ReceivedParts, ReceivedSound, SubmissionPanel } from "./EnvoiPanels";
 import { FacetPicker } from "./FacetPicker";
 import { ImageField, placeImage } from "./ImageField";
-import { Field, filledPlaces, FormError, mergeSaved, placeErrors, postForm, Property, Section, SheetBar, SidePanel, TitleInput, useSheetKeys, type Intent, type SaveIntent } from "./sheet";
+import { Field, filledPlaces, FormError, mergeSaved, placeErrors, postForm, Property, Section, SheetBar, SidePanel, SlugField, TitleInput, useSheetKeys, type Intent, type SaveIntent } from "./sheet";
 import { TextEditor } from "./TextEditor";
 import { useNotify } from "./toast";
 import { TokenPicker } from "./TokenPicker";
@@ -52,7 +52,7 @@ function formData(form: EditorForm, intent: Intent, version: string): FormData {
   return data;
 }
 
-const DONE: Record<SaveIntent, string> = { save: "Show enregistré", publish: "Show publié", unpublish: "Show dépublié : repassé en brouillon" };
+const DONE: Record<SaveIntent, string> = { save: "Émission enregistrée", publish: "Émission publiée", unpublish: "Émission dépubliée : repassée en brouillon" };
 const PLURALS = { dj_set: "DJ sets", playlist: "playlists", podcast: "podcasts" };
 const ENERGY_STEPS = Array.from({ length: ENERGY.max - ENERGY.min + 1 }, (_, index) => String(ENERGY.min + index));
 
@@ -102,7 +102,7 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
       const born = result.newArtists ?? 0;
       notify({
         kind: "success",
-        title: result.created && intent === "save" ? "Show créé, en brouillon" : DONE[intent],
+        title: result.created && intent === "save" ? "Émission créée, en brouillon" : DONE[intent],
         description: born ? `${born > 1 ? `${born} artistes créés` : "Un artiste créé"} en brouillon : complète leur fiche dans Artistes.` : undefined,
       });
       return true;
@@ -131,7 +131,7 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
       forgetRecent(url);
       router.invalidate();
       router.setBlocker(null);
-      notify({ kind: "success", title: result.message ?? "Show supprimé" });
+      notify({ kind: "success", title: result.message ?? "Émission supprimée" });
       return router.navigate(result.redirect, { replace: true });
     }
     setBusy(null);
@@ -140,7 +140,7 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
 
   useBlocker(dirty, () => save("save"));
   useSheetKeys(dirty, () => void save("save"));
-  const name = form.title.trim() || (sheet.id ? "Sans titre" : "Nouveau show");
+  const name = form.title.trim() || (sheet.id ? "Sans titre" : "Nouvelle émission");
   const tags = useTagChoices(sheet, form.tags, form.type);
   const [moreTags, setMoreTags] = useState(false);
   const toggleTag = (id: string) => set("tags", form.tags.includes(id) ? form.tags.filter((value) => value !== id) : [...form.tags, id]);
@@ -157,23 +157,24 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
       }}
     >
       <SheetBar
-        back={{ label: "Shows", href: "/admin/shows" }}
+        back={{ label: "Émissions", href: "/admin/shows" }}
         name={name}
         status={sheet.status}
+        feminine
         isNew={!sheet.id}
         dirty={dirty}
         busy={busy}
         updated={sheet.updated}
         onSave={(intent) => void save(intent)}
         deleteTitle={sheet.id ? `Supprimer « ${sheet.form.title} » ?` : undefined}
-        deleteNote="Le show, sa tracklist et ses liens aux artistes et aux étiquettes seront supprimés."
+        deleteNote="L'émission, sa tracklist et ses liens aux artistes et aux étiquettes seront supprimés."
         onDelete={remove}
       />
       <div className="admin-sheet-body">
         <FormError message={errors.form} />
         <div className="admin-sheet-grid">
           <div className="admin-sheet-main">
-            <TitleInput id="title" label="Titre du show" value={form.title} onChange={(value) => set("title", value)} placeholder="Titre du show" error={errors.title} />
+            <TitleInput id="title" label="Titre de l'émission" value={form.title} onChange={(value) => set("title", value)} placeholder="Titre de l'émission" error={errors.title} />
             <div className="admin-props">
               <Property label="Type" icon={<LayersIcon />} error={errors.type}>
                 <SegmentedControl.Root value={form.type} onValueChange={(value) => set("type", value)} aria-label="Type" size="2">
@@ -267,7 +268,7 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
                 <Property
                   label="Hors de ce type"
                   icon={<ExclamationTriangleIcon />}
-                  hint={`Ces étiquettes ne comptent pas pour les ${typePlural ?? "shows de ce type"} : retire-les, ou change le type.`}
+                  hint={`Ces étiquettes ne comptent pas pour les ${typePlural ?? "émissions de ce type"} : retire-les, ou change le type.`}
                 >
                   <div className="admin-picked">
                     {tags.stray.map((id) => (
@@ -319,7 +320,7 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
                 value={form.description}
                 onChange={(value) => set("description", value)}
                 error={errors.description}
-                placeholder="Le show en quelques lignes : l'ambiance, les invités, l'occasion…"
+                placeholder="L'émission en quelques lignes : l'ambiance, les invités, l'occasion…"
               />
             </Section>
             <TracklistEditor rows={form.tracks} onChange={(tracks) => set("tracks", tracks)} errors={errors} />
@@ -382,17 +383,7 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
               </Field>
             </SidePanel>
             <SidePanel title="Informations">
-              <Field label="Adresse sur le site" htmlFor="slug" optional hint="Minuscules, chiffres et tirets. Vide, elle est tirée du titre." error={errors.slug}>
-                <TextField.Root
-                  id="slug"
-                  value={form.slug}
-                  onChange={(e) => set("slug", e.target.value)}
-                  color={errors.slug ? "red" : undefined}
-                  autoComplete="off"
-                  autoCapitalize="off"
-                  className="admin-mono"
-                />
-              </Field>
+              <SlugField base="/emissions" value={form.slug} saved={sheet.form.slug} published={sheet.status === "published"} from="du titre" error={errors.slug} onChange={(value) => set("slug", value)} />
               {(sheet.created || sheet.radiocultEventId) && (
                 <DataList.Root size="1" className="admin-facts">
                   {sheet.created && (

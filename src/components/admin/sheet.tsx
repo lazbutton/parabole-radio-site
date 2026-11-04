@@ -6,7 +6,7 @@
  * de côté (image, son, informations). Plus l'envoi au serveur (postForm, qui sert aussi au mot de passe).
  */
 import { ArrowLeftIcon, CheckIcon, DotsHorizontalIcon, ExclamationTriangleIcon, ExternalLinkIcon, EyeNoneIcon, TrashIcon } from "@radix-ui/react-icons";
-import { AlertDialog, Button, DropdownMenu, Flex, Heading, IconButton, Kbd, Spinner, Text, Tooltip } from "@radix-ui/themes";
+import { AlertDialog, Button, DropdownMenu, Flex, Heading, IconButton, Kbd, Spinner, Text, TextField, Tooltip } from "@radix-ui/themes";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { FieldErrors } from "@parabole/cms";
 import { StatusBadge, useModKey } from "./marks";
@@ -169,6 +169,7 @@ export function SheetBar({
   deleteNote = "",
   onDelete,
   live = false,
+  feminine = false,
   view,
 }: {
   /** La liste où revenir ; absente pour une page qui n'est dans aucune liste. */
@@ -186,6 +187,8 @@ export function SheetBar({
   onDelete?(): void;
   /** Toujours en ligne : ni statut, ni Publier, ni Dépublier. */
   live?: boolean;
+  /** « Publiée » : une émission. */
+  feminine?: boolean;
   /** La page du site, à ouvrir dans un autre onglet. */
   view?: { label: string; href: string };
 }) {
@@ -226,7 +229,7 @@ export function SheetBar({
         <Text size="2" weight="medium" truncate className="admin-sheet-name">
           {name}
         </Text>
-        {!isNew && !live && <StatusBadge status={status} />}
+        {!isNew && !live && <StatusBadge status={status} feminine={feminine} />}
         {view && (
           <Tooltip content={`${view.label} (nouvel onglet)`}>
             <IconButton asChild variant="ghost" color="gray" size="2">
@@ -398,4 +401,57 @@ export async function postForm<T>(url: string, body: FormData): Promise<T | { ok
   } catch {
     return { ok: false, errors: { form: "Pas de connexion au serveur. Vérifie le réseau, puis réessaie : ta saisie est toujours là." } };
   }
+}
+
+/**
+ * La fin du lien d'une page du site (son « slug ») : le chemin de la rubrique devant, en clair, et la page à ouvrir une
+ * fois publiée. Vide, le serveur la tire du titre ou du nom.
+ */
+export function SlugField({
+  base,
+  value,
+  saved,
+  published,
+  from,
+  error,
+  onChange,
+}: {
+  /** Le chemin de la rubrique sur le site : « /residents ». */
+  base: string;
+  value: string;
+  /** L'adresse enregistrée, pour ouvrir la page. */
+  saved: string;
+  published: boolean;
+  /** D'où elle vient quand elle est vide : « du nom », « du titre ». */
+  from: string;
+  error?: string;
+  onChange(value: string): void;
+}) {
+  const shown = value.trim() || saved;
+  return (
+    <Field
+      label="Lien de la page"
+      htmlFor="slug"
+      optional
+      hint={
+        <>
+          La fin de l'adresse de sa page sur le site : <span className="admin-mono">{`${base}/${shown || "…"}`}</span>. Minuscules, chiffres et tirets ; vide, elle
+          est tirée {from}. La changer casse les liens déjà partagés.
+        </>
+      }
+      error={error}
+    >
+      <TextField.Root id="slug" value={value} onChange={(e) => onChange(e.target.value)} color={error ? "red" : undefined} autoComplete="off" autoCapitalize="off" className="admin-mono">
+        {published && saved && (
+          <TextField.Slot side="right">
+            <IconButton asChild size="1" variant="ghost" color="gray">
+              <a href={`${base}/${saved}`} target="_blank" rel="noopener" aria-label="Ouvrir la page sur le site" title="Ouvrir la page sur le site">
+                <ExternalLinkIcon />
+              </a>
+            </IconButton>
+          </TextField.Slot>
+        )}
+      </TextField.Root>
+    </Field>
+  );
 }

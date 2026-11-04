@@ -1,0 +1,250 @@
+---
+/**
+ * La page d'une émission (/emissions/<adresse>), d'après le croquis du 4 novembre. Sa pochette prend l'antenne, comme
+ * la photo d'un artiste (le mode photo de background.ts, par data-fond-photo). En bas du premier écran, à gauche : la
+ * DATE, le TITRE en très grand, en lettres creuses, le ou les RÉSIDENTS (vers leur page), ses pastilles (le type, les
+ * étiquettes, le mood) et ▶ ÉCOUTER ; à droite, la TRACKLIST (NOM, TITRE), dont chaque minutage lance l'archive à cet
+ * endroit. Sous le premier écran : la description, les réseaux des résidents et la piste sur SoundCloud, puis AUTRES
+ * ÉMISSIONS, en rangée (celles du même résident d'abord, puis les plus récentes du même type). Sans tracklist (un
+ * podcast n'en a pas forcément), la description monte dans l'encart de droite, comme sur la page d'un événement.
+ *
+ * L'archive se joue dans la ligne ARCHIVE de l'en-tête, jaune, sous la ligne ON AIR (src/scripts/archive.ts) : la page
+ * la lui confie par data-archive, et elle continue d'une page à l'autre. En haut, ◂ ÉMISSIONS ramène à la liste.
+ * Rendue à la demande, gardée une minute par le cache de Vercel, comme la liste.
+ */
+import { ENERGY, formatTimecode, LABELS, type ShowCard, type ShowDetail } from "@parabole/cms";
+import Interruption from "../../components/Interruption.astro";
+import Carte from "../../components/emissions/Carte.astro";
+import Description from "../../components/emissions/Description.astro";
+import Rangee from "../../components/residents/Rangee.astro";
+import Sheet from "../../components/Sheet.astro";
+import Base from "../../layouts/Base.astro";
+import { reader } from "../../lib/cms";
+import { adresseDe, dateEnLettres, duree, MOT_DU_TYPE, nomsDe, petite } from "../../lib/emissions";
+import { renderMarkdown } from "../../lib/markdown";
+
+export const prerender = false;
+
+const AUTRES = 12;
+const maintenant = new Date();
+let show: ShowDetail | null | undefined;
+let autres: ShowCard[] = [];
+try {
+  const cms = await reader();
+  show = await cms.getShow(Astro.params.slug ?? "");
+  if (show) {
+    // AUTRES ÉMISSIONS : celles de son premier résident d'abord, puis les plus récentes du même type
+    const premier = show.artists[0];
+    const [duResident, duType] = await Promise.all([
+      premier ? cms.listShows({ artist: premier.slug, period: "past", now: maintenant, limit: AUTRES + 1 }) : null,
+      cms.listShows({ type: show.type, period: "past", now: maintenant, limit: AUTRES + 1 }),
+    ]);
+    const vues = new Set([show.slug]);
+    autres = [...(duResident?.items ?? []), ...duType.items].filter((autre) => !vues.has(autre.slug) && !!vues.add(autre.slug)).slice(0, AUTRES);
+  }
+} catch (erreur) {
+  console.error("emissions : la base ne répond pas", erreur);
+}
+// inconnue ou pas publiée : « Pas de signal », comme la page d'un artiste
+if (show !== undefined) {
+  if (!show) Astro.response.status = 404;
+  Astro.response.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
+  Astro.response.headers.set("Vercel-CDN-Cache-Control", "max-age=60, stale-while-revalidate=600");
+} else {
+  Astro.response.status = 503;
+  Astro.response.headers.set("Cache-Control", "no-store");
+}
+
+const pochette = show?.cover ?? null;
+const fond = pochette ? { src: pochette.url, srcset: pochette.srcset, flou: petite(pochette.srcset, pochette.url) } : { mire: true };
+const aVenir = !!show && show.broadcastAt > maintenant;
+const ecoutable = !!show?.soundcloudTrackId && !aVenir;
+const noms = show ? nomsDe(show) : "";
+// Ce que la ligne ARCHIVE reçoit de la page (src/scripts/archive.ts)
+const archive =
+  show && ecoutable
+    ? {
+        slug: show.slug,
+        titre: show.title,
+        qui: noms,
+        piste: show.soundcloudTrackId,
+        url: show.soundcloudUrl,
+        duree: show.durationSeconds,
+        pochette: pochette ? petite(pochette.srcset, pochette.url) : null,
+      }
+    : null;
+const texte = show?.description ? renderMarkdown(show.description) : "";
+const quand = show ? dateEnLettres(show.broadcastAt) : "";
+const combien = duree(show?.durationSeconds);
+const longueur = !show ? undefined : show.title.length > 44 ? "fleuve" : show.title.length > 26 ? "tres-long" : show.title.length > 14 ? "long" : undefined;
+const reseaux = (show?.artists ?? []).filter((artiste) => artiste.links.length > 0);
+// À droite du premier écran : la tracklist ; sans elle (un podcast n'en a pas forcément), la description y monte
+const avecTracklist = (show?.tracks.length ?? 0) > 0;
+const avecDescription = !!texte || reseaux.length > 0 || !!show?.soundcloudUrl;
+// la description de l'aperçu : le début du texte, sans Markdown ; sinon le type, les résidents et la date
+const resume = (show?.description ?? "")
+  .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+  .replace(/[*_`#>~]/g, "")
+  .replace(/\s+/g, " ")
+  .trim();
+const description = resume
+  ? resume.length > 155
+    ? resume.slice(0, 154).replace(/\s+\S*$/, "") + "…"
+    : resume
+  : show
+    ? `${MOT_DU_TYPE[show.type]}${noms ? ` de ${noms}` : ""}, ${quand.toLowerCase()}. Une émission de Parabole Radio.`
+    : "Une émission de Parabole Radio.";
+---
+
+<Base page="show" title={show?.title ?? (show === null ? "Page introuvable" : "Émissions")} description={description} image={pochette?.url}>
+  {
+    show === null ? (
+      <Sheet title="Page introuvable" meta="erreur 404">
+        <div class="bientot">
+          <p class="bientot-titre">Pas de signal</p>
+          <p>
+            Cette émission n’est pas, ou plus, sur Parabole. Le direct, lui, continue : <a href="/emissions">voir toutes les émissions</a>.
+          </p>
+        </div>
+      </Sheet>
+    ) : !show ? (
+      <div class="emissions">
+        <Interruption quoi="Cette page ne peut pas s'afficher pour le moment." />
+      </div>
+    ) : (
+      <article class="emission" data-emission data-fond-photo={JSON.stringify(fond)} data-archive={archive ? JSON.stringify(archive) : undefined}>
+        <div class="evenement-haut">
+          <a class="evenement-retour" href="/emissions" data-retour>
+            <span aria-hidden="true">◂</span> Émissions
+          </a>
+        </div>
+
+        <div class="emission-une" data-encart={avecTracklist || avecDescription ? "" : undefined}>
+          <div class="emission-titre">
+            <p class="evenement-quand">
+              {aVenir && <span class="evenement-pastille">À venir</span>}
+              <time datetime={show.broadcastAt.toISOString()}>{quand}</time>
+              {combien && <span class="emission-duree">· {combien}</span>}
+            </p>
+            <h1 class="evenement-nom emission-nom" data-longueur={longueur}>
+              {show.title}
+            </h1>
+            {pochette?.alt && <p class="sr-only">Pochette : {pochette.alt}</p>}
+            {show.artists.length > 0 && (
+              <ul class="emission-residents" aria-label="Résidents">
+                {show.artists.map((artiste) => (
+                  <li>
+                    <a href={`/residents/${artiste.slug}`}>{artiste.name}</a>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <ul class="evenement-categories emission-pastilles" aria-label="Type et étiquettes">
+              <li>
+                <a href={adresseDe({ type: show.type, filtres: {}, mood: null, trier: "" })}>{MOT_DU_TYPE[show.type]}</a>
+              </li>
+              {show.tags.map((tag) => (
+                <li>{tag.name}</li>
+              ))}
+              {show.energy && (
+                <li class="emission-mood" title={`Mood ${show.energy} sur ${ENERGY.max}, de ${LABELS.energy.low.toLowerCase()} à ${LABELS.energy.high.toLowerCase()}`}>
+                  <span aria-hidden="true">Mood</span>
+                  <span class="mood-barres" style={`--n:${show.energy}`} aria-hidden="true" />
+                  <span class="sr-only">Mood {show.energy} sur {ENERGY.max}</span>
+                </li>
+              )}
+            </ul>
+            {ecoutable ? (
+              <button class="emission-ecouter" type="button" data-archive-lire aria-describedby="emissionNom">
+                <svg class="icon emission-ecouter-lire" aria-hidden="true">
+                  <use href="#icon-play" />
+                </svg>
+                <svg class="icon emission-ecouter-pause" aria-hidden="true">
+                  <use href="#icon-pause" />
+                </svg>
+                <span data-archive-mot>Écouter</span>
+              </button>
+            ) : (
+              <p class="emission-bientot">{aVenir ? "À l'antenne bientôt : l'archive suivra" : "Bientôt en écoute"}</p>
+            )}
+            <span id="emissionNom" class="sr-only">
+              {show.title}
+            </span>
+          </div>
+
+          {avecTracklist ? (
+            <aside class="emission-encart emission-tracklist" aria-labelledby="tracklistTitre">
+              <h2 id="tracklistTitre" class="emission-encart-titre">
+                Tracklist<span class="rangee-nombre">{show.tracks.length}</span>
+              </h2>
+              <p class="tracklist-entete" aria-hidden="true">
+                <span>Nom</span>
+                <span>Titre</span>
+              </p>
+              <ol class="tracklist">
+                {show.tracks.map((morceau) => (
+                  <li data-debut={morceau.startSeconds ?? undefined}>
+                    {morceau.startSeconds !== null && ecoutable ? (
+                      <button
+                        class="tracklist-temps"
+                        type="button"
+                        data-archive-depuis={morceau.startSeconds}
+                        aria-label={`Écouter depuis ${formatTimecode(morceau.startSeconds)} : ${morceau.artist}, ${morceau.title}`}
+                      >
+                        {formatTimecode(morceau.startSeconds)}
+                      </button>
+                    ) : (
+                      <span class="tracklist-temps">{morceau.startSeconds !== null ? formatTimecode(morceau.startSeconds) : ""}</span>
+                    )}
+                    <span class="tracklist-artiste">{morceau.artist}</span>
+                    <span class="tracklist-morceau">{morceau.title}</span>
+                    {morceau.hopperUrl ? (
+                      <a
+                        class="tracklist-hopper"
+                        href={morceau.hopperUrl}
+                        target="_blank"
+                        rel="noopener"
+                        title="Écouter ce morceau sur sa plateforme (Hopper)"
+                        aria-label={`${morceau.title} sur sa plateforme, avec Hopper (nouvel onglet)`}
+                      >
+                        ↗
+                      </a>
+                    ) : (
+                      <span />
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </aside>
+          ) : (
+            avecDescription && (
+              <aside class="emission-encart emission-description" aria-labelledby="descriptionTitre">
+                <h2 id="descriptionTitre" class="emission-encart-titre">
+                  Description
+                </h2>
+                <Description texte={texte} reseaux={reseaux} plusieurs={show.artists.length > 1} soundcloudUrl={show.soundcloudUrl} />
+              </aside>
+            )
+          )}
+          {pochette?.credit && <p class="artiste-credit">Pochette {pochette.credit}</p>}
+        </div>
+
+        {avecTracklist && avecDescription && (
+          <section class="emission-suite" aria-label="Description">
+            <Description texte={texte} reseaux={reseaux} plusieurs={show.artists.length > 1} soundcloudUrl={show.soundcloudUrl} />
+          </section>
+        )}
+
+        {autres.length > 0 && (
+          <Rangee titre="Autres émissions" id="autres">
+            {autres.map((autre) => (
+              <li class="vignette-carte">
+                <Carte show={autre} sizes="(min-width: 821px) 264px, 46vw" />
+              </li>
+            ))}
+          </Rangee>
+        )}
+      </article>
+    )
+  }
+</Base>

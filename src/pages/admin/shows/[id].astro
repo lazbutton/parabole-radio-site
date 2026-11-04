@@ -26,7 +26,7 @@ const admin = Astro.locals.admin!;
 const isNew = Astro.params.id === "nouveau";
 const show: AdminShow | null = isNew ? null : await admin.getShow(Astro.params.id ?? "");
 const posted = Astro.request.method === "POST";
-if (!isNew && !show) return posted ? json({ ok: false, errors: { form: "Ce show n'existe plus : il a peut-être été supprimé." } }, 404) : seeOther("/admin/shows");
+if (!isNew && !show) return posted ? json({ ok: false, errors: { form: "Cette émission n'existe plus : elle a peut-être été supprimée." } }, 404) : seeOther("/admin/shows");
 
 if (posted) {
   const data = await Astro.request.formData();
@@ -40,7 +40,7 @@ if (posted) {
   }
   const asked = String(data.get("intent") ?? "");
   if (asked === "approve-audio" || asked === "delete-audio") {
-    if (!show) return json({ ok: false, errors: { form: "Ce show n'est pas encore créé." } }, 400);
+    if (!show) return json({ ok: false, errors: { form: "Cette émission n'est pas encore créée." } }, 400);
     const file = (await admin.audioFilesOf(show.id)).find((one) => one.id === String(data.get("file") ?? ""));
     if (!file) return json({ ok: false, errors: { form: "Ce fichier n'existe plus : la fiche a peut-être changé entre-temps." } }, 404);
     if (asked === "approve-audio") {
@@ -53,7 +53,7 @@ if (posted) {
     return json({ ok: true, envoi: await envoiView(admin, show.id), message: file.role === "main" ? "Son effacé" : "Morceau effacé" } satisfies EnvoiResponse);
   }
   if (asked === "attach") {
-    if (!show) return json({ ok: false, errors: { form: "Ce show n'est pas encore créé." } }, 400);
+    if (!show) return json({ ok: false, errors: { form: "Cette émission n'est pas encore créée." } }, 400);
     const done = await admin.attachSubmission(show.id, String(data.get("to") ?? ""));
     if (!done.ok) return json(done, 422);
     await removeImages(await admin.releaseMedia([done.previousCover]));
@@ -61,13 +61,13 @@ if (posted) {
   }
   const intent = intentOf(data);
   if (intent === "delete") {
-    if (!show) return json({ ok: false, errors: { form: "Ce show n'est pas encore créé." } }, 400);
-    // Les fichiers son partent avec le show (la base les efface avec lui) : leurs clés d'abord, pour vider le seau.
+    if (!show) return json({ ok: false, errors: { form: "Cette émission n'est pas encore créée." } }, 400);
+    // Les fichiers son partent avec l'émission (la base les efface avec elle) : leurs clés d'abord, pour vider le seau.
     const keys = await admin.audioKeysOf([show.id]);
     const removed = await admin.deleteShow(show.id);
     await removeImages(await admin.releaseMedia([removed?.coverId]));
     if (removed) await removeFiles(keys);
-    return json({ ok: true, redirect: "/admin/shows", message: `« ${removed?.title ?? show.title} » supprimé` });
+    return json({ ok: true, redirect: "/admin/shows", message: `« ${removed?.title ?? show.title} » supprimée` });
   }
   // Publier, ou enregistrer un show déjà publié : il lui faut une date de diffusion.
   const publishing = intent === "publish" || (intent === "save" && show?.status === "published");
@@ -81,7 +81,7 @@ if (posted) {
   return json({ ok: true, created: isNew, newArtists: result.newArtists.length, sheet: await showSheet(admin, fresh) });
 }
 
-const screen: Screen = { name: "show", title: show?.title ?? "Nouveau show", data: { sheet: await showSheet(admin, show) } };
+const screen: Screen = { name: "show", title: show?.title ?? "Nouvelle émission", data: { sheet: await showSheet(admin, show) } };
 if (wantsJson(Astro.request)) return json(screen);
 ---
 

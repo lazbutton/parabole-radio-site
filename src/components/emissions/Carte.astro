@@ -1,0 +1,54 @@
+---
+/**
+ * Une émission dans la grille de la page Émissions et dans la rangée AUTRES ÉMISSIONS, comme sur les croquis du
+ * 4 novembre : un carré (la pochette, sinon la mire), puis DATE, TITRE, NOM et ses pastilles (le type, puis ses
+ * étiquettes). C'est une archive : la pochette est en bichromie, jaune et bleu, comme les événements passés, et
+ * retrouve ses couleurs au survol après un éclair de neige. Toute la carte est un seul lien vers la page de l'émission.
+ * Le premier show d'un mois porte ce mois dans son coin (« 05.26 »), comme le rail de la liste.
+ */
+import type { ShowCard } from "@parabole/cms";
+import { dateEnChiffres, MOT_DU_TYPE, nomsDe } from "../../lib/emissions";
+
+interface Props {
+  show: ShowCard;
+  /** La première rangée se charge tout de suite ; les autres au défilement. */
+  tot?: boolean;
+  /** La largeur de l'image dans la page, pour choisir la bonne version (sizes). */
+  sizes?: string;
+  /** Combien d'étiquettes montrer, après le type. */
+  etiquettes?: number;
+}
+const { show, tot = false, sizes = "(min-width: 1101px) 270px, (min-width: 821px) 22vw, (min-width: 561px) 30vw, 46vw", etiquettes = 2 } = Astro.props;
+const { cover } = show;
+const noms = nomsDe(show);
+---
+
+<a class="carte" href={`/emissions/${show.slug}`}>
+  <span class="carte-image">
+    {
+      cover ? (
+        <img
+          src={cover.url}
+          srcset={cover.srcset ?? undefined}
+          sizes={sizes}
+          width={cover.width ?? undefined}
+          height={cover.height ?? undefined}
+          alt=""
+          loading={tot ? "eager" : "lazy"}
+          decoding="async"
+        />
+      ) : (
+        <span class="portrait-mire" aria-hidden="true" />
+      )
+    }
+  </span>
+  <span class="carte-plaque">
+    <time class="carte-date" datetime={show.broadcastAt.toISOString()}>{dateEnChiffres(show.broadcastAt)}</time>
+    <span class="carte-titre">{show.title}</span>
+    {noms && <span class="carte-nom">{noms}</span>}
+    <span class="carte-etiquettes">
+      <span class="carte-type">{MOT_DU_TYPE[show.type]}</span>
+      {show.tags.slice(0, etiquettes).map((tag) => <span>{tag.name}</span>)}
+    </span>
+  </span>
+</a>

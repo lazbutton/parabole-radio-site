@@ -7,6 +7,7 @@
  * qui appartient à l'artiste du lien : ses brouillons, ses fichiers, sa fiche. Un show reste toujours en brouillon :
  * seule l'équipe publie.
  */
+import { clampEnergy } from "../labels.ts";
 import { randomBytes, randomUUID } from "node:crypto";
 import { and, asc, desc, eq, gte, inArray, isNotNull, lt, ne, or, sql } from "drizzle-orm";
 import type { Tx } from "../access.ts";
@@ -160,7 +161,7 @@ function formOfShow(current: AdminShow): ShowForm {
     type: current.type,
     broadcastAt: current.broadcastAt ? toParisInput(current.broadcastAt) : "",
     duration: current.durationSeconds ? formatTimecode(current.durationSeconds) : "",
-    energy: current.energy === null ? "" : String(current.energy),
+    energy: current.energy === null ? "" : String(clampEnergy(current.energy)),
     description: current.description ?? "",
     soundcloudUrl: current.soundcloudUrl ?? "",
     soundcloudTrackId: current.soundcloudTrackId ?? "",
@@ -264,7 +265,7 @@ export function createEnvois(db: Db, { now: clock = () => new Date() }: { now?: 
           broadcastAt: current.broadcastAt,
           slot: current.radiocultEventId !== null,
           description: current.description ?? "",
-          energy: current.energy,
+          energy: clampEnergy(current.energy),
           tags: current.tags.map((one) => one.id),
           tracks: formOfShow(current).tracks,
           cover: current.cover,

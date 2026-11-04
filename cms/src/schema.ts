@@ -288,7 +288,7 @@ export const show = pgTable(
     /** Date et heure de diffusion. Obligatoire pour publier : les listes sont triées par elle. */
     broadcastAt: timestamp("broadcast_at", { withTimezone: true }),
     durationSeconds: integer("duration_seconds"),
-    /** Le mood d'un DJ set ou d'une playlist, sur l'échelle du site : de 1 (calme) à 5 (énergique). */
+    /** Le mood d'un DJ set ou d'une playlist, sur l'échelle du site : de 1 (calme) à 4 (énergique). La contrainte accepte encore 5 (ancienne échelle), lu 4. */
     energy: smallint("energy"),
     /** Markdown. */
     description: text("description"),

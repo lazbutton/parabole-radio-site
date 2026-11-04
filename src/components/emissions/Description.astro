@@ -1,0 +1,40 @@
+---
+/**
+ * La description d'une émission (src/pages/emissions/[slug].astro) : le texte, les réseaux de ses résidents (les logos
+ * de Liens.astro, avec le nom de chacun quand ils sont plusieurs) et la piste sur SoundCloud. Elle se pose sous le
+ * premier écran quand la tracklist tient l'encart de droite, sinon dans cet encart (un podcast n'a pas forcément de
+ * tracklist).
+ */
+import type { ShowHost } from "@parabole/cms";
+import Liens from "../residents/Liens.astro";
+
+interface Props {
+  /** Le texte, déjà rendu (Markdown). */
+  texte: string;
+  /** Les résidents qui ont des liens. */
+  reseaux: ShowHost[];
+  /** Plusieurs résidents : chacun est nommé devant ses liens. */
+  plusieurs: boolean;
+  soundcloudUrl: string | null;
+}
+const { texte, reseaux, plusieurs, soundcloudUrl } = Astro.props;
+---
+
+{texte && <div class="emission-texte" set:html={texte} />}
+{
+  (reseaux.length > 0 || soundcloudUrl) && (
+    <div class="emission-reseaux">
+      {reseaux.map((artiste) => (
+        <div class="emission-reseau">
+          {plusieurs && <p class="emission-reseau-nom">{artiste.name}</p>}
+          <Liens liens={artiste.links} nom={artiste.name} />
+        </div>
+      ))}
+      {soundcloudUrl && (
+        <a class="emission-soundcloud" href={soundcloudUrl} target="_blank" rel="noopener noreferrer">
+          La piste sur SoundCloud <span aria-hidden="true">↗</span>
+        </a>
+      )}
+    </div>
+  )
+}

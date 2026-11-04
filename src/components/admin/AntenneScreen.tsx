@@ -1,7 +1,7 @@
 /**
  * L'antenne libre, l'écran de la régie (CHAT_EN_DIRECT.md, section 5) : ce que les auditeurs écrivent dans le bandeau et
- * sur la page 888, et de quoi le modérer. En haut, les réglages, toujours visibles (ouverte ou fermée, mode lent,
- * différé, mode prudent, messages au bandeau, liens), et « Vider l'antenne ». Dessous, quatre onglets : En direct (les
+ * sur la page 888, et de quoi le modérer. En haut, les réglages, toujours visibles (ouverte ou fermée, mode prudent,
+ * nombre de signalements avant brouillage), et « Vider l'antenne ». Dessous, quatre onglets : En direct (les
  * messages, et Écrire en tant que Parabole), À traiter (les messages en attente et les signalés), Personnes (les
  * exclusions et les bannissements), Mots (la liste de la régie).
  *
@@ -66,7 +66,6 @@ const TERM_ACTIONS: Record<AntenneData["terms"][number]["action"], { label: stri
   hold: { label: "Mettre en attente", color: "amber" },
   mask: { label: "Masquer", color: "gray" },
 };
-const LINKS: Record<AntenneData["settings"]["links"], string> = { none: "Aucun", music: "Plateformes de musique", all: "Tous" };
 
 const fields = (values: Record<string, string>) => {
   const data = new FormData();
@@ -76,8 +75,6 @@ const fields = (values: Record<string, string>) => {
 const firstError = (errors: FieldErrors) => errors.form ?? Object.values(errors)[0] ?? "Le serveur a refusé.";
 /** « 10 min », « 1 h », « 24 h » */
 const minutesLabel = (minutes: number) => (minutes >= 60 ? `${minutes / 60} h` : `${minutes} min`);
-/** « Direct », « 5 s » */
-const secondsLabel = (seconds: number, none: string) => (seconds ? `${seconds} s` : none);
 
 /** L'écran à jour : affiché si l'on regarde encore l'antenne. */
 function showData(router: Router, data: AntenneData) {
@@ -271,7 +268,7 @@ export function AntenneScreen(data: AntenneData) {
 
 /** Les réglages, toujours visibles : chacun part dès qu'on le change. L'écran montre tout de suite la valeur voulue. */
 function SettingsCard({ data, busy, onChange }: { data: AntenneData; busy: boolean; onChange(values: Record<string, string>): Promise<boolean> }) {
-  const { settings, choices } = data;
+  const { settings } = data;
   const [wanted, setWanted] = useState<Record<string, string>>({});
   const value = (name: keyof AntenneData["settings"]) => wanted[name] ?? String(settings[name]);
   const change = async (name: string, next: string) => {
@@ -284,72 +281,31 @@ function SettingsCard({ data, busy, onChange }: { data: AntenneData; busy: boole
       return rest;
     });
   };
+  // Le bandeau, le mode lent, le différé et les liens ne sont plus réglables d'ici (retours du 4 novembre 2026) : ils
+  // gardent leur valeur dans la base, d'origine les messages au bandeau, ni mode lent ni différé, les liens des
+  // plateformes de musique.
   return (
     <Card size="2">
-      <Flex direction="column" gap="4">
-        <Flex wrap="wrap" gap="5" align="center">
-          <Setting label="Antenne ouverte" hint="Fermée : le carton « interruption momentanée » chez les auditeurs.">
-            <Switch checked={value("open") === "true"} onCheckedChange={(on) => void change("open", String(on))} aria-label="Antenne ouverte" />
-          </Setting>
-          <Setting label="Messages au bandeau" hint="Sinon, les messages ne passent que sur la page 888.">
-            <Switch checked={value("ticker") === "true"} onCheckedChange={(on) => void change("ticker", String(on))} aria-label="Messages au bandeau" />
-          </Setting>
-          <Setting label="Mode prudent" hint="Les deux premiers messages d'un nouveau pseudo attendent la régie.">
-            <Switch checked={value("careful") === "true"} onCheckedChange={(on) => void change("careful", String(on))} aria-label="Mode prudent" />
-          </Setting>
-          {busy && <Spinner size="2" />}
-        </Flex>
-        <Separator size="4" />
-        <Flex wrap="wrap" gap="4">
-          <Setting label="Mode lent" hint="Un message toutes les N secondes par personne.">
-            <Select.Root value={value("slowSeconds")} onValueChange={(next) => void change("slowSeconds", next)}>
-              <Select.Trigger aria-label="Mode lent" />
-              <Select.Content>
-                {choices.slow.map((seconds) => (
-                  <Select.Item key={seconds} value={String(seconds)}>
-                    {secondsLabel(seconds, "Désactivé")}
-                  </Select.Item>
-                ))}
-              </Select.Content>
-            </Select.Root>
-          </Setting>
-          <Setting label="Différé" hint="Le temps de couper un message avant qu'il passe.">
-            <Select.Root value={value("delaySeconds")} onValueChange={(next) => void change("delaySeconds", next)}>
-              <Select.Trigger aria-label="Différé" />
-              <Select.Content>
-                {choices.delay.map((seconds) => (
-                  <Select.Item key={seconds} value={String(seconds)}>
-                    {secondsLabel(seconds, "Direct")}
-                  </Select.Item>
-                ))}
-              </Select.Content>
-            </Select.Root>
-          </Setting>
-          <Setting label="Liens" hint="Les plateformes de musique : SoundCloud, Bandcamp, YouTube, Hopper…">
-            <Select.Root value={value("links")} onValueChange={(next) => void change("links", next)}>
-              <Select.Trigger aria-label="Liens" />
-              <Select.Content>
-                {(Object.keys(LINKS) as (keyof typeof LINKS)[]).map((links) => (
-                  <Select.Item key={links} value={links}>
-                    {LINKS[links]}
-                  </Select.Item>
-                ))}
-              </Select.Content>
-            </Select.Root>
-          </Setting>
-          <Setting label="Signalements" hint="À partir de combien un message est brouillé en attendant la régie.">
-            <Select.Root value={value("reportThreshold")} onValueChange={(next) => void change("reportThreshold", next)}>
-              <Select.Trigger aria-label="Signalements avant brouillage" />
-              <Select.Content>
-                {[1, 2, 3, 5, 10].map((count) => (
-                  <Select.Item key={count} value={String(count)}>
-                    {count}
-                  </Select.Item>
-                ))}
-              </Select.Content>
-            </Select.Root>
-          </Setting>
-        </Flex>
+      <Flex wrap="wrap" gap="5" align="center">
+        <Setting label="Antenne ouverte" hint="Fermée : le carton « interruption momentanée » chez les auditeurs.">
+          <Switch checked={value("open") === "true"} onCheckedChange={(on) => void change("open", String(on))} aria-label="Antenne ouverte" />
+        </Setting>
+        <Setting label="Mode prudent" hint="Les deux premiers messages d'un nouveau pseudo attendent la régie.">
+          <Switch checked={value("careful") === "true"} onCheckedChange={(on) => void change("careful", String(on))} aria-label="Mode prudent" />
+        </Setting>
+        <Setting label="Signalements" hint="À partir de combien un message est brouillé en attendant la régie.">
+          <Select.Root value={value("reportThreshold")} onValueChange={(next) => void change("reportThreshold", next)}>
+            <Select.Trigger aria-label="Signalements avant brouillage" />
+            <Select.Content>
+              {[1, 2, 3, 5, 10].map((count) => (
+                <Select.Item key={count} value={String(count)}>
+                  {count}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select.Root>
+        </Setting>
+        {busy && <Spinner size="2" />}
       </Flex>
     </Card>
   );

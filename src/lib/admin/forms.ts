@@ -2,12 +2,12 @@
  * Les fiches de l'admin entre la base, l'écran et le formulaire envoyé : une fiche lue devient des champs à remplir,
  * un formulaire reçu redevient une fiche à vérifier (@parabole/cms, readShowForm, readArtistForm, readEventForm).
  */
-import { formatTimecode, toParisInput, type AboutCreditForm, type AboutForm, type AdminAbout, type AdminArtist, type AdminEvent, type AdminShow, type ArtistForm, type EventForm, type ShowForm } from "@parabole/cms";
+import { clampEnergy, formatTimecode, toParisInput, type AboutCreditForm, type AboutForm, type AdminAbout, type AdminArtist, type AdminEvent, type AdminShow, type ArtistForm, type EventForm, type ShowForm } from "@parabole/cms";
 
 const text = (data: FormData, name: string) => String(data.get(name) ?? "");
 const texts = (data: FormData, name: string) => data.getAll(name).map(String);
 
-/** Les champs d'un show enregistré. */
+/** Les champs d'une émission enregistrée (un ancien mood 5 revient à 4). */
 export function showFormOf(show: AdminShow): ShowForm {
   return {
     title: show.title,
@@ -15,7 +15,7 @@ export function showFormOf(show: AdminShow): ShowForm {
     type: show.type,
     broadcastAt: show.broadcastAt ? toParisInput(show.broadcastAt) : "",
     duration: show.durationSeconds ? formatTimecode(show.durationSeconds) : "",
-    energy: show.energy ? String(show.energy) : "",
+    energy: show.energy ? String(clampEnergy(show.energy)) : "",
     description: show.description ?? "",
     soundcloudUrl: show.soundcloudUrl ?? "",
     soundcloudTrackId: show.soundcloudTrackId ?? "",

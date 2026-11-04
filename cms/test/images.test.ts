@@ -136,7 +136,7 @@ describe("les images dans l'admin", () => {
     expect(await editor.placeMedia("photo", { id: yaya, mediaId: "00000000-0000-4000-8000-000000000000" })).toEqual({ ok: false, errors: { image: expect.any(String) } });
     const file = await added();
     expect(await editor.placeMedia("photo", { id: "00000000-0000-4000-8000-000000000000", mediaId: file.id })).toEqual({ ok: false, errors: { form: expect.stringContaining("artiste") } });
-    expect(await editor.placeMedia("cover", { id: "pas-un-id", mediaId: file.id })).toEqual({ ok: false, errors: { form: expect.stringContaining("show") } });
+    expect(await editor.placeMedia("cover", { id: "pas-un-id", mediaId: file.id })).toEqual({ ok: false, errors: { form: expect.stringContaining("émission") } });
     // Hors de l'équipe, l'image n'existe pas pour lui.
     expect(await stranger.placeMedia("photo", { id: yaya, mediaId: file.id })).toEqual({ ok: false, errors: { image: expect.any(String) } });
   });

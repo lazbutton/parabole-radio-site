@@ -19,7 +19,7 @@ import { getEvent, listEvents, type EventFilters } from "./events.ts";
 import { listFacets, type FacetFilters } from "./facets.ts";
 import { getPage } from "./pages.ts";
 import { search } from "./search.ts";
-import { getShow, listAirings, listShows, type ShowFilters } from "./shows.ts";
+import { getShow, listAirings, listShowMonths, listShows, type ShowFilters } from "./shows.ts";
 
 export type ReaderOptions = {
   /** L'adresse publique du seau des fichiers (PUBLIC_MEDIA_URL) : « https://<ref>.supabase.co/storage/v1/object/public/media ». */
@@ -30,7 +30,9 @@ export function createReader(db: Db, { mediaBaseUrl }: ReaderOptions) {
   return {
     /** Les shows publiés, filtrés par type, étiquettes, mood, artiste et période, avec pagination. */
     listShows: (filters: ShowFilters = {}) => asPublic(db, (tx) => listShows(tx, mediaBaseUrl, filters)),
-    /** Un show avec sa tracklist et ses artistes, ou null. */
+    /** Les mois de cette liste (« 2026-05 », à Paris) et leur nombre de shows, dans l'ordre de la liste. */
+    listShowMonths: (filters: Omit<ShowFilters, "limit" | "offset"> = {}) => asPublic(db, (tx) => listShowMonths(tx, filters)),
+    /** Un show avec sa tracklist et ses artistes (et leurs liens), ou null. */
     getShow: (slug: string) => asPublic(db, (tx) => getShow(tx, mediaBaseUrl, slug)),
     /** Les diffusions (shows publiés de durée connue) qui croisent un intervalle, avec les slugs de leurs artistes. */
     listAirings: (range: { from: Date; to: Date }) => asPublic(db, (tx) => listAirings(tx, range)),
@@ -65,4 +67,4 @@ export type { EventCard, EventDetail, EventFilters, EventPhoto } from "./events.
 export type { FacetFilters, FacetGroup, FacetMenu, FacetTag } from "./facets.ts";
 export type { PageContent } from "./pages.ts";
 export type { SearchResults } from "./search.ts";
-export type { Airing, ShowCard, ShowDetail, ShowFilters, ShowTrack } from "./shows.ts";
+export type { Airing, ShowCard, ShowDetail, ShowFilters, ShowHost, ShowMonth, ShowTrack } from "./shows.ts";

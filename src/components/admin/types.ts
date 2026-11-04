@@ -68,7 +68,7 @@ export type DashboardData = {
     when: string;
   }[];
   /** Ce qui reste à compléter, compté comme les listes filtrées où l'on arrive (cms : overview). */
-  missing: { tracklist: number; sound: number; photo: number; bio: number; tags: number };
+  missing: { tracklist: number; sound: number; cover: number; description: number; untagged: number; photo: number; bio: number; tags: number };
   /** Les envois des résidents qui attendent l'équipe (cms/README.md, 9.12). */
   envois: { review: number; failed: number; assemble: number; slot: number };
   /** Les deadlines des groupes : celle qui vient de passer, tant que son bloc n'a pas commencé, puis la prochaine. */
@@ -140,6 +140,10 @@ export type ShowRow = {
   duration: string;
   tracks: number;
   hasSound: boolean;
+  hasCover: boolean;
+  hasDescription: boolean;
+  /** Le nombre de ses étiquettes. */
+  tags: number;
   status: ContentStatus;
   fromRadioCult: boolean;
 };

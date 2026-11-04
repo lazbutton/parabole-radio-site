@@ -41,14 +41,14 @@ export async function readProgramme(now = new Date()): Promise<ImportInput> {
   return { from, to, notes, slots: slotsFromRadioCult(programme.value?.schedules, list) };
 }
 
-/** « 2 shows créés, 1 mis à jour, 3 inchangés », ou la raison de l'échec. */
+/** « 2 émissions créées, 1 mise à jour, 3 inchangées », ou la raison de l'échec. */
 export function importSummary(result: Pick<ImportResult, "ok" | "error" | "slots" | "created" | "updated" | "unchanged">): string {
   if (!result.ok) return result.error ?? "L'import a échoué.";
   if (!result.slots) return "Aucun créneau dans les 14 jours à venir.";
   const parts = [
-    result.created && counted(result.created, "show créé", "shows créés"),
-    result.updated && counted(result.updated, "mis à jour", "mis à jour"),
-    result.unchanged && counted(result.unchanged, "inchangé"),
+    result.created && counted(result.created, "émission créée", "émissions créées"),
+    result.updated && counted(result.updated, "mise à jour", "mises à jour"),
+    result.unchanged && counted(result.unchanged, "inchangée"),
   ].filter(Boolean);
   return `${parts.join(", ").replace(/^./, (first) => first.toUpperCase())}.`;
 }

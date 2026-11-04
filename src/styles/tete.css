@@ -9,7 +9,9 @@
   --rang-h: calc(var(--touche-h) + 12px);             /* la ligne 1 : logo, loupe, menu, à la hauteur des touches (socle.css) */
   --onair-h: 40px;                                    /* la ligne ON AIR */
   --onair-touche-h: calc(var(--onair-h) - 12px);      /* ses touches */
-  --barre-h: calc(var(--rang-h) + var(--onair-h));    /* tout l'en-tête : les panneaux et les rubriques commencent dessous */
+  /* tout l'en-tête : les panneaux et les rubriques commencent dessous ; la ligne ARCHIVE s'y ajoute quand elle est
+     là (--archive-h, archive.css) */
+  --barre-h: calc(var(--rang-h) + var(--onair-h) + var(--archive-h, 0px));
 }
 
 .tete { position: fixed; top: 0; left: 0; right: 0; z-index: 30; }
@@ -258,10 +260,10 @@
 }
 .teletexte-horloge { flex-shrink: 0; margin-left: auto; color: #fff039; font-size: 13px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
 
-/* La loupe répond juste sous la ligne ON AIR, sous son champ */
+/* La loupe répond juste sous la ligne ON AIR (et sous la ligne ARCHIVE, si elle est là), sous son champ */
 .loupe-page {
   position: absolute; left: 0;
-  top: calc(100% + 6px + var(--onair-h) + var(--ecart) / 2);
+  top: calc(100% + 6px + var(--onair-h) + var(--archive-h, 0px) + var(--ecart) / 2);
   width: max(100%, 460px); max-width: calc(100vw - 2 * var(--marge));
   max-height: calc(100vh - var(--barre-h) - var(--band-h, 58px) - 2 * var(--ecart));
   display: flex; flex-direction: column;
@@ -286,9 +288,9 @@ a.loupe-ligne:is(:hover, :focus-visible)::before, a.loupe-ligne:is(:hover, :focu
 .loupe-message { padding: 14px; color: #ffffff; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; line-height: 1.5; }
 .loupe-message.erreur { color: #fff039; }
 
-/* JUSTE AVANT se déplie sous la ligne ON AIR, à droite */
+/* JUSTE AVANT se déplie sous la ligne ON AIR, à droite, et sous la ligne ARCHIVE si elle est là */
 .avant-page {
-  position: absolute; right: var(--marge); top: calc(100% + var(--ecart) / 2);
+  position: absolute; right: var(--marge); top: calc(100% + var(--archive-h, 0px) + var(--ecart) / 2);
   width: min(380px, calc(100vw - 2 * var(--marge)));
   text-align: left;
 }
