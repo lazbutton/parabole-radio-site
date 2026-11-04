@@ -60,6 +60,8 @@ export {
   type ShowCard,
   type ShowDetail,
   type ShowFilters,
+  type ShowHost,
+  type ShowMonth,
   type ShowTrack,
   type TagRef,
 } from "./read/index.ts";

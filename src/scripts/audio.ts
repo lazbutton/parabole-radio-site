@@ -3,8 +3,8 @@
 // appui ou touche, et on réessaie jusqu'à ce qu'elle joue vraiment. La touche RADIO / VIDÉO de l'en-tête bascule entre
 // la radio et le son des vidéos ; les touches ÉCOUTER (celle de l'accueil, celle de l'en-tête sur les autres rubriques)
 // lancent et arrêtent la radio. Un flux coupé se reconnecte tout seul. L'élément <audio> et ce module vivent dans la
-// coque : la navigation ne les touche jamais. Le film de la page À propos emprunte le son le temps de passer
-// (preterLeSon) : la radio s'arrête, puis reprend quand il le rend.
+// coque : la navigation ne les touche jamais. Le film de la page À propos et la ligne ARCHIVE (archive.ts) empruntent
+// le son le temps de passer (preterLeSon) : la radio s'arrête, puis reprend quand ils l'ont rendu.
 
 const playerEl = document.getElementById("player");
 /** Le flux, donné par l'adaptateur de la station et écrit dans la page au build (TopBar.astro). */
@@ -17,9 +17,10 @@ export interface RadioControl {
   /** Lu par BEAT : les 20 dernières ms de la grosse caisse, ou null sans analyse. */
   signal(): Float32Array<ArrayBuffer> | null;
   /**
-   * Un autre son prend l'antenne : le film de la page À propos (a-propos.ts). La radio s'arrête et les vidéos se
-   * taisent ; la fonction rendue rend le son, et ce qui jouait reprend. Une touche ÉCOUTER, RADIO / VIDÉO ou le casque
-   * reprennent la main entre-temps : l'évènement « parabole:son-repris » le dit au film, qui s'arrête.
+   * Un autre son prend l'antenne : le film de la page À propos (a-propos.ts), une archive de la ligne ARCHIVE
+   * (archive.ts). La radio s'arrête et les vidéos se taisent ; la fonction rendue rend le son, et ce qui jouait reprend
+   * quand tous ceux qui l'ont emprunté l'ont rendu. Une touche ÉCOUTER, RADIO / VIDÉO ou le casque reprennent la main
+   * entre-temps : l'évènement « parabole:son-repris » le dit à chacun, qui s'arrête.
    */
   preterLeSon(): () => void;
 }
@@ -141,9 +142,10 @@ export const radioControl: RadioControl | null = (function audioControl() {
     v!.play().catch(() => {});
     setLabel();
   }
-  // Le son prêté au film de la page À propos : ce qui jouait avant, pour le reprendre quand il le rend. Une touche
-  // du son, pendant ce temps, le reprend : le film l'apprend par un évènement, et s'arrête.
-  let prete: { radio: boolean } | null = null;
+  // Le son prêté au film de la page À propos ou à une archive : ce qui jouait avant, pour le reprendre quand le dernier
+  // emprunteur le rend (le film en pause sous une archive qui joue, par exemple). Une touche du son, pendant ce temps,
+  // le reprend : les emprunteurs l'apprennent par un évènement, et s'arrêtent.
+  let prete: { radio: boolean; emprunts: number } | null = null;
   function reprendreLeSon() {
     if (!prete) return;
     prete = null;
@@ -236,10 +238,10 @@ export const radioControl: RadioControl | null = (function audioControl() {
       detach();
       return;
     } // respecter le choix du visiteur
-    if (prete) return; // le film a le son
+    if (prete) return; // le film ou une archive a le son
     const target = e.target as Element | null;
-    // déplacer un panneau n'est pas demander du son ; lancer le film, c'est demander le sien
-    if (target && target.closest && target.closest("#soundToggle, #playerVolume, #playerMute, [data-ecouter], .window-bar, [data-film-touche]")) return;
+    // déplacer un panneau n'est pas demander du son ; lancer le film ou une archive, c'est demander le sien
+    if (target && target.closest && target.closest("#soundToggle, #playerVolume, #playerMute, [data-ecouter], .window-bar, [data-film-touche], #archive, [data-archive-lire], [data-archive-depuis]")) return;
     playRadio().then(detach).catch(playFailed);
   }
   function detach() {
@@ -316,12 +318,16 @@ export const radioControl: RadioControl | null = (function audioControl() {
       // Le visiteur a choisi le son du film : le premier clic ne lancera plus la radio d'office.
       userChose = true;
       detach();
-      prete ??= { radio: wanted };
+      prete ??= { radio: wanted, emprunts: 0 };
+      prete.emprunts++;
       if (wanted) stopRadio();
       v.muted = true;
       const pret = prete;
+      let rendu = false;
       return () => {
-        if (prete !== pret) return; // repris entre-temps par une touche du son : rien à rendre
+        if (rendu || prete !== pret) return; // déjà rendu, ou repris entre-temps par une touche du son
+        rendu = true;
+        if (--pret.emprunts > 0) return; // un autre emprunteur le garde encore
         prete = null;
         if (pret.radio) playRadio().catch(playFailed);
         else if (mode === "video") v.muted = false;

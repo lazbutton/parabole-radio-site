@@ -10,7 +10,8 @@ import { frenchOrder, oneOf } from "./common.ts";
 
 export type FacetTag = { slug: string; name: string; count: number };
 export type FacetGroup = FacetTag & { tags: FacetTag[] };
-export type FacetMenu = { slug: string; name: string; groups: FacetGroup[] };
+/** Un filtre et ses groupes. `showTypes` : les types de show qu'il range (vide : tous), pour une page qui les montre tous. */
+export type FacetMenu = { slug: string; name: string; showTypes: ShowType[]; groups: FacetGroup[] };
 
 export type FacetFilters = {
   /** Ce que la page montre. */
@@ -43,7 +44,7 @@ export async function listFacets(tx: Tx, filters: FacetFilters): Promise<FacetMe
   const { scope, type, all = false } = filters;
   if (!oneOf(facetScope.enumValues, scope) || (type !== undefined && (scope !== "show" || !oneOf(showType.enumValues, type)))) return [];
   const facets = await tx
-    .select({ id: facet.id, slug: facet.slug, name: facet.name })
+    .select({ id: facet.id, slug: facet.slug, name: facet.name, showTypes: facet.showTypes })
     .from(facet)
     .where(and(eq(facet.scope, scope), type ? sql`(cardinality(${facet.showTypes}) = 0 or ${type}::public.show_type = any(${facet.showTypes}))` : undefined))
     .orderBy(asc(facet.position), asc(facet.name));
@@ -71,6 +72,7 @@ export async function listFacets(tx: Tx, filters: FacetFilters): Promise<FacetMe
     .map((one) => ({
       slug: one.slug,
       name: one.name,
+      showTypes: one.showTypes,
       groups: groups
         .filter((group) => group.facetId === one.id)
         .map((group) => {

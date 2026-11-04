@@ -1,0 +1,151 @@
+/* La ligne ARCHIVE (TopBar.astro, src/scripts/archive.ts), d'après le croquis du 4 novembre : la troisième ligne de
+   l'en-tête, sous la ligne ON AIR, quand une émission est en main. Jaune, comme ce qui est allumé sur le site, en bleu
+   dessus ; ses touches sont cadrées de bleu. L'en-tête grandit d'autant (--archive-h dans --barre-h, tete.css) : les
+   rubriques commencent dessous. L'avancée est une onde (les niveaux de la piste, donnés par SoundCloud), sinon une
+   rampe de segments comme le volume, allumée jusqu'à --p. */
+:root { --archive-h: 0px; }
+html.archive-ouverte { --archive-h: 40px; }
+
+.archive {
+  position: relative;
+  display: flex; align-items: center; gap: 10px;
+  height: var(--archive-h); padding: 0 var(--marge);
+  background: #fff039; color: #000dff;
+  box-shadow: 0 2px 0 rgba(255,0,72,0.35), 0 4px 0 rgba(0,200,255,0.25), 0 6px 14px rgba(0,0,0,0.35);
+  text-transform: uppercase;
+}
+.archive[hidden] { display: none; }
+
+/* ARCHIVE et le nom de l'émission : un lien vers sa page */
+.archive-titre {
+  flex: 0 1 auto; min-width: 0; max-width: 32%;
+  display: flex; align-items: center; gap: 10px;
+  color: inherit; text-decoration: none;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.1em; line-height: 1; white-space: nowrap;
+}
+.archive-mot {
+  flex-shrink: 0; padding: 4px 6px 3px; background: #000dff; color: #fff039;
+  font-size: 10px; letter-spacing: 0.12em;
+  box-shadow: -1.5px 0 rgba(255,0,72,0.6), 1.5px 0 rgba(0,200,255,0.55);
+}
+.archive-nom-defile { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.archive-qui { opacity: 0.75; }
+.archive-titre:hover .archive-nom { text-decoration: underline; text-underline-offset: 3px; }
+.archive-titre:focus-visible { outline: 2px solid #000dff; outline-offset: 2px; }
+
+/* Les touches : ▶, −30, +30, × */
+.archive-touche {
+  flex-shrink: 0; height: calc(var(--archive-h) - 12px); min-width: calc(var(--archive-h) - 12px); padding: 0 8px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; color: #000dff;
+  border: 2px solid #000dff; border-radius: 0;
+  font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; line-height: 1; font-variant-numeric: tabular-nums;
+  cursor: pointer; transition: background 0.15s, color 0.15s;
+}
+.archive-touche:hover:not(:disabled) { background: #000dff; color: #fff039; }
+.archive-touche:disabled { opacity: 0.35; cursor: default; }
+.archive-touche:focus-visible { outline: 2px solid #000000; outline-offset: 2px; }
+.archive-lire { padding: 0; }
+.archive-lire .icon { width: 12px; height: 12px; }
+.archive:is([data-etat="lecture"], [data-etat="chargement"]) .archive-icone-lire,
+.archive:not([data-etat="lecture"]):not([data-etat="chargement"]) .archive-icone-pause { display: none; }
+.archive[data-etat="chargement"] .archive-lire { animation: playerBlink 0.6s steps(2) infinite; }
+.archive-fermer { padding: 0; font-size: 18px; }
+
+/* L'avancée : le temps, l'onde qu'on fait glisser, la durée ; ou ce qui ne va pas */
+.archive-avancee { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px; }
+.archive-temps, .archive-duree { flex-shrink: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+.archive-onde { position: relative; flex: 1 1 auto; min-width: 60px; height: 24px; cursor: pointer; }
+.archive-onde-trace {
+  position: absolute; left: 0; right: 0; top: 50%; height: 8px; transform: translateY(-50%);
+  background: linear-gradient(90deg, #000dff var(--p, 0%), rgba(0,13,255,0.24) var(--p, 0%));
+  -webkit-mask: repeating-linear-gradient(90deg, #000 0 3px, transparent 3px 5px);
+          mask: repeating-linear-gradient(90deg, #000 0 3px, transparent 3px 5px);
+}
+.archive-onde-trace.avec-onde {
+  top: 0; height: 100%; transform: none;
+  -webkit-mask: var(--onde) center / 100% 100% no-repeat;
+          mask: var(--onde) center / 100% 100% no-repeat;
+}
+.archive-curseur {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;
+  -webkit-appearance: none; appearance: none; background: transparent; opacity: 0; cursor: pointer;
+}
+.archive-curseur::-webkit-slider-thumb { -webkit-appearance: none; width: 2px; height: 24px; }
+.archive-curseur::-moz-range-thumb { width: 2px; height: 24px; border: 0; }
+.archive-curseur:disabled { cursor: default; }
+.archive-onde:has(:focus-visible) { outline: 2px solid #000000; outline-offset: 3px; }
+.archive-message { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; }
+.archive-message:empty { display: none; }
+.archive[data-etat="erreur"] :is(.archive-onde, .archive-temps, .archive-duree) { display: none; }
+
+/* Le volume, celui du site, en bleu sur le jaune ; une touche muet à part */
+.archive-son { flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+.archive .son-muet { color: #000dff; }
+.archive .son-muet:hover { color: #000000; }
+.archive .son-muet:focus-visible { outline-color: #000000; }
+.archive .son-volume { width: 54px; filter: none; }
+.archive .son-barres { background: linear-gradient(90deg, #000dff var(--v), rgba(0,13,255,0.25) var(--v)); }
+.archive .son-volume.muted .son-barres { background: linear-gradient(90deg, rgba(0,13,255,0.45) var(--v), rgba(0,13,255,0.2) var(--v)); }
+.archive .son-volume:has(:focus-visible) { outline-color: #000000; }
+.archive[data-novolume] .son-volume { display: none; }
+
+/* SoundCloud, cité comme source, avec le lien vers la piste (ses conditions d'utilisation) */
+.archive-soundcloud {
+  flex-shrink: 0; color: inherit; text-decoration: none;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.12em; white-space: nowrap;
+}
+.archive-soundcloud:hover { text-decoration: underline; text-underline-offset: 3px; }
+.archive-soundcloud:focus-visible { outline: 2px solid #000000; outline-offset: 2px; }
+
+/* Le lecteur de SoundCloud : minuscule et invisible ; montré en page de télétexte pour un premier toucher (iPhone) */
+.archive-lecteur {
+  position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: hidden;
+  opacity: 0; pointer-events: none;
+}
+.archive-lecteur .teletexte-tete, .archive-lecteur-note { display: none; }
+.archive-cadre iframe { display: block; width: 100%; height: 166px; border: 0; }
+.archive-lecteur.visible {
+  top: calc(100% + var(--ecart) / 2); left: auto; right: var(--marge);
+  width: min(440px, calc(100vw - 2 * var(--marge))); height: auto; overflow: visible;
+  opacity: 1; pointer-events: auto;
+  border: 2px solid #fff039;
+  background: repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 3px), rgba(0,0,0,0.92);
+  box-shadow: -2px 0 rgba(255,0,72,0.5), 2px 0 rgba(0,200,255,0.45);
+  color: #ffffff; text-transform: none;
+}
+.archive-lecteur.visible .teletexte-tete { display: flex; }
+.archive-lecteur.visible .archive-lecteur-note { display: block; padding: 10px 14px 12px; font-size: 12px; line-height: 1.45; }
+.archive-lecteur-fermer { display: flex; margin-left: auto; width: 28px; height: 28px; padding: 0; font-size: 16px; }
+.archive-lecteur.visible .archive-cadre { padding: 0 14px 14px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .archive[data-etat="chargement"] .archive-lire { animation: none; }
+}
+
+/* ---------- ÉCRANS PLUS ÉTROITS ----------
+   Le volume part (la touche muet reste), puis −30 / +30 et les temps : sur téléphone, la ligne garde ▶, le nom, la
+   source et ×, et l'avancée devient un fil au bas de la ligne, qu'on fait toujours glisser. */
+@media (max-width: 1000px) {
+  .archive .son-volume { display: none; }
+  .archive-titre { max-width: 28%; }
+}
+@media (max-width: 820px) {
+  html.archive-ouverte { --archive-h: 42px; }
+  .archive { gap: 8px; }
+  .archive-titre { order: 2; flex: 1 1 auto; max-width: none; gap: 8px; font-size: 11px; }
+  .archive-lire { order: 1; }
+  .archive-soundcloud { order: 3; font-size: 9px; }
+  .archive-fermer { order: 4; }
+  .archive-mot { display: none; }
+  .archive-saut, .archive-son, .archive-temps, .archive-duree { display: none; }
+  .archive-avancee { position: absolute; left: 0; right: 0; bottom: 0; height: 12px; gap: 0; }
+  .archive-onde { height: 12px; }
+  .archive-onde-trace, .archive-onde-trace.avec-onde { top: auto; bottom: 0; height: 4px; transform: none; -webkit-mask: none; mask: none; }
+  /* le message ne se montre que pour une archive qui ne répond pas, à la place du nom (la page de secours de l'iPhone
+     dit déjà quoi faire) */
+  .archive-message { display: none; }
+  .archive[data-etat="erreur"] .archive-avancee { position: static; order: 2; height: auto; }
+  .archive[data-etat="erreur"] .archive-message:not(:empty) { display: block; font-size: 10px; }
+  .archive[data-etat="erreur"] .archive-titre { display: none; }
+}

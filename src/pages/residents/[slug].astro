@@ -3,8 +3,7 @@
  * La page d'un artiste (/residents/<nom>) : il prend l'antenne. Sa photo remplace la vidéo du fond (le mode photo de
  * background.ts, par data-fond-photo) ; son nom en très grand, en lettres creuses ; ses activités, et sa prochaine
  * émission ; l'encart Description (la bio, les étiquettes de ses émissions, ses liens) ; puis ses
- * émissions et ses événements, en rangées : les événements mènent à leur page, les émissions n'ont pas encore de lien
- * (leur rubrique n'existe pas). En haut, ◂ RÉSIDENTS
+ * émissions et ses événements, en rangées, qui mènent à leur page. En haut, ◂ RÉSIDENTS
  * ramène à la liste, et ◂ ▸ zappent vers l'artiste d'avant ou d'après (src/scripts/artiste.ts). Rendue à la demande,
  * gardée une minute par le cache de Vercel, comme la liste.
  */
@@ -177,33 +176,35 @@ const voisins = artiste?.neighbors;
           <Rangee titre="Émissions" id="emissions" nombre={dejaDiffusees.length}>
             {dejaDiffusees.map((show) => (
               <li class="vignette">
-                <span class="vignette-image">
-                  {show.cover ? (
-                    <img
-                      src={show.cover.url}
-                      srcset={show.cover.srcset ?? undefined}
-                      sizes="(min-width: 821px) 220px, 42vw"
-                      width={show.cover.width ?? undefined}
-                      height={show.cover.height ?? undefined}
-                      alt=""
-                      loading="lazy"
-                      decoding="async"
-                    />
-                  ) : (
-                    <span class="portrait-mire" aria-hidden="true" />
-                  )}
-                </span>
-                <span class="vignette-titre">{show.title}</span>
-                <span class="vignette-quoi">
-                  {jour.format(show.broadcastAt)} · {LABELS.showType[show.type]}
-                </span>
-                {show.tags.length > 0 && (
-                  <span class="vignette-etiquettes">
-                    {show.tags.slice(0, 2).map((tag) => (
-                      <span>{tag.name}</span>
-                    ))}
+                <a class="vignette-lien" href={`/emissions/${show.slug}`}>
+                  <span class="vignette-image">
+                    {show.cover ? (
+                      <img
+                        src={show.cover.url}
+                        srcset={show.cover.srcset ?? undefined}
+                        sizes="(min-width: 821px) 220px, 42vw"
+                        width={show.cover.width ?? undefined}
+                        height={show.cover.height ?? undefined}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <span class="portrait-mire" aria-hidden="true" />
+                    )}
                   </span>
-                )}
+                  <span class="vignette-titre">{show.title}</span>
+                  <span class="vignette-quoi">
+                    {jour.format(show.broadcastAt)} · {LABELS.showType[show.type]}
+                  </span>
+                  {show.tags.length > 0 && (
+                    <span class="vignette-etiquettes">
+                      {show.tags.slice(0, 2).map((tag) => (
+                        <span>{tag.name}</span>
+                      ))}
+                    </span>
+                  )}
+                </a>
               </li>
             ))}
           </Rangee>

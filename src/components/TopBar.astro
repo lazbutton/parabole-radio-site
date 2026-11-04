@@ -12,6 +12,10 @@
  * qui l'affiche déjà en grand, les phrases de Parabole (src/scripts/nowplaying.ts) ; JUSTE AVANT déplie le morceau
  * d'avant (src/scripts/juste-avant.ts) ; puis le volume et RADIO / VIDÉO (le son du direct ou celui des vidéos).
  *
+ * Ligne 3, la ligne ARCHIVE, jaune (croquis du 4 novembre) : elle n'apparaît que lorsqu'une émission est en main, celle
+ * de la page qu'on regarde ou celle qu'on écoute, et continue d'une page à l'autre (src/scripts/archive.ts). Le direct
+ * et l'archive ne jouent jamais ensemble : l'une prête le son à l'autre (audio.ts, preterLeSon).
+ *
  * L'en-tête n'est pas remplacé à la navigation : src/scripts/router.ts y met à jour la rubrique ouverte, et le son
  * continue d'une page à l'autre. Le flux vient de l'adaptateur de la station (src/lib/station), écrit ici au build :
  * data-flux. Les identifiants du lecteur (player, playerStatus, playerTicker…) sont ceux que lisent audio.ts et
@@ -143,6 +147,64 @@ const texteDeDepart = page === "accueil" ? PHRASES_ACCUEIL : ["Parabole Radio", 
     <button id="soundToggle" class="source" type="button" data-mode="radio"
       ><span class="source-radio">Radio</span><span class="source-video">Vidéo</span></button
     >
+  </div>
+
+  <!-- La ligne ARCHIVE (croquis du 4 novembre) : jaune, sous la ligne ON AIR, quand une émission est en main (celle de
+       la page qu'on regarde, ou celle qu'on écoute, d'une page à l'autre). Son nom, ▶, l'avancée (qu'on fait glisser),
+       le volume, −30 / +30, la piste sur SoundCloud et ×. Le son vient du lecteur de SoundCloud, piloté par
+       src/scripts/archive.ts et posé dans #archiveCadre, qu'on ne déplace jamais (un cadre déplacé se recharge).
+       data-etat : pret · chargement · lecture · pause · erreur. -->
+  <div id="archive" class="archive" data-etat="pret" role="region" aria-label="Archive en écoute" hidden>
+    <a id="archiveTitre" class="archive-titre" href="/emissions">
+      <span class="archive-mot">Archive</span>
+      <span class="archive-nom-defile"><span id="archiveNom" class="archive-nom"></span><span id="archiveQui" class="archive-qui"></span></span>
+    </a>
+    <button id="archiveLire" class="archive-touche archive-lire" type="button" aria-label="Lire l'archive">
+      <svg class="icon archive-icone-lire" aria-hidden="true"><use href="#icon-play"></use></svg>
+      <svg class="icon archive-icone-pause" aria-hidden="true"><use href="#icon-pause"></use></svg>
+    </button>
+    <div class="archive-avancee">
+      <span id="archiveTemps" class="archive-temps">0:00</span>
+      <label class="archive-onde">
+        <span class="archive-onde-trace" aria-hidden="true"></span>
+        <input id="archiveCurseur" class="archive-curseur" type="range" min="0" max="0" step="1" value="0" aria-label="Avancée de l'archive" />
+      </label>
+      <span id="archiveDuree" class="archive-duree"></span>
+      <span id="archiveMessage" class="archive-message" role="status"></span>
+    </div>
+    <div class="archive-son">
+      <button id="archiveMuet" class="son-muet" type="button" aria-label="Couper le son de l'archive" aria-pressed="false">
+        <svg class="icon icon-sound-on" aria-hidden="true"><use href="#icon-sound"></use></svg>
+        <svg class="icon icon-sound-off" aria-hidden="true"><use href="#icon-sound-off"></use></svg>
+      </button>
+      <label id="archiveVolumeCadre" class="son-volume archive-volume"
+        ><span class="son-barres" aria-hidden="true"></span><input
+          id="archiveVolume"
+          class="son-curseur"
+          type="range"
+          min="0"
+          max="100"
+          value="90"
+          aria-label="Volume de l'archive"
+        /></label
+      >
+    </div>
+    <button class="archive-touche archive-saut" type="button" data-saut="-30" aria-label="Reculer de 30 secondes">−30</button>
+    <button class="archive-touche archive-saut" type="button" data-saut="30" aria-label="Avancer de 30 secondes">+30</button>
+    <a id="archiveSoundcloud" class="archive-soundcloud" href="https://soundcloud.com/parabole-radio" target="_blank" rel="noopener noreferrer"
+      >SoundCloud<span aria-hidden="true"> ↗</span></a
+    >
+    <button id="archiveFermer" class="archive-touche archive-fermer" type="button" aria-label="Fermer l'archive">&times;</button>
+    <!-- Le lecteur de SoundCloud, minuscule et invisible ; montré en page de télétexte quand le navigateur veut qu'on
+         le touche lui-même pour lancer le son (iPhone) -->
+    <div id="archiveLecteur" class="archive-lecteur" aria-hidden="true">
+      <div class="teletexte-tete">
+        <span class="teletexte-titre">Lancer l'archive</span>
+        <button id="archiveLecteurFermer" class="tete-touche archive-lecteur-fermer" type="button" aria-label="Fermer">&times;</button>
+      </div>
+      <p class="archive-lecteur-note">Ce navigateur veut un toucher : touchez ▶ dans le lecteur ci-dessous, la ligne jaune prend ensuite le relais.</p>
+      <div id="archiveCadre" class="archive-cadre"></div>
+    </div>
   </div>
 
   <!-- Le sommaire, sur téléphone : les rubriques en pages de télétexte, et la source du son -->

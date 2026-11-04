@@ -4,9 +4,12 @@
    défile dans sa propre zone, entre l'en-tête (--barre-h) et le bas de l'écran : la ligne du bas n'est que sur
    l'accueil (--band-h, tenue à jour par panels.ts, y vaut 0 ailleurs). */
 #page { position: relative; z-index: 10; }
+/* jamais de défilement horizontal : les fonds qui courent sur toute la largeur (la rangée collée des résidents et des
+   émissions, calée sur 100vw) dépassaient de la largeur de la barre de défilement. Et la place de cette barre est
+   toujours gardée : une page qui devient assez courte pour s'en passer (une grille filtrée) ne se recentre pas. */
 html:not([data-page="accueil"]) #page {
   position: fixed; left: 0; right: 0; top: var(--barre-h); bottom: var(--band-h, 110px);
-  overflow-y: auto; overscroll-behavior: contain;
+  overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable;
   scrollbar-width: thin; scrollbar-color: #fff039 transparent;
 }
 
