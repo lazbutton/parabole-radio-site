@@ -4,11 +4,14 @@
  * groupes et ses deadlines. Sous le rôle de la personne connectée (src/admin/index.ts) : les règles d'accès de la base
  * (0017_envois_acces.sql) s'appliquent.
  */
-import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { Tx } from "../access.ts";
 import { outer } from "../read/common.ts";
-import { artist, audioFile, broadcastCycle, show, submission, uploadLink, type AudioRole, type AudioStatus } from "../schema.ts";
+import { artist, audioFile, broadcastCycle, show, submission, track, uploadLink, type AudioRole, type AudioStatus } from "../schema.ts";
+import { parseTimecode, type TrackLine } from "../tracklist.ts";
 import { addDays, blockRange, deadlineAt, lateBlock, nextDeadline, type Block, type Cycle, type Group } from "../envois/calendrier.ts";
+import { audioKey, MAX_MAIN_BYTES } from "../envois/fichiers.ts";
 import { newToken, readCycle } from "../envois/index.ts";
 import type { NotSaved } from "./common.ts";
 import { isUuid } from "./input.ts";
@@ -183,6 +186,80 @@ export async function audioKeysOf(tx: Tx, showIds: string[]): Promise<string[]> 
   const wanted = showIds.filter(isUuid);
   if (!wanted.length) return [];
   return (await tx.select({ key: audioFile.key }).from(audioFile).where(inArray(audioFile.showId, wanted))).map((row) => row.key);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// L'assemblage d'une playlist (cms/README.md, 9.13) : le son fait dans le navigateur de l'équipe
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * Un son assemblé qui va partir vers le seau : sa ligne « uploading », sans artiste (c'est l'équipe qui l'envoie), et
+ * sa clé, pour que le serveur signe son dépôt. Ou la raison du refus.
+ */
+export async function prepareAssembly(tx: Tx, { showId, size, now = new Date() }: { showId: string; size: number; now?: Date }): Promise<{ ok: true; id: string; key: string; mime: string } | NotSaved> {
+  if (!isUuid(showId)) return { ok: false, errors: { form: "Cette émission n'existe plus." } };
+  const [row] = await tx.select({ slug: show.slug }).from(show).where(eq(show.id, showId)).limit(1);
+  if (!row) return { ok: false, errors: { form: "Cette émission n'existe plus." } };
+  if (!(size > 0)) return { ok: false, errors: { form: "Le fichier assemblé est vide." } };
+  if (size > MAX_MAIN_BYTES) return { ok: false, errors: { form: `Le fichier assemblé dépasse ${MAX_MAIN_BYTES / 1_000_000} Mo, la limite de Radio Cult : raccourcis la playlist.` } };
+  const id = randomUUID();
+  const key = audioKey(id, "mp3", now);
+  await tx.insert(audioFile).values({ id, artistId: null, role: "main", key, fileName: `${row.slug}.mp3`, mimeType: "audio/mpeg", status: "uploading" });
+  return { ok: true, id, key, mime: "audio/mpeg" };
+}
+
+/** La clé d'un son assemblé encore en route, pour vérifier dans le seau qu'il est arrivé. */
+export async function assemblyKey(tx: Tx, fileId: string): Promise<string | null> {
+  if (!isUuid(fileId)) return null;
+  const [row] = await tx
+    .select({ key: audioFile.key })
+    .from(audioFile)
+    .where(and(eq(audioFile.id, fileId), eq(audioFile.role, "main"), eq(audioFile.status, "uploading"), isNull(audioFile.artistId)))
+    .limit(1);
+  return row?.key ?? null;
+}
+
+/**
+ * Le son assemblé, arrivé dans le seau (`sizeBytes`, lu par le serveur) : il devient le son de l'émission, à écouter
+ * puis valider, à la place de l'ancien ; sa setlist minutée remplace la tracklist (`tracks`, ou rien pour la garder).
+ * L'émission change de version : une fiche ouverte ailleurs ne l'écrasera pas sans le savoir. Rend les clés à effacer.
+ */
+export async function registerAssembly(
+  tx: Tx,
+  { showId, fileId, sizeBytes, durationSeconds, tracks }: { showId: string; fileId: string; sizeBytes: number; durationSeconds: number; tracks: TrackLine[] | null },
+): Promise<{ ok: true; removedKeys: string[] } | NotSaved> {
+  if (!isUuid(showId) || !isUuid(fileId)) return { ok: false, errors: { form: "Ce fichier n'existe plus." } };
+  const [file] = await tx
+    .select({ id: audioFile.id })
+    .from(audioFile)
+    .where(and(eq(audioFile.id, fileId), eq(audioFile.role, "main"), eq(audioFile.status, "uploading"), isNull(audioFile.artistId)))
+    .limit(1);
+  if (!file) return { ok: false, errors: { form: "Ce fichier assemblé n'est plus en attente : recommence l'assemblage." } };
+  if (!(sizeBytes > 0) || sizeBytes > MAX_MAIN_BYTES) return { ok: false, errors: { form: "Le fichier assemblé n'est pas arrivé en entier : recommence l'assemblage." } };
+  const [current] = await tx.select({ id: show.id }).from(show).where(eq(show.id, showId)).for("update");
+  if (!current) return { ok: false, errors: { form: "Cette émission n'existe plus." } };
+  const [before] = await tx.select({ id: audioFile.id, key: audioFile.key, status: audioFile.status }).from(audioFile).where(and(eq(audioFile.showId, showId), eq(audioFile.role, "main"), ne(audioFile.status, "uploading")));
+  if (before?.status === "sending") return { ok: false, errors: { form: "Le son de cette émission part vers SoundCloud : réessaie dans un moment." } };
+  const removedKeys: string[] = [];
+  if (before) {
+    await tx.delete(audioFile).where(eq(audioFile.id, before.id));
+    removedKeys.push(before.key);
+  }
+  const length = Number.isFinite(durationSeconds) && durationSeconds > 0 ? Math.round(durationSeconds) : null;
+  await tx.update(audioFile).set({ showId, status: "received", sizeBytes, durationSeconds: length }).where(eq(audioFile.id, fileId));
+  if (tracks) {
+    await tx.delete(track).where(eq(track.showId, showId));
+    const lines = tracks
+      .map((line) => ({ artist: line.artist.trim().slice(0, 300), title: line.title.trim().slice(0, 300), startSeconds: parseTimecode(line.start) }))
+      .filter((line) => line.title);
+    if (lines.length) await tx.insert(track).values(lines.map((line, index) => ({ showId, position: index + 1, ...line, hopperUrl: null })));
+  }
+  // Sa durée, si le créneau ne l'a pas donnée ; et dans tous les cas une nouvelle version de la fiche.
+  await tx
+    .update(show)
+    .set({ durationSeconds: sql`coalesce(${show.durationSeconds}, ${length})` })
+    .where(eq(show.id, showId));
+  return { ok: true, removedKeys };
 }
 
 // ---------------------------------------------------------------------------------------------------------------

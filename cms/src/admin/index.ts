@@ -14,6 +14,7 @@ import { asMember, type Tx } from "../access.ts";
 import type { Db } from "../db.ts";
 import { importSlots, importStatus, radiocultLinks, type ImportInput } from "../radiocult/index.ts";
 import type { FacetScope } from "../schema.ts";
+import type { TrackLine } from "../tracklist.ts";
 import { getAbout, saveAbout, setAboutFilm, setAboutPoster, type AboutSave } from "./about.ts";
 import { readTagDocument, syncTagDocument, type DocumentChanges, type DocumentRename } from "./document.ts";
 import { artistChoices, deleteArtist, getArtist, listArtists, saveArtist, type AdminArtistFilters, type ArtistSave } from "./artists.ts";
@@ -57,7 +58,7 @@ import {
   type TagPlace,
 } from "./tags.ts";
 import { getMember, overview } from "./team.ts";
-import { approveAudio, audioFileById, audioFilesOf, audioKeysOf, deleteAudioFile, deleteUploadLink, getCycle, renewUploadLink, saveCycle, submissionOf, uploadLinkOf } from "./envois.ts";
+import { approveAudio, assemblyKey, audioFileById, audioFilesOf, audioKeysOf, deleteAudioFile, deleteUploadLink, getCycle, prepareAssembly, registerAssembly, renewUploadLink, saveCycle, submissionOf, uploadLinkOf } from "./envois.ts";
 import { attachCandidates, attachSubmission, rattacherSeul } from "../envois/rattacher.ts";
 
 /** Un refus de la base qui tient à la saisie devient des erreurs par champ ; le reste remonte tel quel. */
@@ -241,6 +242,12 @@ export function createAdmin(db: Db, userId: string) {
     approveAudio: (id: string) => as((tx) => approveAudio(tx, id)),
     /** Efface un fichier son ; rend sa clé, à effacer du seau. */
     deleteAudioFile: (id: string) => as((tx) => deleteAudioFile(tx, id)),
+    /** Un son assemblé par l'équipe (9.13) qui va partir vers le seau : sa ligne et sa clé. */
+    prepareAssembly: (showId: string, size: number, options?: { now?: Date }) => saving(() => as((tx) => prepareAssembly(tx, { showId, size, now: options?.now }))),
+    /** La clé d'un son assemblé encore en route, ou null. */
+    assemblyKey: (fileId: string) => as((tx) => assemblyKey(tx, fileId)),
+    /** Le son assemblé, arrivé : le son de l'émission, et sa setlist minutée pour tracklist. Rend les clés à effacer. */
+    registerAssembly: (values: { showId: string; fileId: string; sizeBytes: number; durationSeconds: number; tracks: TrackLine[] | null }) => saving(() => as((tx) => registerAssembly(tx, values))),
     /** Les clés des fichiers son de ces shows, à effacer du seau avant de les supprimer. */
     audioKeysOf: (showIds: string[]) => as((tx) => audioKeysOf(tx, showIds)),
     /** Les créneaux où un envoi pourrait aller. */

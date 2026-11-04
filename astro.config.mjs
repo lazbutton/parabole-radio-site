@@ -64,6 +64,9 @@ export default defineConfig({
       R2_SECRET_ACCESS_KEY: envField.string({ context: "server", access: "secret", optional: true }),
       // L'adresse S3 du seau, à la place de https://<compte>.r2.cloudflarestorage.com : un MinIO local pour les essais.
       R2_ENDPOINT: envField.string({ context: "server", access: "secret", optional: true }),
+      // La clé de l'API YouTube Data (Google Cloud, gratuite) : l'outil d'assemblage lit avec elle la liste d'une
+      // playlist YouTube (cms/README.md, 9.13). Sans elle, on colle la liste ; Deezer se lit sans clé.
+      YOUTUBE_API_KEY: envField.string({ context: "server", access: "secret", optional: true }),
     },
   },
 });

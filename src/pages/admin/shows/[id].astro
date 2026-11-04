@@ -9,18 +9,37 @@
  * Ce qu'un résident a envoyé (cms/README.md, 9.12) a aussi ses intents : valider un son (« approve-audio »), effacer un
  * fichier (« delete-audio »), et rattacher un envoi qui attend son créneau à l'un des créneaux de la grille
  * (« attach ») : on arrive alors sur la fiche du créneau. Supprimer un show efface aussi ses fichiers du seau.
+ *
+ * L'assemblage d'une playlist (9.13) en a deux : « assembly-ticket » réserve le dépôt du son fait dans le navigateur
+ * (une adresse signée pour une seule clé) ; « assembly-register », une fois le fichier arrivé (vérifié dans le seau),
+ * en fait le son de l'émission, avec sa setlist minutée pour tracklist, et renvoie la fiche à jour.
  */
-import { readShowForm, type AdminShow } from "@parabole/cms";
-import type { AttachResponse, EnvoiResponse, PlaceResponse, Screen } from "../../../components/admin/types";
+import { readShowForm, type AdminShow, type TrackLine } from "@parabole/cms";
+import type { AssemblyResponse, AssemblyTicket, AttachResponse, EnvoiResponse, PlaceResponse, Screen } from "../../../components/admin/types";
 import Admin from "../../../layouts/Admin.astro";
 import { parisDateTime } from "../../../lib/admin/format";
 import { intentOf, showFormFrom } from "../../../lib/admin/forms";
 import { seeOther } from "../../../lib/admin/paths";
 import { removeImages } from "../../../lib/admin/storage";
 import { envoiView, json, mediaView, showSheet, wantsJson } from "../../../lib/admin/views";
-import { removeFiles } from "../../../lib/r2";
+import { headSize, r2Ready, removeFiles, uploadUrl } from "../../../lib/r2";
 
 export const prerender = false;
+
+/** La setlist minutée envoyée par l'outil d'assemblage (JSON), remise en forme : 300 morceaux au plus. */
+function tracksFrom(raw: string): TrackLine[] {
+  try {
+    const lines: unknown = JSON.parse(raw);
+    if (!Array.isArray(lines)) return [];
+    return lines.slice(0, 300).map((value) => {
+      const line = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+      const text = (field: unknown, max: number) => (typeof field === "string" ? field.slice(0, max) : "");
+      return { start: text(line.start, 12), artist: text(line.artist, 300), title: text(line.title, 300), hopperUrl: "" };
+    });
+  } catch {
+    return [];
+  }
+}
 
 const admin = Astro.locals.admin!;
 const isNew = Astro.params.id === "nouveau";
@@ -51,6 +70,25 @@ if (posted) {
     if (!key) return json({ ok: false, errors: { form: "Ce son part vers SoundCloud : il ne s'efface pas pendant l'envoi." } }, 409);
     await removeFiles([key]);
     return json({ ok: true, envoi: await envoiView(admin, show.id), message: file.role === "main" ? "Son effacé" : "Morceau effacé" } satisfies EnvoiResponse);
+  }
+  if (asked === "assembly-ticket") {
+    if (!show) return json({ ok: false, errors: { form: "Cette émission n'est pas encore créée." } }, 400);
+    if (!r2Ready()) return json({ ok: false, errors: { form: "Le seau des fichiers son n'est pas branché : impossible de déposer le son assemblé." } }, 503);
+    const ticket = await admin.prepareAssembly(show.id, Number(data.get("size")));
+    if (!ticket.ok) return json(ticket, 422);
+    return json({ ok: true, id: ticket.id, mime: ticket.mime, url: await uploadUrl(ticket.key, ticket.mime) } satisfies AssemblyTicket);
+  }
+  if (asked === "assembly-register") {
+    if (!show) return json({ ok: false, errors: { form: "Cette émission n'est pas encore créée." } }, 400);
+    const fileId = String(data.get("file") ?? "");
+    const key = await admin.assemblyKey(fileId);
+    const size = key ? await headSize(key) : null;
+    if (!size) return json({ ok: false, errors: { form: "Le son assemblé n'est pas arrivé en entier dans le seau : recommence l'assemblage." } }, 422);
+    const done = await admin.registerAssembly({ showId: show.id, fileId, sizeBytes: size, durationSeconds: Number(data.get("duration")), tracks: data.has("tracks") ? tracksFrom(String(data.get("tracks"))) : null });
+    if (!done.ok) return json(done, 422);
+    await removeFiles(done.removedKeys);
+    const fresh = await admin.getShow(show.id);
+    return json({ ok: true, sheet: await showSheet(admin, fresh), message: "Playlist assemblée" } satisfies AssemblyResponse);
   }
   if (asked === "attach") {
     if (!show) return json({ ok: false, errors: { form: "Cette émission n'est pas encore créée." } }, 400);

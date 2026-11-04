@@ -181,10 +181,11 @@ export type AudioView = {
   /** Écouter et télécharger : des adresses de l'admin (/admin/api/son/<id>), qui signent la lecture dans le seau. */
   listen: string;
   download: string;
-  /** Un morceau : son artiste, son titre, sa durée (« 4:05 »). */
+  /** Un morceau : son artiste, son titre, sa durée (« 4:05 », et en secondes pour l'outil d'assemblage). */
   artist: string;
   title: string;
   duration: string;
+  seconds: number | null;
 };
 
 /** L'envoi d'un show : qui, quand, pour quel bloc, son mot ; ses fichiers ; les créneaux où il peut aller. */
@@ -211,6 +212,11 @@ export type EnvoiView = {
 };
 
 export type EnvoiResponse = { ok: true; envoi: EnvoiView; message: string } | { ok: false; errors: FieldErrors };
+/** Le dépôt du son assemblé (9.13) : la ligne réservée, l'adresse signée où le déposer, son type. */
+export type AssemblyTicket = { ok: true; id: string; url: string; mime: string };
+export type AssemblyResponse = { ok: true; sheet: ShowSheet; message: string } | { ok: false; errors: FieldErrors };
+/** La liste d'une playlist, lue sur sa plateforme (/admin/api/playlist). */
+export type PlaylistResponse = { ok: true; platform: string; title: string; tracks: { artist: string; title: string; duration: number | null }[] } | { ok: false; error: string };
 export type AttachResponse = { ok: true; redirect: string; message: string } | { ok: false; errors: FieldErrors };
 
 /** Le lien d'envoi d'un artiste : son adresse sur le site (/envoyer/<jeton>), et ce qu'on en sait. */

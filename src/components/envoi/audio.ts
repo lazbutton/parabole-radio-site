@@ -20,7 +20,7 @@ export async function call<T>(jeton: string, action: string, body: Record<string
  * Dépose un fichier dans le seau, à l'adresse signée, avec le type signé. XMLHttpRequest plutôt que fetch : il donne la
  * progression de l'envoi. Un envoi annulé lève une AbortError.
  */
-export function putAudio(url: string, file: File, mime: string, onPercent: (percent: number) => void, signal: AbortSignal): Promise<void> {
+export function putAudio(url: string, file: Blob, mime: string, onPercent: (percent: number) => void, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
     request.open("PUT", url);

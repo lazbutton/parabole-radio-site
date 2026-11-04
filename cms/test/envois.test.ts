@@ -13,7 +13,7 @@ import { blockContaining, blockRange, dayLabel, deadlineAt, lateBlock, nextBlock
 import { AUDIO_KEY, audioKey, audioRefusal, audioTypeOf, dispositionOf, trackFromFileName } from "../src/envois/fichiers.ts";
 import { createEnvois, type EnvoiForm } from "../src/envois/index.ts";
 import { rattacherEnvois } from "../src/envois/rattacher.ts";
-import { artist, audioFile, broadcastCycle, show, showArtist, submission, tag, uploadLink } from "../src/schema.ts";
+import { artist, audioFile, broadcastCycle, show, showArtist, submission, tag, track, uploadLink } from "../src/schema.ts";
 import { createAccount, freshDb, pgError } from "./helpers.ts";
 
 const at = (iso: string) => new Date(iso);
@@ -379,6 +379,63 @@ describe("les envois des résidents", () => {
       expect(await editor.saveCycle(values)).toMatchObject({ ok: false, errors: { form: expect.any(String) } });
       expect(await editor.saveCycle({ ...values, group1Start: "2026-12-15" })).toMatchObject({ ok: false, errors: { group1Start: "Choisis un lundi." } });
       expect(await createAdmin(db, adminId).saveCycle(values)).toEqual({ ok: true });
+    });
+  });
+
+  describe("l'assemblage d'une playlist", () => {
+    it("inscrit le son assemblé par l'équipe, à la place de l'ancien, avec sa setlist minutée pour tracklist", async () => {
+      const [playlist] = await db.insert(show).values({ slug: `assemblage-${randomUUID().slice(0, 6)}`, title: "À assembler", type: "playlist" }).returning({ id: show.id, updatedAt: show.updatedAt });
+      await db.insert(track).values({ showId: playlist!.id, position: 1, artist: "Ancien", title: "Morceau" });
+      expect(await editor.prepareAssembly(randomUUID(), 1000)).toMatchObject({ ok: false });
+      expect(await editor.prepareAssembly(playlist!.id, 0)).toMatchObject({ ok: false });
+      expect(await editor.prepareAssembly(playlist!.id, 800_000_000)).toMatchObject({ ok: false, errors: { form: expect.stringMatching(/750 Mo/) } });
+
+      const first = await editor.prepareAssembly(playlist!.id, 5_000_000, { now: DEC1 });
+      if (!first.ok) throw new Error("préparation refusée");
+      expect(first.key).toMatch(/^audio\/2026\/12\/[0-9a-f-]{36}\.mp3$/);
+      const [pending] = await db.select({ status: audioFile.status, artistId: audioFile.artistId, showId: audioFile.showId }).from(audioFile).where(eq(audioFile.id, first.id));
+      expect(pending).toEqual({ status: "uploading", artistId: null, showId: null });
+
+      const tracks = [
+        { start: "0:00", artist: "A", title: "Un", hopperUrl: "" },
+        { start: "3:17", artist: "B", title: "Deux", hopperUrl: "" },
+        { start: "6:15", artist: "", title: "", hopperUrl: "" },
+      ];
+      expect(await editor.registerAssembly({ showId: playlist!.id, fileId: first.id, sizeBytes: 5_000_000, durationSeconds: 379.4, tracks })).toEqual({ ok: true, removedKeys: [] });
+      const lines = await db.select({ position: track.position, artist: track.artist, title: track.title, startSeconds: track.startSeconds }).from(track).where(eq(track.showId, playlist!.id)).orderBy(track.position);
+      expect(lines).toEqual([
+        { position: 1, artist: "A", title: "Un", startSeconds: 0 },
+        { position: 2, artist: "B", title: "Deux", startSeconds: 197 },
+      ]);
+      const [after] = await db.select({ durationSeconds: show.durationSeconds, updatedAt: show.updatedAt }).from(show).where(eq(show.id, playlist!.id));
+      expect(after!.durationSeconds).toBe(379);
+      expect(after!.updatedAt.getTime()).toBeGreaterThan(playlist!.updatedAt.getTime());
+      const [main] = await db.select({ status: audioFile.status, sizeBytes: audioFile.sizeBytes, durationSeconds: audioFile.durationSeconds }).from(audioFile).where(eq(audioFile.id, first.id));
+      expect(main).toEqual({ status: "received", sizeBytes: 5_000_000, durationSeconds: 379 });
+      // Le même fichier ne s'inscrit pas deux fois.
+      expect(await editor.registerAssembly({ showId: playlist!.id, fileId: first.id, sizeBytes: 5_000_000, durationSeconds: 379, tracks: null })).toMatchObject({ ok: false });
+
+      // Un second assemblage remplace le premier et garde la tracklist s'il ne la donne pas.
+      const second = await editor.prepareAssembly(playlist!.id, 6_000_000, { now: DEC1 });
+      if (!second.ok) throw new Error("préparation refusée");
+      expect(await editor.registerAssembly({ showId: playlist!.id, fileId: second.id, sizeBytes: 6_000_000, durationSeconds: 400, tracks: null })).toEqual({ ok: true, removedKeys: [first.key] });
+      expect(await db.select({ id: track.id }).from(track).where(eq(track.showId, playlist!.id))).toHaveLength(2);
+      const [kept] = await db.select({ durationSeconds: show.durationSeconds }).from(show).where(eq(show.id, playlist!.id));
+      expect(kept!.durationSeconds).toBe(379);
+
+      // Pas pendant un envoi vers SoundCloud.
+      await db.update(audioFile).set({ status: "sending" }).where(eq(audioFile.id, second.id));
+      const third = await editor.prepareAssembly(playlist!.id, 6_000_000, { now: DEC1 });
+      if (!third.ok) throw new Error("préparation refusée");
+      expect(await editor.registerAssembly({ showId: playlist!.id, fileId: third.id, sizeBytes: 6_000_000, durationSeconds: 400, tracks: null })).toMatchObject({ ok: false, errors: { form: expect.stringMatching(/SoundCloud/) } });
+      await db.delete(show).where(eq(show.id, playlist!.id));
+    });
+
+    it("reste fermé aux comptes hors de l'équipe", async () => {
+      const outsider = createAdmin(db, stranger);
+      const [someShow] = await db.insert(show).values({ slug: `ferme-${randomUUID().slice(0, 6)}`, title: "Fermé", type: "playlist" }).returning({ id: show.id });
+      expect(await outsider.prepareAssembly(someShow!.id, 1000)).toMatchObject({ ok: false });
+      await db.delete(show).where(eq(show.id, someShow!.id));
     });
   });
 

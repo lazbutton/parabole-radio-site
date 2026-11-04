@@ -39,7 +39,8 @@
     "react": "19.2.9",
     "react-dom": "19.2.9",
     "sharp": "0.35.5",
-    "socket.io-client": "4.8.1"
+    "socket.io-client": "4.8.1",
+    "wasm-media-encoders": "0.7.0"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.10",

@@ -29,7 +29,7 @@ html .radix-themes {
   --cursor-slider-thumb-active: grabbing;
 }
 /* Les boutons faits maison, et les libellés qui cochent une case : sans poids, une règle de classe passe devant. */
-.radix-themes :where(button:not(:disabled), summary, [role="button"]:not([aria-disabled="true"]), label:has(input[type="checkbox"], input[type="radio"], button[role="checkbox"], button[role="radio"], button[role="switch"])) {
+.radix-themes :where(button:not(:disabled), summary, [role="button"]:not([aria-disabled="true"]), label:has(input[type="checkbox"], input[type="radio"], button[role="checkbox"], button[role="radio"], button[role="switch"]), .rt-SliderRoot:not([data-disabled])) {
   cursor: pointer;
 }
 .admin-sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
@@ -797,6 +797,40 @@ input.admin-track-start { font-family: var(--code-font-family); font-variant-num
 .admin-deadline-list { margin-top: var(--space-2); }
 .admin-deadline-row { display: flex; align-items: center; gap: 4px; }
 .admin-deadline-row > .admin-row-link { flex: 1; min-width: 0; padding-top: 4px; padding-bottom: 4px; }
+
+/* L'outil d'assemblage d'une playlist (Assembler.tsx, cms/README.md, 9.13) */
+.admin-assembly-block { margin-bottom: var(--space-3); }
+.admin-assembly-block p { margin: 0; }
+.admin-assembly-rows { margin: 0 0 var(--space-3); padding: 0; list-style: none; border-radius: var(--radius-4); box-shadow: 0 0 0 1px var(--gray-a5); }
+.admin-assembly-row { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr) minmax(0, 220px); gap: 8px; align-items: center; padding: 6px 10px; }
+.admin-assembly-row + .admin-assembly-row { box-shadow: inset 0 1px var(--gray-a3); }
+.admin-assembly-row[data-missing] { background: var(--amber-a2); }
+.admin-assembly-row[data-dragging] { z-index: 1; background: var(--accent-a3); box-shadow: 0 0 0 1px var(--accent-8); }
+.admin-assembly-free { grid-template-columns: 18px 24px minmax(0, 1fr) 120px auto; }
+.admin-assembly-text p { margin: 0; }
+.admin-assembly-cells { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px; min-width: 0; }
+.admin-assembly-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-assembly-file { width: 100%; min-width: 0; }
+.admin-assembly-file .rt-SelectTriggerInner { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-assembly-loose { margin: 0; padding: 0; list-style: none; }
+.admin-assembly-loose li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 0; }
+.admin-assembly-drop {
+  display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px dashed var(--gray-a7); border-radius: var(--radius-4);
+  background: var(--gray-a2); color: var(--gray-11); cursor: pointer; transition: background-color 0.12s, border-color 0.12s;
+}
+.admin-assembly-drop:hover:not([data-disabled]), .admin-assembly-drop[data-over] { border-color: var(--accent-8); background: var(--accent-a3); color: var(--accent-11); }
+.admin-assembly-drop[data-disabled] { cursor: default; opacity: 0.6; }
+.admin-assembly-settings { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-5); margin: var(--space-4) 0; }
+.admin-assembly-fade { flex: 0 1 260px; }
+.admin-assembly-go { padding-top: var(--space-3); border-top: 1px solid var(--gray-a4); }
+.admin-assembly-progress { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); border-radius: var(--radius-4); background: var(--accent-a2); box-shadow: inset 0 0 0 1px var(--accent-a5); }
+@media (max-width: 640px) {
+  .admin-assembly-row { grid-template-columns: 24px minmax(0, 1fr); }
+  .admin-assembly-row > .admin-assembly-file { grid-column: 2; }
+  .admin-assembly-free { grid-template-columns: 18px 20px minmax(0, 1fr) auto; }
+  .admin-assembly-free > .admin-assembly-name { grid-column: 3; }
+  .admin-assembly-cells { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* Le menu d'une ligne de liste (Modifier, Supprimer), à droite */
 .admin-table .admin-row-actions { width: 40px; padding-left: 0; }

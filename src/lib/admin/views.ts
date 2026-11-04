@@ -111,6 +111,7 @@ export async function envoiView(admin: Admin, showId: string): Promise<EnvoiView
     artist: file.trackArtist ?? "",
     title: file.trackTitle ?? "",
     duration: file.durationSeconds ? formatTimecode(file.durationSeconds) : "",
+    seconds: file.durationSeconds,
   });
   const main = files.find((file) => file.role === "main");
   return {

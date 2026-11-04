@@ -17,6 +17,7 @@ import { Button, DataList, Flex, IconButton, SegmentedControl, Text, TextField }
 import { useEffect, useMemo, useState } from "react";
 import { forgetRecent, rememberRecent } from "./recents";
 import { useBlocker, useRouter } from "./router";
+import { Assembler } from "./Assembler";
 import { ReceivedParts, ReceivedSound, SubmissionPanel } from "./EnvoiPanels";
 import { FacetPicker } from "./FacetPicker";
 import { ImageField, placeImage } from "./ImageField";
@@ -324,7 +325,23 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
               />
             </Section>
             <TracklistEditor rows={form.tracks} onChange={(tracks) => set("tracks", tracks)} errors={errors} />
-            <ReceivedParts url={url} envoi={sheet.envoi} onChange={(envoi) => setSheet((current) => ({ ...current, envoi }))} />
+            {sheet.id && sheet.form.type === "playlist" ? (
+              <Assembler
+                url={url}
+                sheet={sheet}
+                dirty={dirty}
+                onAssembled={(fresh) => {
+                  // La fiche à jour : son son, sa setlist, sa nouvelle version.
+                  const form = toEditor(fresh.form);
+                  setSheet(fresh);
+                  setForm(form);
+                  setSaved(fingerprint(form));
+                  router.invalidate();
+                }}
+              />
+            ) : (
+              <ReceivedParts url={url} envoi={sheet.envoi} onChange={(envoi) => setSheet((current) => ({ ...current, envoi }))} />
+            )}
           </div>
 
           <aside className="admin-sheet-side" aria-label="Pochette, son et informations">
