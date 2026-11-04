@@ -32,7 +32,11 @@ export type AdminShowRow = {
   tracks: number;
   /** La piste SoundCloud est renseignée. */
   hasSound: boolean;
-  /** Le show vient de l'import Radio Cult. */
+  hasCover: boolean;
+  hasDescription: boolean;
+  /** Le nombre de ses étiquettes. */
+  tags: number;
+  /** L'émission vient de l'import Radio Cult. */
   fromRadioCult: boolean;
 };
 
@@ -45,7 +49,10 @@ export type AdminShowFilters = {
   tag?: string;
   /** Identifiant d'un artiste. */
   artist?: string;
-  /** Ce qui manque à un show déjà diffusé : « tracklist », ou « sound » (la piste SoundCloud). */
+  /**
+   * Ce qui manque à une émission déjà diffusée : « tracklist », « sound » (la piste SoundCloud), « cover » (la pochette),
+   * « description », « tags » (aucune étiquette des filtres).
+   */
   missing?: string;
   /** « recent » (par défaut) : les plus récents d'abord, ceux sans date en tête ; « oldest » : les plus anciens. */
   order?: string;
@@ -60,12 +67,33 @@ export const artistNames = () =>
   sql<string[]>`coalesce((select json_agg(a.name order by sa.position, a.name) from ${showArtist} sa join ${artist} a on a.id = sa.artist_id
     where sa.show_id = ${outer(show.id)}), '[]'::json)`;
 
-/** Un show déjà diffusé sans tracklist : le tableau de bord les compte, la liste les filtre. */
-export const lacksTracklist = (now: Date) =>
-  sql`(${show.broadcastAt} <= ${now.toISOString()}::timestamptz and not exists (select 1 from ${track} tr where tr.show_id = ${outer(show.id)}))`;
+/** Déjà diffusée : ce qui manque ne compte qu'une fois l'émission passée à l'antenne (une émission sans date, jamais). */
+const aired = (now: Date) => sql`${show.broadcastAt} <= ${now.toISOString()}::timestamptz`;
 
-/** Un show déjà diffusé sans piste SoundCloud : le lecteur du site n'a rien à jouer. */
-export const lacksSound = (now: Date) => sql`(${show.broadcastAt} <= ${now.toISOString()}::timestamptz and ${show.soundcloudTrackId} is null)`;
+/**
+ * Une émission diffusée sans tracklist : le tableau de bord les compte, la liste les filtre. Pas les podcasts : ils
+ * n'en ont pas forcément.
+ */
+export const lacksTracklist = (now: Date) =>
+  sql`(${aired(now)} and ${show.type} <> 'podcast' and not exists (select 1 from ${track} tr where tr.show_id = ${outer(show.id)}))`;
+
+/** Une émission diffusée sans piste SoundCloud : le lecteur du site n'a rien à jouer. */
+export const lacksSound = (now: Date) => sql`(${aired(now)} and ${show.soundcloudTrackId} is null)`;
+
+/** Une émission diffusée sans pochette : le site montre la vignette de son type. */
+export const lacksCover = (now: Date) => sql`(${aired(now)} and ${show.coverId} is null)`;
+
+/** Une description vide, ou faite seulement d'espaces et de retours à la ligne. */
+const blankDescription = sql`coalesce(${show.description}, '') !~ '[^[:space:]]'`;
+
+/** Une émission diffusée sans description. */
+export const lacksDescription = (now: Date) => sql`(${aired(now)} and ${blankDescription})`;
+
+/** Une émission diffusée sans aucune étiquette : les filtres du site ne la trouvent pas. */
+export const lacksTags = (now: Date) => sql`(${aired(now)} and not exists (select 1 from ${showTag} st where st.show_id = ${outer(show.id)}))`;
+
+/** Les conditions de « À compléter », par valeur du filtre. */
+const LACKS: Record<string, (now: Date) => SQL> = { tracklist: lacksTracklist, sound: lacksSound, cover: lacksCover, description: lacksDescription, tags: lacksTags };
 
 /** La recherche de l'admin : comme celle du site (src/read/search.ts), brouillons compris. */
 function matching(input: string): SQL | undefined {
@@ -93,8 +121,7 @@ export async function listShows(tx: Tx, filters: AdminShowFilters = {}): Promise
   if (filters.type && oneOf(showType.enumValues, filters.type)) conditions.push(eq(show.type, filters.type));
   if (isUuid(filters.tag)) conditions.push(sql`exists (select 1 from ${showTag} st where st.show_id = ${outer(show.id)} and st.tag_id in ${coveredTagIds(filters.tag)})`);
   if (isUuid(filters.artist)) conditions.push(sql`exists (select 1 from ${showArtist} sa where sa.show_id = ${outer(show.id)} and sa.artist_id = ${filters.artist})`);
-  if (filters.missing === "tracklist") conditions.push(lacksTracklist(filters.now ?? new Date()));
-  else if (filters.missing === "sound") conditions.push(lacksSound(filters.now ?? new Date()));
+  if (filters.missing && Object.hasOwn(LACKS, filters.missing)) conditions.push(LACKS[filters.missing]!(filters.now ?? new Date()));
   const where = and(...conditions);
   const order = filters.order === "oldest" ? [sql`${show.broadcastAt} asc nulls last`, asc(show.title)] : [sql`${show.broadcastAt} desc nulls first`, desc(show.updatedAt)];
   const rows = await tx
@@ -110,6 +137,9 @@ export async function listShows(tx: Tx, filters: AdminShowFilters = {}): Promise
       artists: artistNames(),
       tracks: sql<number>`(select count(*) from ${track} tr where tr.show_id = ${outer(show.id)})`.mapWith(Number),
       hasSound: sql<boolean>`${show.soundcloudTrackId} is not null`,
+      hasCover: sql<boolean>`${show.coverId} is not null`,
+      hasDescription: sql<boolean>`not ${blankDescription}`,
+      tags: sql<number>`(select count(*) from ${showTag} st where st.show_id = ${outer(show.id)})`.mapWith(Number),
       fromRadioCult: sql<boolean>`${show.radiocultEventId} is not null`,
     })
     .from(show)
@@ -291,7 +321,7 @@ export type ShowSave = {
 export async function saveShow(tx: Tx, { id, version, values, status }: ShowSave): Promise<Saved | NotSaved> {
   let finalStatus: ContentStatus = status ?? "draft";
   if (id !== undefined) {
-    const gone: NotSaved = { ok: false, errors: { form: "Ce show n'existe plus : il a peut-être été supprimé." } };
+    const gone: NotSaved = { ok: false, errors: { form: "Cette émission n'existe plus : elle a peut-être été supprimée." } };
     if (!isUuid(id)) return gone;
     const [current] = await tx.select({ version: versionOf(show.updatedAt), status: show.status }).from(show).where(eq(show.id, id)).for("update");
     if (!current) return gone;
@@ -299,7 +329,7 @@ export async function saveShow(tx: Tx, { id, version, values, status }: ShowSave
       return {
         ok: false,
         version: current.version,
-        errors: { form: "Quelqu'un a enregistré ce show pendant que tu le modifiais. Enregistre de nouveau pour remplacer sa version par la tienne." },
+        errors: { form: "Quelqu'un a enregistré cette émission pendant que tu la modifiais. Enregistre de nouveau pour remplacer sa version par la tienne." },
       };
     finalStatus = status ?? current.status;
   }
@@ -311,7 +341,7 @@ export async function saveShow(tx: Tx, { id, version, values, status }: ShowSave
     .where(and(eq(show.slug, slug), id ? ne(show.id, id) : undefined))
     .limit(1);
   if (clash) {
-    if (!values.slugFromTitle) return { ok: false, errors: { slug: `Cette adresse sert déjà au show « ${clash.title} ».` } };
+    if (!values.slugFromTitle) return { ok: false, errors: { slug: `Cette adresse sert déjà à l'émission « ${clash.title} ».` } };
     slug = await freeSlug(tx, show, slug, id);
   }
 

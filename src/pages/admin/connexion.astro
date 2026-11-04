@@ -40,7 +40,7 @@ const farewell = Astro.url.searchParams.has("au-revoir");
   <form class="panel" method="post">
     <h1 class="panel-head">Admin de Parabole Radio</h1>
     <div class="panel-body">
-      <p>L'espace de l'équipe : shows, tracklists, artistes.</p>
+      <p>L'espace de l'équipe : émissions, tracklists, résidents.</p>
       {farewell && !failure && <p class="flash">Tu es déconnecté·e.</p>}
       {failure && <p class="flash error" role="alert">{failure}</p>}
       <input type="hidden" name="suite" value={after} />

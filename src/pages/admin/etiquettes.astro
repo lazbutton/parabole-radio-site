@@ -1,8 +1,9 @@
 ---
 /**
- * Les étiquettes et les filtres du site (cms/README.md, « Les étiquettes et les filtres ») : chaque filtre dans un
- * onglet (Thème, Genre, Géographie, Activité, Catégorie…), ses groupes dans l'ordre et les étiquettes de chacun, plus
- * l'onglet des étiquettes à classer. En GET, l'écran (HTML ou JSON), l'onglet dans l'adresse (?filtre=genre). En POST,
+ * Les étiquettes et les filtres du site (cms/README.md, « Les étiquettes et les filtres »), rangés par rubrique comme le
+ * site (Émissions, Résidents, Événements, À classer : src/components/admin/rubriques.ts) : chaque filtre dans un
+ * onglet, ses groupes dans l'ordre et les étiquettes de chacun. En GET, l'écran (HTML ou JSON), l'onglet dans
+ * l'adresse (?filtre=genre), ou une rubrique (?rubrique=residents : son premier filtre). En POST,
  * une action de l'écran (TagsScreen) : le serveur vérifie la saisie, écrit sous le rôle de la personne connectée, et
  * répond en JSON par le classement à jour, ou les erreurs. L'import du document des filtres (cms/src/admin/document.ts)
  * se fait en deux temps : l'aperçu de ce qui changera (« document-preview »), puis l'application (« document-apply »).
@@ -15,7 +16,7 @@ import { json, tagsData, wantsJson } from "../../lib/admin/views";
 export const prerender = false;
 
 const admin = Astro.locals.admin!;
-const TITLE = "Étiquettes";
+const TITLE = "Filtres";
 
 /** « A, B, C » ; au-delà de six noms, « et 4 autres ». */
 function list(names: string[]): string {
@@ -28,9 +29,10 @@ if (Astro.request.method === "POST") {
   const data = await Astro.request.formData();
   const text = (name: string) => String(data.get(name) ?? "");
   const current = text("filtre") || null;
-  /** Le classement à jour, après une action réussie. */
+  const rubrique = text("rubrique") || null;
+  /** Le classement à jour, après une action réussie : le même onglet, ou le premier de la même rubrique. */
   const done = async (message?: string, description?: string, taxonomy?: Taxonomy) =>
-    json({ ok: true, data: tagsData(taxonomy ?? (await admin.taxonomy()), current), message, description } satisfies TagsResponse);
+    json({ ok: true, data: tagsData(taxonomy ?? (await admin.taxonomy()), current, rubrique), message, description } satisfies TagsResponse);
   const refused = (errors: Record<string, string>, status = 422) => json({ ok: false, errors } satisfies TagsResponse, status);
   const id = text("id");
   const place = { facetId: text("facetId"), groupId: text("groupId") || null };
@@ -156,7 +158,7 @@ if (Astro.request.method === "POST") {
   return refused({ form: "Action inconnue." }, 400);
 }
 
-const screen: Screen = { name: "tags", title: TITLE, data: tagsData(await admin.taxonomy(), Astro.url.searchParams.get("filtre")) };
+const screen: Screen = { name: "tags", title: TITLE, data: tagsData(await admin.taxonomy(), Astro.url.searchParams.get("filtre"), Astro.url.searchParams.get("rubrique")) };
 if (wantsJson(Astro.request)) return json(screen);
 ---
 

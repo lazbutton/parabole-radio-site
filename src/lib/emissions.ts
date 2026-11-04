@@ -6,6 +6,7 @@
  * serveur rend la liste déjà filtrée d'après l'adresse ; le script refait le même calcul sur place, sans recharger.
  */
 import type { ShowCard, ShowType } from "@parabole/cms";
+import { ENERGY } from "@parabole/cms/labels";
 import { STATION_TIMEZONE } from "../scripts/settings";
 
 /** Les onglets du croquis, et ce que chacun vaut dans l'adresse : /emissions?type=dj-set. */
@@ -20,11 +21,11 @@ export const ONGLETS: { cle: string; type: ShowType | null; mot: string }[] = [
 export const MOT_DU_TYPE: Record<ShowType, string> = { dj_set: "DJ set", playlist: "Playlist", podcast: "Podcast" };
 
 /**
- * Le mood (show.energy), de 1 (calme) à 5 (énergique), comme le curseur de l'admin : il se choisit dans TRIER PAR,
+ * Le mood (show.energy), de 1 (calme) à 4 (énergique), comme le curseur de l'admin : il se choisit dans TRIER PAR,
  * comme un filtre, sauf pour les podcasts, qui n'en ont pas.
  */
 export const MOOD = "mood";
-export const MOODS = [1, 2, 3, 4, 5] as const;
+export const MOODS = Array.from({ length: ENERGY.max - ENERGY.min + 1 }, (_, index) => ENERGY.min + index);
 /** Les types qui ont un mood. */
 export const TYPES_AVEC_MOOD: ShowType[] = ["dj_set", "playlist"];
 
@@ -74,7 +75,7 @@ export function lireEtat(params: URLSearchParams, facettes: Facette[]): EtatList
   return {
     type,
     filtres,
-    mood: avecMood(type) && Number.isInteger(mood) && mood >= 1 && mood <= 5 ? mood : null,
+    mood: avecMood(type) && Number.isInteger(mood) && mood >= ENERGY.min && mood <= ENERGY.max ? mood : null,
     trier: valables.includes(trier) || (avecMood(type) && trier === MOOD) ? trier : "",
   };
 }

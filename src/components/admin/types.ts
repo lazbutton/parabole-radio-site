@@ -67,7 +67,7 @@ export type DashboardData = {
     when: string;
   }[];
   /** Ce qui reste à compléter, compté comme les listes filtrées où l'on arrive (cms : overview). */
-  missing: { tracklist: number; sound: number; photo: number; bio: number; tags: number };
+  missing: { tracklist: number; sound: number; cover: number; description: number; untagged: number; photo: number; bio: number; tags: number };
   drafts: { href: string; title: string; kind: "show" | "artist"; since: string }[];
   radiocult: RadioCultPanel;
 };
@@ -118,6 +118,10 @@ export type ShowRow = {
   duration: string;
   tracks: number;
   hasSound: boolean;
+  hasCover: boolean;
+  hasDescription: boolean;
+  /** Le nombre de ses étiquettes. */
+  tags: number;
   status: ContentStatus;
   fromRadioCult: boolean;
 };

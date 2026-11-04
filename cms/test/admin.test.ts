@@ -9,7 +9,7 @@ import type { Connection } from "../src/db.ts";
 import { fromParisInput, toParisInput } from "../src/paris.ts";
 import { frenchOrder } from "../src/read/common.ts";
 import { createReader } from "../src/read/index.ts";
-import { artist, show, tag, track } from "../src/schema.ts";
+import { artist, show, showTag, tag, track } from "../src/schema.ts";
 import { formatTimecode, parseTimecode, parseTracklist } from "../src/tracklist.ts";
 import { createAccount, exampleDb, MEDIA_BASE, NOW } from "./helpers.ts";
 
@@ -170,8 +170,9 @@ describe("la fiche d'un show, vérifiée", () => {
     expect(readShowForm(showForm({ title: "Mood", energy: "4" })).values.energy).toBe(4);
     expect(readShowForm(showForm({ title: "Mood", energy: "" })).values.energy).toBeNull();
     expect(readShowForm(showForm({ title: "Mood", type: "podcast", energy: "4" })).values.energy).toBeNull();
-    expect(readShowForm(showForm({ title: "Mood", energy: "9" })).errors.energy).toBe("Un cran de 1 à 5.");
-    expect(readShowForm(showForm({ title: "Mood", energy: "2.5" })).errors.energy).toBe("Un cran de 1 à 5.");
+    expect(readShowForm(showForm({ title: "Mood", energy: "9" })).errors.energy).toBe("Un cran de 1 à 4.");
+    expect(readShowForm(showForm({ title: "Mood", energy: "5" })).errors.energy).toBe("Un cran de 1 à 4.");
+    expect(readShowForm(showForm({ title: "Mood", energy: "2.5" })).errors.energy).toBe("Un cran de 1 à 4.");
   });
 });
 
@@ -272,11 +273,35 @@ describe("les shows dans l'admin", () => {
 
   it("trouve les shows déjà diffusés sans tracklist ou sans son, brouillons compris", async () => {
     const slugs = async (missing: string) => (await editor.listShows({ missing, now: NOW })).items.map((row) => row.slug).sort();
-    expect(await slugs("tracklist")).toEqual(["exemple-carte-blanche", "exemple-ecologie-au-quotidien", "exemple-voix-de-la-goutte-d-or"]);
+    // Les podcasts n'ont pas forcément de tracklist : ils ne manquent de rien de ce côté.
+    expect(await slugs("tracklist")).toEqual(["exemple-carte-blanche"]);
     expect(await slugs("sound")).toEqual(["exemple-carte-blanche", "exemple-ecologie-au-quotidien", "exemple-jazz-du-marche-dejean", "exemple-set-non-publie", "exemple-voix-de-la-goutte-d-or"]);
     // Un show à venir ne manque encore de rien ; une valeur inconnue ne filtre pas.
     expect((await editor.listShows({ missing: "sound", now: new Date(NOW.getTime() + 10 * 24 * 3600_000) })).items.map((row) => row.slug)).toContain("exemple-session-a-venir");
     expect((await editor.listShows({ missing: "?", now: NOW })).total).toBe(9);
+  });
+
+  it("trouve les shows déjà diffusés sans pochette, sans description ou sans étiquette, et le dit sur chaque ligne", async () => {
+    const slugs = async (missing: string) => (await editor.listShows({ missing, now: NOW })).items.map((row) => row.slug).sort();
+    // Le show à venir n'a pas de pochette non plus : il ne compte pas encore.
+    expect(await slugs("cover")).toEqual(["exemple-carte-blanche", "exemple-ecologie-au-quotidien", "exemple-jazz-du-marche-dejean", "exemple-voix-de-la-goutte-d-or"]);
+    expect(await slugs("description")).toEqual([]);
+    expect(await slugs("tags")).toEqual([]);
+    // Une description faite d'espaces ne compte pas ; sans étiquette, les filtres du site ne la trouvent pas.
+    const [calme] = await connection.db.select({ id: show.id, description: show.description }).from(show).where(eq(show.slug, "exemple-matin-calme"));
+    const tags = await connection.db.select().from(showTag).where(eq(showTag.showId, calme!.id));
+    await connection.db.update(show).set({ description: "  \n " }).where(eq(show.id, calme!.id));
+    await connection.db.delete(showTag).where(eq(showTag.showId, calme!.id));
+    try {
+      expect(await slugs("description")).toEqual(["exemple-matin-calme"]);
+      expect(await slugs("tags")).toEqual(["exemple-matin-calme"]);
+      const row = (await editor.listShows({ q: "Matin calme", now: NOW })).items.find((one) => one.slug === "exemple-matin-calme");
+      expect(row).toMatchObject({ hasCover: true, hasDescription: false, tags: 0 });
+      expect((await editor.overview({ now: NOW })).missing).toMatchObject({ description: 1, untagged: 1, cover: 4, tracklist: 1 });
+    } finally {
+      await connection.db.update(show).set({ description: calme!.description }).where(eq(show.id, calme!.id));
+      if (tags.length) await connection.db.insert(showTag).values(tags);
+    }
   });
 
   it("crée un show en brouillon avec un nouvel artiste, une nouvelle étiquette et sa tracklist", async () => {
@@ -335,7 +360,7 @@ describe("les shows dans l'admin", () => {
     const again = await saveForm(editor, { title: "Matin calme (exemple)" });
     expect(again).toMatchObject({ ok: true, slug: "matin-calme-exemple-2" });
     const typed = await saveForm(editor, { title: "Autre", slug: "exemple-matin-calme" });
-    expect(typed).toEqual({ ok: false, errors: { slug: "Cette adresse sert déjà au show « Matin calme (exemple) »." } });
+    expect(typed).toEqual({ ok: false, errors: { slug: "Cette adresse sert déjà à l'émission « Matin calme (exemple) »." } });
   });
 
   it("publie avec une date de diffusion, puis dépublie", async () => {
@@ -379,7 +404,7 @@ describe("les shows dans l'admin", () => {
     const opened = await editor.getShow(created.id);
     await saveForm(editor, { title: "Conflit (version de l'autre)", slug: opened!.slug }, { id: created.id, version: opened!.version });
     const late = await saveForm(editor, { title: "Conflit (ma version)", slug: opened!.slug }, { id: created.id, version: opened!.version });
-    expect(late).toMatchObject({ ok: false, version: expect.any(String), errors: { form: expect.stringContaining("pendant que tu le modifiais") } });
+    expect(late).toMatchObject({ ok: false, version: expect.any(String), errors: { form: expect.stringContaining("pendant que tu la modifiais") } });
     if (late.ok) return;
     expect(await saveForm(editor, { title: "Conflit (ma version)", slug: opened!.slug }, { id: created.id, version: late.version })).toMatchObject({ ok: true });
     expect((await editor.getShow(created.id))!.title).toBe("Conflit (ma version)");
@@ -388,7 +413,7 @@ describe("les shows dans l'admin", () => {
   it("traduit un refus de la base en erreur de champ", async () => {
     // La piste SoundCloud d'un autre show : la saisie est bien formée, c'est la base qui refuse le doublon.
     const result = await saveForm(editor, { title: "Doublon de piste", soundcloudTrackId: "1000000001" });
-    expect(result).toEqual({ ok: false, errors: { soundcloudTrackId: "Cette piste SoundCloud est déjà liée à un autre show." } });
+    expect(result).toEqual({ ok: false, errors: { soundcloudTrackId: "Cette piste SoundCloud est déjà liée à une autre émission." } });
     expect((await editor.listShows({ q: "Doublon de piste" })).total).toBe(0);
   });
 

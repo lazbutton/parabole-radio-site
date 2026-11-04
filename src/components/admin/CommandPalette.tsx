@@ -51,7 +51,7 @@ type Group = { label: string; items: Item[] };
 
 /** L'icône et le mot d'une fiche ouverte récemment. */
 const RECENT_KINDS: Record<Recent["kind"], { icon: ReactNode; hint: string }> = {
-  show: { icon: <DiscIcon />, hint: "Show" },
+  show: { icon: <DiscIcon />, hint: "Émission" },
   artist: { icon: <PersonIcon />, hint: "Artiste" },
   event: { icon: <CalendarIcon />, hint: "Événement" },
 };
@@ -145,7 +145,7 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange(op
       {
         label: "Créer",
         items: [
-          { key: "new-show", label: "Nouveau show", icon: <PlusIcon />, href: "/admin/shows/nouveau", words: "créer ajouter" },
+          { key: "new-show", label: "Nouvelle émission", icon: <PlusIcon />, href: "/admin/shows/nouveau", words: "créer ajouter show" },
           { key: "new-artist", label: "Nouvel artiste", icon: <PlusIcon />, href: "/admin/artistes/nouveau", words: "créer ajouter résident invité" },
           { key: "new-event", label: "Nouvel événement", icon: <PlusIcon />, href: "/admin/evenements/nouveau", words: "créer ajouter soirée atelier rencontre expo" },
         ],
@@ -154,11 +154,11 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange(op
         label: "Aller à",
         items: [
           { key: "home", label: "Accueil", icon: <HomeIcon />, href: "/admin", words: "tableau de bord" },
-          { key: "shows", label: "Shows", icon: <DiscIcon />, href: "/admin/shows", words: "émissions archives" },
-          { key: "drafts", label: "Shows en brouillon", icon: <FileTextIcon />, href: "/admin/shows?status=draft", words: "brouillons" },
-          { key: "artists", label: "Artistes", icon: <PersonIcon />, href: "/admin/artistes", words: "résidents invités" },
+          { key: "shows", label: "Émissions", icon: <DiscIcon />, href: "/admin/shows", words: "shows archives" },
+          { key: "drafts", label: "Émissions en brouillon", icon: <FileTextIcon />, href: "/admin/shows?status=draft", words: "brouillons shows" },
+          { key: "artists", label: "Résidents", icon: <PersonIcon />, href: "/admin/artistes", words: "artistes invités" },
           { key: "events", label: "Événements", icon: <CalendarIcon />, href: "/admin/evenements", words: "soirées ateliers rencontres expos galerie photos" },
-          { key: "tags", label: "Étiquettes et filtres", icon: <BookmarkIcon />, href: "/admin/etiquettes", words: "tags genres géographie thèmes catégories classer" },
+          { key: "tags", label: "Filtres et étiquettes", icon: <BookmarkIcon />, href: "/admin/etiquettes", words: "tags genres géographie thèmes catégories classer mood" },
           { key: "about", label: "À propos", icon: <InfoCircledIcon />, href: "/admin/a-propos", words: "page équipe crédits contact candidater réseaux film mentions légales" },
           { key: "clips", label: "Vidéos de fond", icon: <VideoIcon />, href: "/admin/videos", words: "clips accueil fond chaînes" },
           { key: "antenne", label: "Antenne libre", icon: <ChatBubbleIcon />, href: "/admin/antenne", words: "chat régie modération messages bandeau 888 bannir exclure" },
@@ -207,7 +207,7 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange(op
     const artistItems: Item[] = (results?.artists ?? []).map((artist) => ({
       key: `artist-${artist.id}`,
       label: artist.name,
-      hint: `${LABELS.artistRole[artist.role]} · ${artist.shows ? `${artist.shows} show${artist.shows > 1 ? "s" : ""}` : "aucun show"}`,
+      hint: `${LABELS.artistRole[artist.role]} · ${artist.shows ? `${artist.shows} émission${artist.shows > 1 ? "s" : ""}` : "aucune émission"}`,
       icon: <PersonIcon />,
       href: `/admin/artistes/${artist.id}`,
       badge: artist.status === "draft" ? <StatusBadge status="draft" /> : undefined,
@@ -221,11 +221,11 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange(op
       badge: event.status === "draft" ? <StatusBadge status="draft" /> : undefined,
     }));
     const q = encodeURIComponent(typed);
-    if (showItems.length) showItems.push({ key: "all-shows", label: `Tous les shows pour « ${typed} »`, icon: <MagnifyingGlassIcon />, href: `/admin/shows?q=${q}` });
+    if (showItems.length) showItems.push({ key: "all-shows", label: `Toutes les émissions pour « ${typed} »`, icon: <MagnifyingGlassIcon />, href: `/admin/shows?q=${q}` });
     if (artistItems.length) artistItems.push({ key: "all-artists", label: `Tous les artistes pour « ${typed} »`, icon: <MagnifyingGlassIcon />, href: `/admin/artistes?q=${q}` });
     if (eventItems.length) eventItems.push({ key: "all-events", label: `Tous les événements pour « ${typed} »`, icon: <MagnifyingGlassIcon />, href: `/admin/evenements?q=${q}` });
     return [
-      { label: "Shows", items: showItems },
+      { label: "Émissions", items: showItems },
       { label: "Artistes", items: artistItems },
       { label: "Événements", items: eventItems },
       { label: "Actions", items: matchingActions.slice(0, 5) },
@@ -285,7 +285,7 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange(op
               setActive(0);
             }}
             onKeyDown={onKeyDown}
-            placeholder="Rechercher un show, un artiste, une action…"
+            placeholder="Rechercher une émission, un artiste, une action…"
             aria-label="Rechercher"
             role="combobox"
             aria-expanded

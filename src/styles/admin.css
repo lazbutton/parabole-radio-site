@@ -211,6 +211,16 @@ body { margin: 0; }
 
 /* ---------- Les étiquettes et les filtres ---------- */
 .admin-tabs { margin-bottom: 20px; }
+.admin-complete { display: inline-flex; align-items: center; gap: 4px; }
+/* Les filtres des émissions, rangés par types comme le schéma : « Podcast », puis « Playlist + DJ sets » */
+.admin-subnav { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0 32px; margin-bottom: 20px; box-shadow: inset 0 -1px var(--gray-a5); }
+.admin-subnav .admin-tabs { margin-bottom: 0; box-shadow: none; }
+.admin-subnav-label { padding: 0 8px 2px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+.admin-mood-scale { padding: 16px; border-radius: var(--radius-4); background: var(--color-panel-solid); box-shadow: 0 0 0 1px var(--gray-a5); }
+.admin-mood-step {
+  display: grid; place-items: center; width: 36px; height: 32px; border-radius: var(--radius-2);
+  background: var(--accent-a3); color: var(--accent-11); font-weight: 500; font-variant-numeric: tabular-nums;
+}
 .admin-tab-count {
   margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: var(--gray-a3); color: var(--gray-11);
   font-size: 11px; font-variant-numeric: tabular-nums;
@@ -489,6 +499,8 @@ body { margin: 0; }
 .admin-mini-list { display: flex; flex-direction: column; margin: 0 -8px; }
 .admin-mini-item { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--radius-3); color: inherit; text-decoration: none; }
 .admin-mini-item:hover { background: var(--gray-a3); }
+/* Les émissions d'un résident, dans la colonne principale de sa fiche : deux colonnes quand il y a la place. */
+.admin-mini-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 2px 12px; }
 
 /* Les pastilles : artistes d'un show et étiquettes, dans un seul champ */
 .admin-tokens {
@@ -728,3 +740,11 @@ input.admin-track-start { font-family: var(--code-font-family); font-variant-num
   .admin-group-card { padding: 10px 12px 12px; }
   .admin-facet-head { margin-bottom: 16px; }
 }
+
+/* Le menu d'une ligne de liste (Modifier, Supprimer), à droite */
+.admin-table .admin-row-actions { width: 40px; padding-left: 0; }
+/* Les deux tableaux des événements (À venir, Passés) gardent les mêmes colonnes */
+.admin-events-table table { table-layout: fixed; }
+.admin-events-table .admin-col-date { width: 200px; }
+.admin-events-table .admin-col-images { width: 96px; }
+.admin-events-table .admin-col-status { width: 110px; }

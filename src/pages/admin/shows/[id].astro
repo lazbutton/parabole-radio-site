@@ -21,7 +21,7 @@ const admin = Astro.locals.admin!;
 const isNew = Astro.params.id === "nouveau";
 const show: AdminShow | null = isNew ? null : await admin.getShow(Astro.params.id ?? "");
 const posted = Astro.request.method === "POST";
-if (!isNew && !show) return posted ? json({ ok: false, errors: { form: "Ce show n'existe plus : il a peut-être été supprimé." } }, 404) : seeOther("/admin/shows");
+if (!isNew && !show) return posted ? json({ ok: false, errors: { form: "Cette émission n'existe plus : elle a peut-être été supprimée." } }, 404) : seeOther("/admin/shows");
 
 if (posted) {
   const data = await Astro.request.formData();
@@ -35,10 +35,10 @@ if (posted) {
   }
   const intent = intentOf(data);
   if (intent === "delete") {
-    if (!show) return json({ ok: false, errors: { form: "Ce show n'est pas encore créé." } }, 400);
+    if (!show) return json({ ok: false, errors: { form: "Cette émission n'est pas encore créée." } }, 400);
     const removed = await admin.deleteShow(show.id);
     await removeImages(await admin.releaseMedia([removed?.coverId]));
-    return json({ ok: true, redirect: "/admin/shows", message: `« ${removed?.title ?? show.title} » supprimé` });
+    return json({ ok: true, redirect: "/admin/shows", message: `« ${removed?.title ?? show.title} » supprimée` });
   }
   // Publier, ou enregistrer un show déjà publié : il lui faut une date de diffusion.
   const publishing = intent === "publish" || (intent === "save" && show?.status === "published");
@@ -52,7 +52,7 @@ if (posted) {
   return json({ ok: true, created: isNew, newArtists: result.newArtists.length, sheet: await showSheet(admin, fresh) });
 }
 
-const screen: Screen = { name: "show", title: show?.title ?? "Nouveau show", data: { sheet: await showSheet(admin, show) } };
+const screen: Screen = { name: "show", title: show?.title ?? "Nouvelle émission", data: { sheet: await showSheet(admin, show) } };
 if (wantsJson(Astro.request)) return json(screen);
 ---
 

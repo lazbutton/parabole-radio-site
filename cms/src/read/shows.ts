@@ -4,7 +4,7 @@
  */
 import { and, asc, desc, eq, gt, gte, isNotNull, lt, lte, sql, type SQL } from "drizzle-orm";
 import type { Tx } from "../access.ts";
-import { ENERGY } from "../labels.ts";
+import { clampEnergy, ENERGY } from "../labels.ts";
 import { STATION_TIME_ZONE } from "../paris.ts";
 import { artist, show, showArtist, showTag, showType, tag, track, type ArtistLink, type ShowType } from "../schema.ts";
 import { isSlug } from "../slug.ts";
@@ -104,7 +104,7 @@ export const toShowCard = (base: string, row: ShowCardRow): ShowCard => ({
   // Un show publié a toujours une date (contrainte show_published_has_date).
   broadcastAt: row.broadcastAt as Date,
   durationSeconds: row.durationSeconds,
-  energy: row.energy,
+  energy: clampEnergy(row.energy),
   cover: toImage(base, row.cover),
   artists: row.artists,
   tags: row.tags,
