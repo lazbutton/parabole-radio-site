@@ -31,13 +31,16 @@ document.addEventListener("astro:before-swap", (event) => {
     if (!current || !next) return void location.assign(e.to.href);
     const { deselectScripts, swapRootAttributes, swapHeadElements, saveFocus } = swapFunctions;
     deselectScripts(e.newDocument);
-    // les attributs de <html> viennent de la nouvelle page, sauf son style (la coque y range --band-h, panels.ts) et le
-    // mode photo du fond, que background.ts garde ou retire selon la page qui arrive
+    // les attributs de <html> viennent de la nouvelle page, sauf son style (la coque y range --band-h, panels.ts), le
+    // mode photo du fond, que background.ts garde ou retire selon la page qui arrive, et la place de la ligne ARCHIVE,
+    // qui reste ouverte d'une page à l'autre (archive.ts)
     const rootStyle = document.documentElement.getAttribute("style");
     const enPhoto = document.documentElement.classList.contains("fond-en-photo");
+    const archive = document.documentElement.classList.contains("archive-ouverte");
     swapRootAttributes(e.newDocument);
     if (rootStyle) document.documentElement.setAttribute("style", rootStyle);
     if (enPhoto) document.documentElement.classList.add("fond-en-photo");
+    if (archive) document.documentElement.classList.add("archive-ouverte");
     swapHeadElements(e.newDocument);
     const restoreFocus = saveFocus();
     current.replaceWith(next);
@@ -68,8 +71,8 @@ document.getElementById("logoSquare")?.addEventListener("click", (e) => {
 // Avant de quitter une page, on garde sa position (par adresse, le temps de l'onglet) ; au retour arrière ou avant, on
 // la rend. On garde aussi l'adresse de la page qu'on quitte : la page d'un artiste en déduit si « ◂ RÉSIDENTS » peut
 // simplement revenir en arrière (src/scripts/artiste.ts), celle d'un événement si « ◂ ÉVÉNEMENTS » le peut
-// (evenement.ts). Vers la page d'un artiste ou d'un événement, la neige tombe dès le départ : background.ts la retire
-// quand sa photo est là.
+// (evenement.ts), celle d'une émission si « ◂ ÉMISSIONS » le peut (emissions.ts). Vers la page d'une émission, d'un
+// artiste ou d'un événement, la neige tombe dès le départ : background.ts la retire quand son image est là.
 const POSITIONS = "parabole_defilement";
 export const PAGE_AVANT = "parabole_page_avant";
 const lire = (): Record<string, number> => {
@@ -94,7 +97,7 @@ document.addEventListener("astro:before-preparation", (event) => {
   }
   retour = e.navigationType === "traverse";
   const calme = !!window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!calme && /^\/(residents|evenements)\/[^/]+\/?$/.test(e.to.pathname)) neige.allumer();
+  if (!calme && /^\/(emissions|residents|evenements)\/[^/]+\/?$/.test(e.to.pathname)) neige.allumer();
 });
 document.addEventListener("astro:page-load", () => {
   if (!retour) return;

@@ -1,11 +1,10 @@
 // ---------- LA LOUPE : chercher dans tout le site, réponse en page de télétexte ----------
 // Le champ de l'en-tête (TopBar.astro) interroge /api/recherche dès deux lettres, 150 ms après la dernière frappe, une
 // requête à la fois (la précédente est abandonnée). La réponse s'affiche dans la page P101, sous la ligne ON AIR : les
-// artistes, qui mènent à leur page, puis les émissions, sans lien tant que leur rubrique n'existe pas, et les
-// événements, qui mènent à leur page. Pendant la recherche, le numéro de la page défile, comme un décodeur qui cherche
-// sa page. Au clavier : « / » met le curseur dans la loupe depuis n'importe où, ↓ passe aux résultats et ↑ ↓ y
-// circulent, Entrée ouvre le premier artiste (sinon le premier événement), Échap ferme la page puis vide le champ. Sur
-// téléphone, la touche loupe ouvre le champ sur toute la ligne.
+// artistes, les émissions et les événements, qui mènent chacun à leur page. Pendant la recherche, le numéro de la page
+// défile, comme un décodeur qui cherche sa page. Au clavier : « / » met le curseur dans la loupe depuis n'importe où, ↓
+// passe aux résultats et ↑ ↓ y circulent, Entrée ouvre le premier artiste (sinon la première émission, puis le premier
+// événement), Échap ferme la page puis vide le champ. Sur téléphone, la touche loupe ouvre le champ sur toute la ligne.
 import type { ResultatsRecherche } from "../lib/recherche";
 import { STATION_TIMEZONE } from "./settings";
 import { mettreALHeure } from "./teletexte";
@@ -54,7 +53,8 @@ if (tete && form && champ && page && resultats && numero && titre && annonce) {
     }
     if (r.shows.length) {
       lignes.push(`<p class="loupe-groupe">Émissions</p>`);
-      for (const s of r.shows) lignes.push(`<p class="loupe-ligne">${ligne(s.title, [dateDe(s.broadcastAt), s.type])}</p>`);
+      for (const s of r.shows)
+        lignes.push(`<a class="loupe-ligne" href="/emissions/${encodeURIComponent(s.slug)}">${ligne(s.title, [dateDe(s.broadcastAt), s.type])}</a>`);
     }
     if (r.events.length) {
       lignes.push(`<p class="loupe-groupe">Événements</p>`);
@@ -148,7 +148,7 @@ if (tete && form && champ && page && resultats && numero && titre && annonce) {
   };
   champ.addEventListener("click", rouvrir);
 
-  // Entrée : le premier artiste trouvé (les émissions et les événements n'ont pas encore de page)
+  // Entrée : le premier artiste trouvé, sinon la première émission, sinon le premier événement
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     if (page.hidden) return;

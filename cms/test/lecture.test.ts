@@ -4,7 +4,8 @@ import { indexLetter } from "../src/read/artists.ts";
 import { paging, startOfParisDay, toImage } from "../src/read/common.ts";
 import { createReader, type Reader } from "../src/read/index.ts";
 import { slugify } from "../src/slug.ts";
-import { exampleDb, MEDIA_BASE, NOW } from "./helpers.ts";
+import { seedExamples } from "../seed/exemples.ts";
+import { exampleDb, freshDb, MEDIA_BASE, NOW } from "./helpers.ts";
 
 let connection: Connection;
 let cms: Reader;
@@ -114,6 +115,41 @@ describe("liste des shows", () => {
   });
 });
 
+describe("mois des shows", () => {
+  it("compte les shows de chaque mois, du plus récent au plus ancien, avec les filtres de la liste", async () => {
+    expect(await cms.listShowMonths({ period: "past", now: NOW })).toEqual([
+      { month: "2026-06", count: 4 },
+      { month: "2026-05", count: 3 },
+    ]);
+    expect(await cms.listShowMonths({ type: "podcast", period: "past", now: NOW })).toEqual([{ month: "2026-05", count: 2 }]);
+    expect(await cms.listShowMonths({ tags: ["house-techno"], energy: { min: 5 }, period: "past", now: NOW })).toEqual([{ month: "2026-06", count: 1 }]);
+    expect(await cms.listShowMonths({ period: "upcoming", now: NOW })).toEqual([{ month: "2026-06", count: 1 }]);
+  });
+
+  it("rend une liste vide pour un filtre inconnu ou mal formé", async () => {
+    expect(await cms.listShowMonths({ type: "concert" as never })).toEqual([]);
+    expect(await cms.listShowMonths({ tags: ["House; drop table show"] })).toEqual([]);
+    expect(await cms.listShowMonths({ artist: "exemple-inconnu" })).toEqual([]);
+  });
+
+  it("range un show dans le mois de Paris : le 1er juin à 0 h 30 est en juin, même s'il est encore le 31 mai en heure universelle", async () => {
+    // Le jeu d'exemples daté du 3 juin à 0 h 30 à Paris : Carte blanche, deux jours avant, tombe le 1er juin à 0 h 30.
+    const paris = await freshDb();
+    try {
+      const now = new Date("2026-06-02T22:30:00Z");
+      await seedExamples(paris.db, { now });
+      const reader = createReader(paris.db, { mediaBaseUrl: MEDIA_BASE });
+      expect(await reader.listShowMonths({ period: "past", now })).toEqual([
+        { month: "2026-06", count: 1 },
+        { month: "2026-05", count: 6 },
+      ]);
+      expect((await reader.listShows({ period: "past", now, limit: 1 })).items[0]!.slug).toBe("exemple-carte-blanche");
+    } finally {
+      await paris.close();
+    }
+  });
+});
+
 describe("page d'un show", () => {
   it("donne la tracklist dans l'ordre, les artistes, les étiquettes et la piste SoundCloud", async () => {
     const show = await cms.getShow("exemple-dimanche-house-a-la-chapelle");
@@ -124,6 +160,11 @@ describe("page d'un show", () => {
     expect(show!.soundcloudTrackId).toBe("1000000001");
     expect(show!.soundcloudUrl).toMatch(/^https:\/\/soundcloud\.com\//);
     expect(show!.artists.map((artist) => artist.slug)).toEqual(["exemple-eloise-vachon"]);
+    // ses réseaux, pour la page de l'émission
+    expect(show!.artists[0]!.links).toEqual([
+      { label: "Instagram", url: "https://example.com/instagram/eloise-vachon" },
+      { label: "SoundCloud", url: "https://example.com/soundcloud/eloise-vachon" },
+    ]);
     expect(show!.tracks.map((track) => track.position)).toEqual([1, 2, 3, 4, 5]);
     expect(show!.tracks[0]).toEqual({ position: 1, artist: "Orchestre Imaginaire", title: "Lumière de Barbès", startSeconds: 0, hopperUrl: "https://hppr.fr/exemple-lumiere-de-barbes" });
     expect(show!.tracks[4]).toMatchObject({ title: "Dernier métro", startSeconds: 6750, hopperUrl: null });
@@ -183,6 +224,12 @@ describe("filtres", () => {
       ["theme", 3],
       ["genre", 14],
       ["geographie", 5],
+    ]);
+    // les types que range chaque filtre : une page qui montre tous les types en déduit les siens
+    expect(all.map((menu) => [menu.slug, menu.showTypes])).toEqual([
+      ["theme", ["podcast"]],
+      ["genre", ["dj_set", "playlist"]],
+      ["geographie", ["dj_set", "playlist"]],
     ]);
     expect(all[2]!.groups.find((group) => group.slug === "caraibes")!.tags).toHaveLength(27);
   });

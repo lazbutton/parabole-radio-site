@@ -1,11 +1,12 @@
 /**
- * Les shows pour le site : la liste filtrée (type, étiquettes, mood, artiste, période), un show avec sa tracklist et
- * ses artistes. Les menus des filtres sont dans facets.ts.
+ * Les shows pour le site : la liste filtrée (type, étiquettes, mood, artiste, période), ses mois (le rail de la page
+ * Émissions), un show avec sa tracklist, ses artistes et leurs liens. Les menus des filtres sont dans facets.ts.
  */
 import { and, asc, desc, eq, gt, gte, isNotNull, lt, lte, sql, type SQL } from "drizzle-orm";
 import type { Tx } from "../access.ts";
 import { ENERGY } from "../labels.ts";
-import { artist, show, showArtist, showTag, showType, tag, track, type ShowType } from "../schema.ts";
+import { STATION_TIME_ZONE } from "../paris.ts";
+import { artist, show, showArtist, showTag, showType, tag, track, type ArtistLink, type ShowType } from "../schema.ts";
 import { isSlug } from "../slug.ts";
 import { coveredTags, emptyPage, mediaJson, oneOf, outer, paging, toImage, type ArtistRef, type Image, type MediaRow, type Paged, type TagRef } from "./common.ts";
 
@@ -25,8 +26,15 @@ export type ShowCard = {
 
 export type ShowTrack = { position: number; artist: string; title: string; startSeconds: number | null; hopperUrl: string | null };
 
-/** La page d'un show. Le lecteur joue soundcloudTrackId ; soundcloudUrl mène à la piste sur SoundCloud. */
-export type ShowDetail = ShowCard & {
+/** Un artiste sur la page d'un show : de quoi le nommer, mener à sa page, montrer ses réseaux (Instagram, SoundCloud…). */
+export type ShowHost = ArtistRef & { links: ArtistLink[] };
+
+/**
+ * La page d'un show. Le lecteur joue soundcloudTrackId ; soundcloudUrl mène à la piste sur SoundCloud. Ses artistes
+ * publiés portent leurs liens.
+ */
+export type ShowDetail = Omit<ShowCard, "artists"> & {
+  artists: ShowHost[];
   description: string | null;
   soundcloudUrl: string | null;
   soundcloudTrackId: string | null;
@@ -144,9 +152,33 @@ export async function listShows(tx: Tx, base: string, filters: ShowFilters = {})
   if (!conditions) return emptyPage(page);
   const where = and(...conditions);
   const order = filters.period === "upcoming" ? asc(show.broadcastAt) : desc(show.broadcastAt);
-  const rows = await tx.select(showCardFields).from(show).where(where).orderBy(order, asc(show.title)).limit(page.limit).offset(page.offset);
+  // le slug départage deux shows de même date et de même titre : une liste lue page à page ne perd ni ne répète rien
+  const rows = await tx.select(showCardFields).from(show).where(where).orderBy(order, asc(show.title), asc(show.slug)).limit(page.limit).offset(page.offset);
   const [count] = await tx.select({ total: sql<number>`count(*)`.mapWith(Number) }).from(show).where(where);
   return { items: rows.map((row) => toShowCard(base, row)), total: count?.total ?? 0, ...page };
+}
+
+/** Un mois de la liste : « 2026-05 », l'heure de Paris décidant du mois, et son nombre de shows. */
+export type ShowMonth = { month: string; count: number };
+
+/**
+ * Les mois où tombent les shows de la liste (les mêmes filtres que listShows, sans pagination), dans son ordre : du
+ * plus récent au plus ancien, ou du plus proche au plus lointain pour les shows à venir. Un show diffusé le 1er juin à
+ * 0 h 30 à Paris (le 31 mai en heure universelle) est de juin. De quoi tenir le rail des mois de la page Émissions et
+ * savoir sur quelle page de la liste commence chaque mois.
+ */
+export async function listShowMonths(tx: Tx, filters: Omit<ShowFilters, "limit" | "offset"> = {}): Promise<ShowMonth[]> {
+  const conditions = showConditions(filters);
+  if (!conditions) return [];
+  // le fuseau écrit en toutes lettres, pas en paramètre : Postgres doit reconnaître la même expression dans le select,
+  // le group by et le order by (trois paramètres $1, $4, $5 seraient pour lui trois expressions différentes)
+  const month = sql<string>`to_char(${show.broadcastAt} at time zone ${sql.raw(`'${STATION_TIME_ZONE}'`)}, 'YYYY-MM')`;
+  return tx
+    .select({ month, count: sql<number>`count(*)`.mapWith(Number) })
+    .from(show)
+    .where(and(...conditions))
+    .groupBy(month)
+    .orderBy(filters.period === "upcoming" ? asc(month) : desc(month));
 }
 
 /**
@@ -183,13 +215,23 @@ export async function listAirings(tx: Tx, { from, to }: { from: Date; to: Date }
   });
 }
 
-/** Un show publié, avec sa tracklist dans l'ordre et ses artistes. Null s'il n'existe pas ou n'est pas publié. */
+// Les artistes publiés d'un show et leurs liens, pour sa page.
+const showHosts = sql<ShowHost[]>`coalesce((
+    select json_agg(json_build_object('slug', a.slug, 'name', a.name, 'role', a.role, 'links', a.links) order by sa.position, a.name)
+    from ${showArtist} sa join ${artist} a on a.id = sa.artist_id
+    where sa.show_id = ${outer(show.id)} and a.status = 'published'), '[]'::json)`;
+
+/**
+ * Un show publié, avec sa tracklist dans l'ordre et ses artistes (avec leurs liens). Null s'il n'existe pas ou n'est
+ * pas publié.
+ */
 export async function getShow(tx: Tx, base: string, slug: string): Promise<ShowDetail | null> {
   if (!isSlug(slug)) return null;
   const [row] = await tx
     .select({
       id: show.id,
       ...showCardFields,
+      artists: showHosts,
       description: show.description,
       soundcloudUrl: show.soundcloudUrl,
       soundcloudTrackId: show.soundcloudTrackId,
@@ -207,6 +249,7 @@ export async function getShow(tx: Tx, base: string, slug: string): Promise<ShowD
     .orderBy(asc(track.position));
   return {
     ...toShowCard(base, row),
+    artists: row.artists,
     description: row.description,
     soundcloudUrl: row.soundcloudUrl,
     soundcloudTrackId: row.soundcloudTrackId,
