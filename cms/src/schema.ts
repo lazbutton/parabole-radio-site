@@ -18,7 +18,7 @@
  *   - colonne « search » : le vecteur de la recherche plein texte, calculé par Postgres, jamais écrit à la main.
  */
 import { relations, sql, type SQL } from "drizzle-orm";
-import { bigint, boolean, check, customType, foreignKey, index, integer, jsonb, pgEnum, pgTable, primaryKey, smallint, text, timestamp, unique, uuid, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { bigint, boolean, check, customType, date, foreignKey, index, integer, jsonb, pgEnum, pgTable, primaryKey, smallint, text, timestamp, unique, uuid, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { authUsers } from "drizzle-orm/supabase";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -39,6 +39,10 @@ export const chatTermAction = pgEnum("chat_term_action", ["refuse", "hold", "mas
 export const chatLinks = pgEnum("chat_links", ["none", "music", "all"]);
 /** Qui a lancé un import de la programmation Radio Cult : la tâche de nuit, ou un membre depuis l'admin. */
 export const importTrigger = pgEnum("import_trigger", ["cron", "manual"]);
+/** Un fichier son envoyé : le son d'un show (un set, un épisode, une playlist assemblée), ou un morceau d'une playlist. */
+export const audioRole = pgEnum("audio_role", ["main", "part"]);
+/** Où en est un fichier son : en cours d'envoi, reçu, validé par l'équipe, en partance pour SoundCloud, publié, refusé. */
+export const audioStatus = pgEnum("audio_status", ["uploading", "received", "approved", "sending", "sent", "failed"]);
 
 export type ContentStatus = (typeof contentStatus.enumValues)[number];
 export type ShowType = (typeof showType.enumValues)[number];
@@ -51,6 +55,8 @@ export type ChatDecider = (typeof chatDecider.enumValues)[number];
 export type ChatTermAction = (typeof chatTermAction.enumValues)[number];
 export type ChatLinks = (typeof chatLinks.enumValues)[number];
 export type ImportTrigger = (typeof importTrigger.enumValues)[number];
+export type AudioRole = (typeof audioRole.enumValues)[number];
+export type AudioStatus = (typeof audioStatus.enumValues)[number];
 
 // ---------------------------------------------------------------------------------------------------------------
 // Briques communes
@@ -230,6 +236,11 @@ export const artist = pgTable(
     status: contentStatus("status").notNull().default("draft"),
     /** L'artiste chez Radio Cult : l'import de la programmation relie ses créneaux à cette fiche. */
     radiocultArtistId: text("radiocult_artist_id").unique(),
+    /**
+     * Le groupe de diffusion d'un résident (1 ou 2) : les deux groupes alternent à l'antenne par blocs de deux semaines
+     * (broadcast_cycle). Vide : hors des groupes, comme un invité.
+     */
+    broadcastGroup: smallint("broadcast_group"),
     search: searchVector(weighted("name", "A"), weighted("bio", "C")),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -237,6 +248,7 @@ export const artist = pgTable(
   (t) => [
     slugFormat("artist", t.slug),
     check("artist_links_array", sql`jsonb_typeof(${t.links}) = 'array'`),
+    check("artist_broadcast_group", sql`${t.broadcastGroup} is null or ${t.broadcastGroup} in (1, 2)`),
     index("artist_role_status").on(t.role, t.status),
     index("artist_photo").on(t.photoId),
     index("artist_search").using("gin", t.search),
@@ -811,6 +823,129 @@ export const radiocultImport = pgTable(
 ).enableRLS();
 
 // ---------------------------------------------------------------------------------------------------------------
+// Les envois des résidents (cms/README.md, 9.12) : leur lien, ce qu'ils envoient, les fichiers son, le calendrier
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * Le lien d'envoi d'un artiste : `/envoyer/<token>`, sans compte ni mot de passe. Le jeton est gardé tel quel pour que
+ * l'équipe puisse le recopier ; seule l'équipe le lit. « Nouveau lien » le remplace, « Désactiver » efface la ligne.
+ */
+export const uploadLink = pgTable(
+  "upload_link",
+  {
+    artistId: uuid("artist_id")
+      .primaryKey()
+      .references(() => artist.id, { onDelete: "cascade" }),
+    /** 32 octets aléatoires en base64url. */
+    token: text("token").notNull().unique(),
+    createdBy: uuid("created_by").references(() => member.userId, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    /** Sa dernière ouverture. */
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    /** La dernière fois que l'artiste a mis à jour sa bio ou sa photo par ce lien. */
+    profileUpdatedAt: timestamp("profile_updated_at", { withTimezone: true }),
+  },
+  (t) => [check("upload_link_token", sql`${t.token} ~ '^[A-Za-z0-9_-]{43}$'`)],
+).enableRLS();
+
+/**
+ * Un envoi : ce qu'un artiste a dit de son émission en l'envoyant, à côté du show qu'il remplit (un par show). Un
+ * show né d'un envoi reste sans date ni créneau jusqu'à ce qu'on le rattache au créneau que l'import Radio Cult a créé.
+ */
+export const submission = pgTable(
+  "submission",
+  {
+    showId: uuid("show_id")
+      .primaryKey()
+      .references(() => show.id, { onDelete: "cascade" }),
+    /** Qui l'a envoyé. */
+    artistId: uuid("artist_id").references(() => artist.id, { onDelete: "set null" }),
+    /** Le lien de la playlist d'un curateur (Spotify, Deezer, YouTube, WeTransfer…). */
+    link: text("link"),
+    /** Son mot pour l'équipe. */
+    note: text("note"),
+    /** Le lundi du bloc visé, pour un résident d'un groupe. */
+    blockStart: date("block_start", { mode: "string" }),
+    /** La semaine du bloc, s'il l'a précisée : 1 ou 2. */
+    week: smallint("week"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check("submission_link", sql`${t.link} is null or ${t.link} ~ '^https://'`),
+    check("submission_week", sql`${t.week} is null or ${t.week} in (1, 2)`),
+    index("submission_artist").on(t.artistId),
+    index("submission_block").on(t.blockStart),
+  ],
+).enableRLS();
+
+/**
+ * Un fichier son, rangé dans le seau Cloudflare R2 sous `key` : le son d'un show (« main », un seul actif par show), ou
+ * un morceau d'une playlist à assembler (« part », dans l'ordre). Le navigateur le dépose lui-même, avec une adresse
+ * signée ; la ligne naît « uploading », passe « received » quand le serveur l'a vu arriver, puis suit SoundCloud.
+ */
+export const audioFile = pgTable(
+  "audio_file",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Vide tant que l'envoi n'est pas confirmé. */
+    showId: uuid("show_id").references(() => show.id, { onDelete: "cascade" }),
+    /** L'artiste qui l'a envoyé ; vide pour un fichier de l'équipe (une playlist assemblée). */
+    artistId: uuid("artist_id").references(() => artist.id, { onDelete: "set null" }),
+    role: audioRole("role").notNull(),
+    /** L'ordre d'un morceau dans sa playlist : 1, 2, 3… */
+    position: integer("position"),
+    /** L'artiste et le titre d'un morceau, d'après ses étiquettes ou son nom. */
+    trackArtist: text("track_artist"),
+    trackTitle: text("track_title"),
+    durationSeconds: integer("duration_seconds"),
+    key: text("key").notNull().unique(),
+    /** Le nom du fichier envoyé, pour le télécharger sous le même nom. */
+    fileName: text("file_name").notNull(),
+    mimeType: text("mime_type").notNull(),
+    /** Sa taille réelle, lue dans le seau à la confirmation. */
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
+    status: audioStatus("status").notNull().default("uploading"),
+    /** Pourquoi SoundCloud l'a refusé. */
+    error: text("error"),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check("audio_file_show", sql`${t.status} = 'uploading' or ${t.showId} is not null`),
+    check("audio_file_part_status", sql`${t.role} = 'main' or ${t.status} in ('uploading', 'received')`),
+    check("audio_file_part_position", sql`${t.role} = 'main' or ${t.status} = 'uploading' or ${t.position} >= 1`),
+    check("audio_file_key", sql`${t.key} ~ '^audio/[0-9]{4}/[0-9]{2}/[0-9a-f-]{36}\\.(mp3|m4a|wav|aiff|flac)$'`),
+    check("audio_file_size", sql`${t.sizeBytes} is null or ${t.sizeBytes} > 0`),
+    check("audio_file_duration", sql`${t.durationSeconds} is null or ${t.durationSeconds} > 0`),
+    index("audio_file_show").on(t.showId),
+    index("audio_file_status").on(t.status),
+  ],
+).enableRLS();
+
+/**
+ * Le calendrier des deux groupes de résidents, sur une seule ligne : le premier lundi d'un bloc du groupe 1, la durée
+ * d'un bloc (le groupe 2 prend le suivant, et ainsi de suite), et la deadline d'envoi, en jours avant le début du bloc
+ * (15 : le dimanche deux semaines avant).
+ */
+export const broadcastCycle = pgTable(
+  "broadcast_cycle",
+  {
+    id: boolean("id").primaryKey().default(true),
+    group1Start: date("group1_start", { mode: "string" }).notNull(),
+    blockDays: integer("block_days").notNull().default(14),
+    deadlineDays: integer("deadline_days").notNull().default(15),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check("broadcast_cycle_single", sql`${t.id}`),
+    check("broadcast_cycle_monday", sql`extract(isodow from ${t.group1Start}) = 1`),
+    check("broadcast_cycle_days", sql`${t.blockDays} in (7, 14, 21, 28) and ${t.deadlineDays} between 1 and 60`),
+  ],
+).enableRLS();
+
+// ---------------------------------------------------------------------------------------------------------------
 // Relations (requêtes imbriquées de Drizzle : db.query.show.findFirst({ with: { tracks: true } }))
 // ---------------------------------------------------------------------------------------------------------------
 
@@ -919,3 +1054,7 @@ export type ChatMessage = typeof chatMessage.$inferSelect;
 export type ChatTerm = typeof chatTerm.$inferSelect;
 export type ChatSettings = typeof chatSettings.$inferSelect;
 export type RadioCultImport = typeof radiocultImport.$inferSelect;
+export type UploadLink = typeof uploadLink.$inferSelect;
+export type Submission = typeof submission.$inferSelect;
+export type AudioFile = typeof audioFile.$inferSelect;
+export type BroadcastCycle = typeof broadcastCycle.$inferSelect;

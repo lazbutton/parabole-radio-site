@@ -57,6 +57,8 @@ import {
   type TagPlace,
 } from "./tags.ts";
 import { getMember, overview } from "./team.ts";
+import { approveAudio, audioFileById, audioFilesOf, audioKeysOf, deleteAudioFile, deleteUploadLink, getCycle, renewUploadLink, saveCycle, submissionOf, uploadLinkOf } from "./envois.ts";
+import { attachCandidates, attachSubmission, rattacherSeul } from "../envois/rattacher.ts";
 
 /** Un refus de la base qui tient à la saisie devient des erreurs par champ ; le reste remonte tel quel. */
 async function saving<T extends { ok: true }>(run: () => Promise<T | NotSaved>): Promise<T | NotSaved> {
@@ -223,6 +225,34 @@ export function createAdmin(db: Db, userId: string) {
     removeChatTerm: (id: string) => as((tx) => removeChatTerm(tx, userId, id)),
     /** Écrit à l'antenne en tant que Parabole. */
     postAsTeam: (text: string) => saving(() => as((tx) => postAsTeam(tx, userId, text))),
+    /** Le lien d'envoi d'un artiste, ou null. */
+    uploadLinkOf: (artistId: string) => as((tx) => uploadLinkOf(tx, artistId)),
+    /** Crée ou remplace le lien d'envoi d'un artiste : l'ancien cesse de marcher. */
+    renewUploadLink: (artistId: string) => as((tx) => renewUploadLink(tx, artistId, userId)),
+    /** Désactive le lien d'envoi d'un artiste. */
+    deleteUploadLink: (artistId: string) => as((tx) => deleteUploadLink(tx, artistId)),
+    /** L'envoi d'un show (qui, quand, son mot, le lien de sa playlist, son bloc), ou null. */
+    submissionOf: (showId: string) => as((tx) => submissionOf(tx, showId)),
+    /** Les fichiers son d'un show : son son, puis ses morceaux. */
+    audioFilesOf: (showId: string) => as((tx) => audioFilesOf(tx, showId)),
+    /** Un fichier son, pour l'écouter ou le télécharger : sa clé et son nom d'envoi, ou null. */
+    audioFile: (id: string) => as((tx) => audioFileById(tx, id)),
+    /** Valide le son d'un show. */
+    approveAudio: (id: string) => as((tx) => approveAudio(tx, id)),
+    /** Efface un fichier son ; rend sa clé, à effacer du seau. */
+    deleteAudioFile: (id: string) => as((tx) => deleteAudioFile(tx, id)),
+    /** Les clés des fichiers son de ces shows, à effacer du seau avant de les supprimer. */
+    audioKeysOf: (showIds: string[]) => as((tx) => audioKeysOf(tx, showIds)),
+    /** Les créneaux où un envoi pourrait aller. */
+    attachCandidates: (showId: string, options?: { now?: Date }) => as((tx) => attachCandidates(tx, showId, options)),
+    /** Rattache un envoi à un créneau ; rend la pochette remplacée. */
+    attachSubmission: (fromId: string, toId: string) => saving(() => as((tx) => attachSubmission(tx, fromId, toId))),
+    /** Rattache tout seul les envois qui n'ont qu'un créneau possible (après un import lancé depuis l'admin). */
+    rattacherSeul: (options?: { now?: Date }) => as((tx) => rattacherSeul(tx, options)),
+    /** Le calendrier des groupes, ou null. */
+    cycle: () => as((tx) => getCycle(tx)),
+    /** Règle le calendrier des groupes (un admin). */
+    saveCycle: (values: { group1Start: string; blockDays: number; deadlineDays: number }) => saving(() => as((tx) => saveCycle(tx, values))),
   };
 }
 
@@ -280,3 +310,4 @@ export {
 } from "./input.ts";
 export type { AdminShow, AdminShowArtist, AdminShowFilters, AdminShowRow, AdminTag, ShowSave } from "./shows.ts";
 export type { Overview, TeamMember } from "./team.ts";
+export type { AdminAudioFile, AdminSubmission, AdminUploadLink, DeadlinePanel } from "./envois.ts";

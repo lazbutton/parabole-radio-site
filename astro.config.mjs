@@ -9,8 +9,8 @@ export default defineConfig({
   // Les pages sont statiques (générées au build) ; seules les routes de src/pages/api/ tournent sur Vercel, dans une
   // fonction. maxDuration : Hopper peut mettre jusqu'à 25 s à répondre (src/pages/api/hopper.ts).
   adapter: vercel({ maxDuration: 30 }),
-  // React, pour les écrans de travail de l'admin seulement (Radix Themes, src/components/admin/) : le site public n'en
-  // charge rien.
+  // React, pour les écrans de travail : l'admin (Radix Themes, src/components/admin/) et la page d'envoi d'un résident
+  // (/envoyer/<jeton>, src/components/envoi/), sobre comme l'admin. Les autres pages du site public n'en chargent rien.
   integrations: [react()],
   // Navigation sans rechargement (ClientRouter, src/layouts/Base.astro) : une page survolée est chargée d'avance.
   prefetch: { prefetchAll: true, defaultStrategy: "hover" },
@@ -55,6 +55,15 @@ export default defineConfig({
       // Le magasin Vercel Blob des vidéos de fond envoyées depuis l'admin : Vercel le pose quand on relie le magasin
       // au projet. Sans lui, l'admin gère la liste mais n'envoie rien (src/lib/admin/blob.ts).
       BLOB_READ_WRITE_TOKEN: envField.string({ context: "server", access: "secret", optional: true }),
+      // Le seau Cloudflare R2 des émissions envoyées par les résidents (cms/README.md, 9.12) : le compte, le seau, et la
+      // clé d'un jeton d'API limité à ce seau (« Object Read & Write »). Le navigateur y dépose les fichiers lui-même,
+      // par une adresse que le serveur signe pour un seul fichier (src/lib/r2.ts). Sans eux, la page d'envoi le dit.
+      R2_ACCOUNT_ID: envField.string({ context: "server", access: "secret", optional: true }),
+      R2_BUCKET: envField.string({ context: "server", access: "secret", optional: true }),
+      R2_ACCESS_KEY_ID: envField.string({ context: "server", access: "secret", optional: true }),
+      R2_SECRET_ACCESS_KEY: envField.string({ context: "server", access: "secret", optional: true }),
+      // L'adresse S3 du seau, à la place de https://<compte>.r2.cloudflarestorage.com : un MinIO local pour les essais.
+      R2_ENDPOINT: envField.string({ context: "server", access: "secret", optional: true }),
     },
   },
 });

@@ -13,6 +13,7 @@ import type { DocumentChanges,
   AdminTagUse,
   ArtistForm,
   ArtistRole,
+  AudioStatus,
   ContentStatus,
   EventForm,
   FacetScope,
@@ -68,9 +69,30 @@ export type DashboardData = {
   }[];
   /** Ce qui reste à compléter, compté comme les listes filtrées où l'on arrive (cms : overview). */
   missing: { tracklist: number; sound: number; photo: number; bio: number; tags: number };
+  /** Les envois des résidents qui attendent l'équipe (cms/README.md, 9.12). */
+  envois: { review: number; failed: number; assemble: number; slot: number };
+  /** Les deadlines des groupes : celle qui vient de passer, tant que son bloc n'a pas commencé, puis la prochaine. */
+  deadlines: DeadlineView[];
+  /** Le calendrier des groupes, réglable par un admin ; null s'il n'est pas réglé. */
+  cycle: { group1Start: string; blockDays: number; deadlineDays: number } | null;
   drafts: { href: string; title: string; kind: "show" | "artist"; since: string }[];
   radiocult: RadioCultPanel;
 };
+
+/** Une deadline au tableau de bord : le bloc d'un groupe, et ses résidents, avec ou sans envoi. */
+export type DeadlineView = {
+  group: 1 | 2;
+  /** « du lundi 28 déc. au dimanche 10 janv. » */
+  block: string;
+  /** « dimanche 13 déc. », « dans 9 jours » */
+  deadline: string;
+  when: string;
+  late: boolean;
+  sent: number;
+  residents: { id: string; name: string; sent: boolean; link: string | null }[];
+};
+
+export type CycleResponse = { ok: true; data: DashboardData; message: string } | { ok: false; errors: FieldErrors };
 
 /** Une fiche que cite l'import : son adresse dans l'admin, son titre, ce qu'il en dit. */
 export type ImportLine = { href: string; title: string; detail: string };
@@ -139,8 +161,57 @@ export type ShowSheet = {
   tags: TagChoice[];
   /** Les filtres des shows, pour montrer où va le show. */
   facets: FacetChoice[];
+  /** Ce que le show a reçu d'un résident (cms/README.md, 9.12). */
+  envoi: EnvoiView;
 };
 export type ShowEditorData = { sheet: ShowSheet };
+
+/** Un fichier son reçu : le son d'un show, ou un morceau d'une playlist. */
+export type AudioView = {
+  id: string;
+  fileName: string;
+  /** « 312 Mo » */
+  size: string;
+  status: AudioStatus;
+  error: string | null;
+  /** Écouter et télécharger : des adresses de l'admin (/admin/api/son/<id>), qui signent la lecture dans le seau. */
+  listen: string;
+  download: string;
+  /** Un morceau : son artiste, son titre, sa durée (« 4:05 »). */
+  artist: string;
+  title: string;
+  duration: string;
+};
+
+/** L'envoi d'un show : qui, quand, pour quel bloc, son mot ; ses fichiers ; les créneaux où il peut aller. */
+export type EnvoiView = {
+  submission: {
+    artist: { id: string; name: string } | null;
+    /** Reçu le…, modifié le… */
+    sent: string;
+    updated: string | null;
+    /** « bloc du 28 déc. », « 1re semaine » */
+    block: string | null;
+    week: string | null;
+    late: boolean;
+    /** Le show attend encore son créneau dans la grille de Radio Cult. */
+    waiting: boolean;
+    note: string | null;
+    link: string | null;
+  } | null;
+  main: AudioView | null;
+  parts: AudioView[];
+  candidates: { id: string; title: string; when: string }[];
+  /** Le seau des fichiers son est branché. */
+  ready: boolean;
+};
+
+export type EnvoiResponse = { ok: true; envoi: EnvoiView; message: string } | { ok: false; errors: FieldErrors };
+export type AttachResponse = { ok: true; redirect: string; message: string } | { ok: false; errors: FieldErrors };
+
+/** Le lien d'envoi d'un artiste : son adresse sur le site (/envoyer/<jeton>), et ce qu'on en sait. */
+export type UploadLinkView = { path: string; created: string; used: string | null; profile: string | null };
+export type UploadLinkResponse = { ok: true; link: UploadLinkView | null; message: string } | { ok: false; errors: FieldErrors };
 
 export type ArtistRow = { id: string; name: string; role: ArtistRole; status: ContentStatus; shows: number; hasPhoto: boolean; hasBio: boolean; tags: string[] };
 export type ArtistFilters = { q: string; role: string; status: string; tag: string; missing: string };
@@ -165,6 +236,8 @@ export type ArtistSheet = {
   /** Les filtres des artistes (Activité…) et leurs étiquettes, à cocher. */
   facets: FacetChoice[];
   tags: TagChoice[];
+  /** Sa page d'envoi (cms/README.md, 9.12), ou null s'il n'en a pas. */
+  uploadLink: UploadLinkView | null;
 };
 export type ArtistEditorData = { sheet: ArtistSheet };
 

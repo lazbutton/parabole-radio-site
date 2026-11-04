@@ -8,16 +8,27 @@
  * Storage de Supabase, à une adresse que le serveur signe pour ce seul fichier (une fonction Vercel n'accepterait pas
  * plus de 4,5 Mo) ; le serveur en tire les versions du site, puis la fiche met l'image à sa place, tout de suite : pas
  * besoin d'enregistrer la fiche. L'ancienne image est effacée si rien d'autre ne s'en sert.
+ *
+ * Le même champ sert à la page d'envoi d'un résident (src/components/envoi/) : ImageApiProvider y change l'adresse de
+ * l'API (/api/envoi/media), y ajoute le jeton du lien, et retire « Modifier le texte » (une image déjà en place n'y
+ * change plus).
  */
 import type { FieldErrors } from "@parabole/cms";
 import { DotsHorizontalIcon, ExclamationTriangleIcon, ImageIcon, Pencil1Icon, TrashIcon, UploadIcon } from "@radix-ui/react-icons";
 import { AlertDialog, Button, Callout, Checkbox, Dialog, DropdownMenu, Flex, IconButton, Progress, Text, TextArea, TextField } from "@radix-ui/themes";
-import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type PointerEvent, type SubmitEvent } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type PointerEvent, type SubmitEvent } from "react";
 import { Field, postForm } from "./sheet";
 import { useNotify } from "./toast";
 import type { MediaView, PlaceResponse, UploadSettings } from "./types";
 
-const API = "/admin/api/media";
+/**
+ * Où vont les images : l'API de l'admin, ou celle de la page d'envoi (avec le jeton du lien en champ de plus).
+ * `unavailable` : ce qu'on dit quand l'envoi n'est pas branché (un résident n'a pas à connaître les réglages).
+ */
+export type ImageApi = { base: string; extra?: Record<string, string>; describe?: boolean; unavailable?: string };
+const ADMIN_API: ImageApi = { base: "/admin/api/media" };
+const ImageApiContext = createContext<ImageApi>(ADMIN_API);
+export const ImageApiProvider = ImageApiContext.Provider;
 const TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
 /** Le type d'un fichier que le système ne nomme pas, d'après son extension. */
 const TYPES_BY_EXTENSION: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", avif: "image/avif" };
@@ -131,20 +142,20 @@ export const altMissing = (text: Described) => !text.decorative && !text.alt.tri
  */
 export async function sendImage(
   chosen: Pick<Chosen, "file" | "type">,
-  { shape, focus, text, onProgress, signal }: { shape: "square" | "free"; focus: number; text: Described; onProgress(progress: { step: Step; percent: number }): void; signal: AbortSignal },
+  { shape, focus, text, onProgress, signal, api = ADMIN_API }: { shape: "square" | "free"; focus: number; text: Described; onProgress(progress: { step: Step; percent: number }): void; signal: AbortSignal; api?: ImageApi },
 ): Promise<{ ok: true; image: MediaView } | { ok: false; errors: FieldErrors; message: string }> {
-  const ticket = await postForm<{ ok: true; path: string; url: string }>(`${API}/upload`, fields({ type: chosen.type, size: String(chosen.file.size) }));
+  const ticket = await postForm<{ ok: true; path: string; url: string }>(`${api.base}/upload`, fields({ ...api.extra, type: chosen.type, size: String(chosen.file.size) }));
   if (!ticket.ok) return { ok: false, errors: ticket.errors, message: firstError(ticket.errors) };
   if (signal.aborted) throw new DOMException("Envoi annulé", "AbortError");
   await putFile(ticket.url, chosen.file, (percent) => onProgress({ step: "envoi", percent: Math.min(99, percent) }), signal);
   onProgress({ step: "preparation", percent: 100 });
-  const done = await postForm<{ ok: true; image: MediaView }>(`${API}/finalize`, fields({ path: ticket.path, shape, focus: String(focus), ...describedFields(text) }));
+  const done = await postForm<{ ok: true; image: MediaView }>(`${api.base}/finalize`, fields({ ...api.extra, path: ticket.path, shape, focus: String(focus), ...describedFields(text) }));
   if (!done.ok) return { ok: false, errors: done.errors, message: done.errors.alt || done.errors.credit ? "Corrige le texte de l'image." : firstError(done.errors) };
   return { ok: true, image: done.image };
 }
 
 /** Une image préparée qui n'a pas trouvé sa place ne reste pas dans le Storage. */
-export const abandonImage = (image: MediaView) => postForm(`${API}/abandon`, fields({ id: image.id }));
+export const abandonImage = (image: MediaView, api: ImageApi = ADMIN_API) => postForm(`${api.base}/abandon`, fields({ ...api.extra, id: image.id }));
 
 // ---------------------------------------------------------------------------------------------------------------
 // Le champ
@@ -164,10 +175,18 @@ type Props = {
   onPlace(image: MediaView | null): Promise<string | null>;
   /** Le texte de l'image a changé. */
   onDescribed(image: MediaView): void;
+  /**
+   * En ligne : un petit carré, ses actions à côté, plutôt que la grande zone du panneau de côté. Pour la page d'envoi
+   * d'un résident, où la photo n'est qu'un champ du formulaire.
+   */
+  compact?: boolean;
 };
 
-export function ImageField({ image, kind, shape, suggestion, uploads, blocked, onPlace, onDescribed }: Props) {
+const NOT_READY = "L'envoi des images n'est pas encore branché : il manque la clé secrète de Supabase (réglage SUPABASE_SECRET_KEY).";
+
+export function ImageField({ image, kind, shape, suggestion, uploads, blocked, onPlace, onDescribed, compact = false }: Props) {
   const notify = useNotify();
+  const api = useContext(ImageApiContext);
   const words = WORDS[kind];
   const picker = useRef<HTMLInputElement>(null);
   const picture = useRef<HTMLImageElement>(null);
@@ -235,7 +254,49 @@ export function ImageField({ image, kind, shape, suggestion, uploads, blocked, o
         }}
       />
 
-      {image ? (
+      {compact ? (
+        <div className="admin-image-row">
+          {image ? (
+            <button type="button" className="admin-image-tile" data-shape={shape} data-over={over || undefined} disabled={!open} onClick={() => picker.current?.click()} aria-label={`Remplacer ${words.the}`} {...drop}>
+              {broken ? <ImageIcon width="22" height="22" aria-hidden /> : <img ref={picture} src={image.thumb} alt="" onError={() => setBroken(true)} />}
+              {over && <span className="admin-image-hint">Lâche ici</span>}
+            </button>
+          ) : (
+            <button type="button" className="admin-image-tile" data-shape={shape} data-empty data-over={over || undefined} disabled={!open} onClick={() => picker.current?.click()} aria-label={`Choisir ${words.a}`} {...drop}>
+              <ImageIcon width="24" height="24" aria-hidden />
+            </button>
+          )}
+          <Flex direction="column" gap="2" minWidth="0">
+            <Text as="p" size="1" color="gray">
+              {image
+                ? [image.credit && `Crédit : ${image.credit}.`, "Glisse une autre image sur le carré pour la remplacer."].filter(Boolean).join(" ")
+                : open
+                  ? `Glisse ${words.a} sur le carré, ou choisis un fichier : JPEG, PNG, WebP ou AVIF, ${uploads.maxBytes / 1_000_000} Mo au plus${shape === "square" ? ", recadrée en carré" : ""}.`
+                  : (blocked ?? `Pas encore de ${words.the.replace(/^l[ae] /, "")}.`)}
+            </Text>
+            <Flex gap="2" wrap="wrap">
+              <Button type="button" size="2" variant="soft" onClick={() => picker.current?.click()} disabled={!open}>
+                <UploadIcon /> {image ? "Remplacer" : `Choisir ${words.a}`}
+              </Button>
+              {image && api.describe !== false && (
+                <Button type="button" size="2" variant="ghost" color="gray" onClick={() => setEditing(true)}>
+                  <Pencil1Icon /> Texte
+                </Button>
+              )}
+              {image && (
+                <Button type="button" size="2" variant="ghost" color="red" onClick={() => setRemoving(true)}>
+                  <TrashIcon /> Retirer
+                </Button>
+              )}
+            </Flex>
+            {!uploads.ready && (
+              <Text as="p" size="1" color="amber">
+                {api.unavailable ?? NOT_READY}
+              </Text>
+            )}
+          </Flex>
+        </div>
+      ) : image ? (
         <>
           <div className="admin-image" data-shape={shape} data-over={over || undefined} {...drop}>
             {broken ? (
@@ -278,10 +339,14 @@ export function ImageField({ image, kind, shape, suggestion, uploads, blocked, o
                 </IconButton>
               </DropdownMenu.Trigger>
               <DropdownMenu.Content align="start" size="2">
-                <DropdownMenu.Item onSelect={() => setEditing(true)}>
-                  <Pencil1Icon /> Modifier le texte…
-                </DropdownMenu.Item>
-                <DropdownMenu.Separator />
+                {api.describe !== false && (
+                  <>
+                    <DropdownMenu.Item onSelect={() => setEditing(true)}>
+                      <Pencil1Icon /> Modifier le texte…
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Separator />
+                  </>
+                )}
                 <DropdownMenu.Item color="red" onSelect={() => setRemoving(true)}>
                   <TrashIcon /> Retirer {words.the}…
                 </DropdownMenu.Item>
@@ -315,12 +380,12 @@ export function ImageField({ image, kind, shape, suggestion, uploads, blocked, o
         </div>
       )}
 
-      {!uploads.ready && (
+      {!uploads.ready && !compact && (
         <Callout.Root color="amber" size="1">
           <Callout.Icon>
             <ExclamationTriangleIcon />
           </Callout.Icon>
-          <Callout.Text>L'envoi des images n'est pas encore branché : il manque la clé secrète de Supabase (réglage SUPABASE_SECRET_KEY).</Callout.Text>
+          <Callout.Text>{api.unavailable ?? NOT_READY}</Callout.Text>
         </Callout.Root>
       )}
 
@@ -439,6 +504,7 @@ function NewImageDialog({
   onClose(): void;
   onPlace(image: MediaView): Promise<string | null>;
 }) {
+  const api = useContext(ImageApiContext);
   const words = WORDS[kind];
   const [text, setText] = useState<Described>({ alt: suggestion, credit: "", decorative: false });
   const [focus, setFocus] = useState(0.5);
@@ -474,7 +540,7 @@ function NewImageDialog({
     setProgress({ step: "envoi", percent: 0 });
     let prepared: MediaView | null = null;
     try {
-      const sent = await sendImage(chosen, { shape, focus, text, onProgress: setProgress, signal: abort.signal });
+      const sent = await sendImage(chosen, { shape, focus, text, onProgress: setProgress, signal: abort.signal, api });
       if (!sent.ok) {
         setErrors(sent.errors);
         throw new Error(sent.message);
@@ -487,7 +553,7 @@ function NewImageDialog({
       controller.current = null;
       onClose();
     } catch (error) {
-      if (prepared) void abandonImage(prepared);
+      if (prepared) void abandonImage(prepared, api);
       if (stopped()) return;
       setProgress(null);
       setErrors((current) => ({ ...current, image: error instanceof Error && error.message ? error.message : "Quelque chose s'est mal passé. Réessaie." }));
@@ -653,6 +719,7 @@ function CropFrame({
 
 /** Le texte alternatif et le crédit d'une image déjà en place, changés partout où elle sert. */
 export function DescribeDialog({ image, kind, onClose, onDone }: { image: MediaView; kind: ImageKind; onClose(): void; onDone(image: MediaView): void }) {
+  const api = useContext(ImageApiContext);
   const [text, setText] = useState<Described>({ alt: image.alt, credit: image.credit ?? "", decorative: !image.alt });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [busy, setBusy] = useState(false);
@@ -662,7 +729,7 @@ export function DescribeDialog({ image, kind, onClose, onDone }: { image: MediaV
     event.stopPropagation();
     if (altMissing(text)) return setErrors({ alt: "Décris l'image en quelques mots, ou coche « Image décorative »." });
     setBusy(true);
-    const result = await postForm<{ ok: true; image: MediaView }>(`${API}/describe`, fields({ id: image.id, ...describedFields(text) }));
+    const result = await postForm<{ ok: true; image: MediaView }>(`${api.base}/describe`, fields({ ...api.extra, id: image.id, ...describedFields(text) }));
     setBusy(false);
     if (!result.ok) return setErrors(result.errors.alt || result.errors.credit ? result.errors : { image: firstError(result.errors) });
     onDone(result.image);

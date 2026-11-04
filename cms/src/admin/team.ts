@@ -6,6 +6,7 @@ import type { Tx } from "../access.ts";
 import { outer } from "../read/common.ts";
 import { artist, member, show, tag, tagGroup, tagMember, type ContentStatus, type ShowType, type TeamRole } from "../schema.ts";
 import { lacksBio, lacksPhoto } from "./artists.ts";
+import { awaitsAssembly, awaitsReview, awaitsSlot, deadlinePanels, sendFailed, type DeadlinePanel } from "./envois.ts";
 import { artistNames, lacksSound, lacksTracklist } from "./shows.ts";
 
 export type TeamMember = { userId: string; email: string; name: string; role: TeamRole };
@@ -32,6 +33,13 @@ export type Overview = {
    * annoncé est celui de la liste.
    */
   missing: { tracklist: number; sound: number; photo: number; bio: number; tags: number };
+  /**
+   * Les envois des résidents : sons à écouter, refusés par SoundCloud, playlists à assembler, envois sans créneau
+   * (mêmes conditions que la liste des shows).
+   */
+  envois: { review: number; failed: number; assemble: number; slot: number };
+  /** Les deadlines des groupes : celle qui vient de passer (tant que le bloc n'a pas commencé), puis la prochaine. */
+  deadlines: DeadlinePanel[];
 };
 
 const counts = (status: typeof show.status | typeof artist.status) => ({
@@ -46,6 +54,10 @@ export async function overview(tx: Tx, { drafts = 8, upcoming = 5, now = new Dat
       ...counts(show.status),
       tracklist: sql<number>`count(*) filter (where ${lacksTracklist(now)})`.mapWith(Number),
       sound: sql<number>`count(*) filter (where ${lacksSound(now)})`.mapWith(Number),
+      review: sql<number>`count(*) filter (where ${awaitsReview()})`.mapWith(Number),
+      failed: sql<number>`count(*) filter (where ${sendFailed()})`.mapWith(Number),
+      assemble: sql<number>`count(*) filter (where ${awaitsAssembly()})`.mapWith(Number),
+      slot: sql<number>`count(*) filter (where ${awaitsSlot()})`.mapWith(Number),
     })
     .from(show);
   const [artists] = await tx
@@ -76,5 +88,7 @@ export async function overview(tx: Tx, { drafts = 8, upcoming = 5, now = new Dat
     // La condition de la requête écarte les shows sans date.
     upcoming: next.map((row) => ({ ...row, broadcastAt: row.broadcastAt as Date })),
     missing: { tracklist: shows?.tracklist ?? 0, sound: shows?.sound ?? 0, photo: artists?.photo ?? 0, bio: artists?.bio ?? 0, tags: unplaced?.n ?? 0 },
+    envois: { review: shows?.review ?? 0, failed: shows?.failed ?? 0, assemble: shows?.assemble ?? 0, slot: shows?.slot ?? 0 },
+    deadlines: await deadlinePanels(tx, now),
   };
 }

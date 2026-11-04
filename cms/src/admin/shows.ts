@@ -10,6 +10,7 @@ import { escapeLike, prefixQuery } from "../read/search.ts";
 import { artist, contentStatus, SEARCH_CONFIG, show, showArtist, showTag, showType, tag, track, type ContentStatus, type ShowType } from "../schema.ts";
 import { slugify } from "../slug.ts";
 import { freeSlug, versionOf, type NotSaved, type Saved } from "./common.ts";
+import { awaitsAssembly, awaitsReview, awaitsSlot, sendFailed } from "./envois.ts";
 import { isUuid, type ArtistPick, type ShowValues, type TagPick } from "./input.ts";
 import { getMedia, type AdminMedia } from "./media.ts";
 import { tagChoices, type AdminFacetChoice, type AdminTagChoice } from "./tags.ts";
@@ -45,7 +46,11 @@ export type AdminShowFilters = {
   tag?: string;
   /** Identifiant d'un artiste. */
   artist?: string;
-  /** Ce qui manque à un show déjà diffusé : « tracklist », ou « sound » (la piste SoundCloud). */
+  /**
+   * Ce qui manque ou ce qui attend : « tracklist » ou « sound » (la piste SoundCloud) pour un show déjà diffusé ; pour
+   * les envois des résidents, « review » (son à écouter), « failed » (refusé par SoundCloud), « assemble » (playlist à
+   * assembler), « slot » (envoi sans créneau).
+   */
   missing?: string;
   /** « recent » (par défaut) : les plus récents d'abord, ceux sans date en tête ; « oldest » : les plus anciens. */
   order?: string;
@@ -95,6 +100,10 @@ export async function listShows(tx: Tx, filters: AdminShowFilters = {}): Promise
   if (isUuid(filters.artist)) conditions.push(sql`exists (select 1 from ${showArtist} sa where sa.show_id = ${outer(show.id)} and sa.artist_id = ${filters.artist})`);
   if (filters.missing === "tracklist") conditions.push(lacksTracklist(filters.now ?? new Date()));
   else if (filters.missing === "sound") conditions.push(lacksSound(filters.now ?? new Date()));
+  else if (filters.missing === "review") conditions.push(awaitsReview());
+  else if (filters.missing === "failed") conditions.push(sendFailed());
+  else if (filters.missing === "assemble") conditions.push(awaitsAssembly());
+  else if (filters.missing === "slot") conditions.push(awaitsSlot());
   const where = and(...conditions);
   const order = filters.order === "oldest" ? [sql`${show.broadcastAt} asc nulls last`, asc(show.title)] : [sql`${show.broadcastAt} desc nulls first`, desc(show.updatedAt)];
   const rows = await tx

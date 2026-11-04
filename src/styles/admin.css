@@ -12,6 +12,26 @@
 
 body { margin: 0; }
 .admin-theme { min-height: 100vh; background: var(--color-background); }
+/*
+ * Tout ce qui se clique montre la main : Radix Themes garde la flèche par défaut sur ses boutons, ses cartes à choisir,
+ * ses segments, ses onglets, ses cases et ses menus. Ses variables valent aussi dans les fenêtres et les menus, rendus à
+ * part (« html » passe devant sa propre règle, quel que soit l'ordre des feuilles). Une poignée se saisit ; un élément
+ * désactivé le dit (« not-allowed », la règle de Radix).
+ */
+html .radix-themes {
+  --cursor-button: pointer;
+  --cursor-checkbox: pointer;
+  --cursor-link: pointer;
+  --cursor-menu-item: pointer;
+  --cursor-radio: pointer;
+  --cursor-switch: pointer;
+  --cursor-slider-thumb: grab;
+  --cursor-slider-thumb-active: grabbing;
+}
+/* Les boutons faits maison, et les libellés qui cochent une case : sans poids, une règle de classe passe devant. */
+.radix-themes :where(button:not(:disabled), summary, [role="button"]:not([aria-disabled="true"]), label:has(input[type="checkbox"], input[type="radio"], button[role="checkbox"], button[role="radio"], button[role="switch"])) {
+  cursor: pointer;
+}
 .admin-sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .admin-break { overflow-wrap: anywhere; }
 .admin-nowrap { white-space: nowrap; }
@@ -428,7 +448,7 @@ body { margin: 0; }
 
 /* L'image d'une fiche (ImageField) : la zone où glisser un fichier, l'image en place, et la fenêtre d'envoi, avec son
    aperçu cadré comme sur le site. */
-.admin-image, .admin-image-drop { position: relative; width: 100%; border-radius: var(--radius-4); overflow: hidden; }
+.admin-image, .admin-image-drop { position: relative; box-sizing: border-box; width: 100%; border-radius: var(--radius-4); overflow: hidden; }
 /* Sous le reste de la fiche (téléphone, tablette), l'image garde la taille du panneau de côté. */
 .admin-image { max-width: 320px; background: var(--gray-a3); box-shadow: 0 0 0 1px var(--gray-a5); }
 .admin-image[data-shape="square"] { aspect-ratio: 1; }
@@ -450,6 +470,28 @@ body { margin: 0; }
 .admin-image-drop[data-over] { border-style: solid; border-color: var(--accent-9); background: var(--accent-a3); }
 .admin-image-drop[data-disabled] { cursor: default; }
 .admin-image-drop[data-disabled]:hover { background: var(--gray-a2); }
+/* En ligne (ImageField compact, la page d'envoi d'un résident) : un carré de 128 px, ses actions à côté. */
+.admin-image-row { display: flex; align-items: center; gap: 16px; }
+.admin-image-tile {
+  position: relative; display: grid; place-items: center; flex: none; width: 128px; aspect-ratio: 1; margin: 0; padding: 0; overflow: hidden;
+  border: 0; border-radius: var(--radius-4); background: var(--gray-a3); box-shadow: inset 0 0 0 1px var(--gray-a5); color: var(--gray-10); font: inherit;
+}
+.admin-image-tile[data-shape="free"] { aspect-ratio: 4 / 3; }
+.admin-image-tile img { display: block; width: 100%; height: 100%; object-fit: cover; }
+button.admin-image-tile { cursor: pointer; }
+button.admin-image-tile:disabled { cursor: default; }
+.admin-image-tile[data-empty] { border: 1px dashed var(--gray-a7); background: var(--gray-a2); box-shadow: none; transition: background-color 120ms, border-color 120ms, color 120ms; }
+.admin-image-tile[data-empty]:hover:not(:disabled) { border-color: var(--accent-8); background: var(--accent-a3); color: var(--accent-11); }
+.admin-image-tile[data-empty]:focus-visible { outline: 2px solid var(--focus-8); outline-offset: 2px; }
+.admin-image-tile[data-empty]:disabled { opacity: 0.6; }
+button.admin-image-tile:not([data-empty]):hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--gray-a5), 0 0 0 2px var(--accent-a7); }
+button.admin-image-tile:focus-visible { outline: 2px solid var(--focus-8); outline-offset: 2px; }
+.admin-image-tile[data-over] { border-style: solid; border-color: var(--accent-9); background: var(--accent-a3); box-shadow: 0 0 0 2px var(--accent-9); }
+.admin-image-tile .admin-image-hint { inset: auto 4px 4px; padding: 3px 6px; }
+@media (max-width: 420px) {
+  .admin-image-row { align-items: flex-start; gap: 12px; }
+  .admin-image-tile { width: 96px; }
+}
 .admin-image-dialog { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; margin-top: 4px; }
 @media (min-width: 640px) {
   .admin-image-dialog { grid-template-columns: 220px minmax(0, 1fr); align-items: start; }
@@ -706,7 +748,7 @@ input.admin-track-start { font-family: var(--code-font-family); font-variant-num
   input.admin-track-start { grid-area: start; }
   input.admin-track-artist { grid-area: artist; }
   input.admin-track-title { grid-area: title; }
-  button.admin-track-hopper { grid-area: hopper; }
+  .admin-track > .admin-track-hopper { grid-area: hopper; }
   .admin-track-menu { grid-area: menu; }
   .admin-track-error { grid-column: 2 / -1; }
   .admin-track-add { padding-left: 28px; }
@@ -728,3 +770,18 @@ input.admin-track-start { font-family: var(--code-font-family); font-variant-num
   .admin-group-card { padding: 10px 12px 12px; }
   .admin-facet-head { margin-bottom: 16px; }
 }
+
+/* Les envois des résidents (EnvoiPanels.tsx, cms/README.md, 9.12) */
+.admin-link-text { color: var(--accent-11); text-decoration: none; }
+.admin-link-text:hover { text-decoration: underline; }
+.admin-received { margin-bottom: var(--space-3); padding-bottom: var(--space-3); border-bottom: 1px solid var(--gray-a4); }
+.admin-audio { display: block; width: 100%; height: 40px; }
+.admin-envoi-note { margin: 0; padding: var(--space-2) var(--space-3); border-left: 3px solid var(--gray-a6); border-radius: 0 var(--radius-2) var(--radius-2) 0; background: var(--gray-a2); white-space: pre-line; }
+.admin-envoi-slot { padding: var(--space-2); border-radius: var(--radius-3); box-shadow: inset 0 0 0 1px var(--gray-a5); }
+.admin-parts { margin: 0; padding: 0; list-style: none; border-radius: var(--radius-4); box-shadow: 0 0 0 1px var(--gray-a5); }
+.admin-part { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
+.admin-part + .admin-part { box-shadow: inset 0 1px var(--gray-a3); }
+.admin-deadline + .admin-deadline { padding-top: var(--space-4); border-top: 1px solid var(--gray-a4); }
+.admin-deadline-list { margin-top: var(--space-2); }
+.admin-deadline-row { display: flex; align-items: center; gap: 4px; }
+.admin-deadline-row > .admin-row-link { flex: 1; min-width: 0; padding-top: 4px; padding-bottom: 4px; }

@@ -95,6 +95,8 @@ export type AdminArtist = {
   bio: string | null;
   links: ArtistLink[];
   radiocultArtistId: string | null;
+  /** Son groupe de diffusion (1 ou 2), pour un résident ; null : hors des groupes. */
+  broadcastGroup: number | null;
   createdAt: Date;
   updatedAt: Date;
   /** Jeton de version (src/admin/common.ts), à renvoyer avec la fiche. */
@@ -121,6 +123,7 @@ export async function getArtist(tx: Tx, id: string): Promise<AdminArtist | null>
       bio: artist.bio,
       links: artist.links,
       radiocultArtistId: artist.radiocultArtistId,
+      broadcastGroup: artist.broadcastGroup,
       createdAt: artist.createdAt,
       updatedAt: artist.updatedAt,
       version: versionOf(artist.updatedAt),
@@ -208,6 +211,7 @@ export async function saveArtist(tx: Tx, { id, version, values, status }: Artist
     bio: values.bio,
     links: values.links,
     ...(values.radiocultArtistId === undefined ? {} : { radiocultArtistId: values.radiocultArtistId }),
+    ...(values.broadcastGroup === undefined ? {} : { broadcastGroup: values.broadcastGroup }),
     ...(status ? { status } : {}),
   };
   if (id) {

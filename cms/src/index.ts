@@ -7,7 +7,10 @@
  *   - le schéma Drizzle (schema.show, schema.track…), ses types et les libellés français ;
  *   - l'import de la programmation Radio Cult (importRadioCult, pour la tâche de nuit) et la traduction des réponses
  *     de son API ;
- *   - l'heure de Paris et les minutages (aussi dans le navigateur : @parabole/cms/tracklist).
+ *   - l'heure de Paris et les minutages (aussi dans le navigateur : @parabole/cms/tracklist) ;
+ *   - les envois des résidents (createEnvois, pour la page /envoyer/<jeton>) et leur rattachement aux créneaux
+ *     (rattacherEnvois, pour la tâche de nuit) ; leurs fichiers et leur calendrier aussi dans le navigateur
+ *     (@parabole/cms/envois).
  */
 export { asMember, asPublic, withViewer, type Tx, type Viewer } from "./access.ts";
 export * from "./admin/index.ts";
@@ -31,6 +34,20 @@ export {
   type RadioCultSlot,
 } from "./radiocult/index.ts";
 export { prefixQuery } from "./read/search.ts";
+export {
+  createEnvois,
+  TOKEN as UPLOAD_TOKEN,
+  type Deposited,
+  type EnvoiArtist,
+  type EnvoiFiche,
+  type EnvoiForm,
+  type EnvoiItem,
+  type EnvoiPage,
+  type EnvoiPart,
+  type Envois,
+} from "./envois/index.ts";
+export { rattacherEnvois } from "./envois/rattacher.ts";
+export * from "./envois/navigateur.ts";
 export {
   createReader,
   type AboutContent,
@@ -96,6 +113,8 @@ export type {
   Tag,
   TeamRole,
   Track,
+  AudioRole,
+  AudioStatus,
 } from "./schema.ts";
 export { isSlug, slugify } from "./slug.ts";
 export { formatTimecode, parseTimecode, parseTracklist, type TrackLine } from "./tracklist.ts";

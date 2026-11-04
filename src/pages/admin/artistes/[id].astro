@@ -3,16 +3,17 @@
  * La fiche d'un artiste : la créer (/admin/artistes/nouveau) ou la modifier (cms/README.md, 9.2). Même contrat que la
  * fiche d'un show : l'écran en GET (HTML ou JSON), la fiche envoyée par l'écran (ArtistEditor) en POST, et une
  * réponse en JSON. La photo se change à part (« photo ») : une image déjà envoyée (/admin/api/media) prend sa place
- * tout de suite, et l'ancienne est retirée du Storage si rien d'autre ne s'en sert.
+ * tout de suite, et l'ancienne est retirée du Storage si rien d'autre ne s'en sert. Son lien d'envoi aussi (« link »,
+ * cms/README.md, 9.12) : le créer, le remplacer par un nouveau (l'ancien cesse de marcher) ou le désactiver.
  */
 import { readArtistForm, type AdminArtist } from "@parabole/cms";
-import type { PlaceResponse, Screen } from "../../../components/admin/types";
+import type { PlaceResponse, Screen, UploadLinkResponse } from "../../../components/admin/types";
 import Admin from "../../../layouts/Admin.astro";
 import { parisDateTime } from "../../../lib/admin/format";
 import { artistFormFrom, intentOf } from "../../../lib/admin/forms";
 import { seeOther } from "../../../lib/admin/paths";
 import { removeImages } from "../../../lib/admin/storage";
-import { artistSheet, json, mediaView, wantsJson } from "../../../lib/admin/views";
+import { artistSheet, json, mediaView, uploadLinkView, wantsJson } from "../../../lib/admin/views";
 
 export const prerender = false;
 
@@ -31,6 +32,17 @@ if (posted) {
     await removeImages(await admin.releaseMedia([placed.previous]));
     const fresh = await admin.getArtist(artist.id);
     return json({ ok: true, image: mediaView(fresh?.photo ?? null), version: placed.version, updated: fresh ? parisDateTime(fresh.updatedAt) : null } satisfies PlaceResponse);
+  }
+  if (data.get("intent") === "link") {
+    if (!artist) return json({ ok: false, errors: { form: "Enregistre d'abord la fiche, puis crée son lien d'envoi." } }, 400);
+    const action = String(data.get("action") ?? "");
+    if (action === "delete") {
+      await admin.deleteUploadLink(artist.id);
+      return json({ ok: true, link: null, message: "Lien désactivé : il ne marche plus" } satisfies UploadLinkResponse);
+    }
+    const link = await admin.renewUploadLink(artist.id);
+    if (!link) return json({ ok: false, errors: { form: "Cet artiste n'existe plus : il a peut-être été supprimé." } }, 404);
+    return json({ ok: true, link: uploadLinkView(link), message: action === "renew" ? "Nouveau lien : l'ancien ne marche plus" : "Lien d'envoi créé" } satisfies UploadLinkResponse);
   }
   const intent = intentOf(data);
   if (intent === "delete") {

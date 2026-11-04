@@ -5,15 +5,20 @@
  * serveur vérifie la saisie (readShowForm), écrit sous le rôle de la personne connectée (Astro.locals.admin), puis
  * répond en JSON : la fiche à jour, les erreurs par champ, ou la liste où revenir après une suppression. La pochette se
  * change à part (« cover »), comme la photo d'un artiste.
+ *
+ * Ce qu'un résident a envoyé (cms/README.md, 9.12) a aussi ses intents : valider un son (« approve-audio »), effacer un
+ * fichier (« delete-audio »), et rattacher un envoi qui attend son créneau à l'un des créneaux de la grille
+ * (« attach ») : on arrive alors sur la fiche du créneau. Supprimer un show efface aussi ses fichiers du seau.
  */
 import { readShowForm, type AdminShow } from "@parabole/cms";
-import type { PlaceResponse, Screen } from "../../../components/admin/types";
+import type { AttachResponse, EnvoiResponse, PlaceResponse, Screen } from "../../../components/admin/types";
 import Admin from "../../../layouts/Admin.astro";
 import { parisDateTime } from "../../../lib/admin/format";
 import { intentOf, showFormFrom } from "../../../lib/admin/forms";
 import { seeOther } from "../../../lib/admin/paths";
 import { removeImages } from "../../../lib/admin/storage";
-import { json, mediaView, showSheet, wantsJson } from "../../../lib/admin/views";
+import { envoiView, json, mediaView, showSheet, wantsJson } from "../../../lib/admin/views";
+import { removeFiles } from "../../../lib/r2";
 
 export const prerender = false;
 
@@ -33,11 +38,35 @@ if (posted) {
     const fresh = await admin.getShow(show.id);
     return json({ ok: true, image: mediaView(fresh?.cover ?? null), version: placed.version, updated: fresh ? parisDateTime(fresh.updatedAt) : null } satisfies PlaceResponse);
   }
+  const asked = String(data.get("intent") ?? "");
+  if (asked === "approve-audio" || asked === "delete-audio") {
+    if (!show) return json({ ok: false, errors: { form: "Ce show n'est pas encore créé." } }, 400);
+    const file = (await admin.audioFilesOf(show.id)).find((one) => one.id === String(data.get("file") ?? ""));
+    if (!file) return json({ ok: false, errors: { form: "Ce fichier n'existe plus : la fiche a peut-être changé entre-temps." } }, 404);
+    if (asked === "approve-audio") {
+      if (!(await admin.approveAudio(file.id))) return json({ ok: false, errors: { form: "Ce son n'attendait pas d'écoute : il a peut-être déjà été validé." } }, 409);
+      return json({ ok: true, envoi: await envoiView(admin, show.id), message: "Son validé" } satisfies EnvoiResponse);
+    }
+    const key = await admin.deleteAudioFile(file.id);
+    if (!key) return json({ ok: false, errors: { form: "Ce son part vers SoundCloud : il ne s'efface pas pendant l'envoi." } }, 409);
+    await removeFiles([key]);
+    return json({ ok: true, envoi: await envoiView(admin, show.id), message: file.role === "main" ? "Son effacé" : "Morceau effacé" } satisfies EnvoiResponse);
+  }
+  if (asked === "attach") {
+    if (!show) return json({ ok: false, errors: { form: "Ce show n'est pas encore créé." } }, 400);
+    const done = await admin.attachSubmission(show.id, String(data.get("to") ?? ""));
+    if (!done.ok) return json(done, 422);
+    await removeImages(await admin.releaseMedia([done.previousCover]));
+    return json({ ok: true, redirect: `/admin/shows/${done.id}`, message: "Envoi rattaché à son créneau" } satisfies AttachResponse);
+  }
   const intent = intentOf(data);
   if (intent === "delete") {
     if (!show) return json({ ok: false, errors: { form: "Ce show n'est pas encore créé." } }, 400);
+    // Les fichiers son partent avec le show (la base les efface avec lui) : leurs clés d'abord, pour vider le seau.
+    const keys = await admin.audioKeysOf([show.id]);
     const removed = await admin.deleteShow(show.id);
     await removeImages(await admin.releaseMedia([removed?.coverId]));
+    if (removed) await removeFiles(keys);
     return json({ ok: true, redirect: "/admin/shows", message: `« ${removed?.title ?? show.title} » supprimé` });
   }
   // Publier, ou enregistrer un show déjà publié : il lui faut une date de diffusion.

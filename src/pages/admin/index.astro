@@ -3,13 +3,15 @@
  * L'accueil de l'admin : les prochaines diffusions, ce qui reste à compléter (chaque nombre mène à la liste filtrée),
  * les brouillons à reprendre, les chiffres des rubriques, et l'import de la programmation Radio Cult (cms/README.md,
  * 9.4) : son dernier passage, ce qu'il reste à relire, et « Importer maintenant » (POST, intent=radiocult), qui lance
- * l'import au nom de la personne connectée. Les autres blocs prévus (prochains événements, images sans texte
- * alternatif : 9.2) viendront avec leurs écrans. Comme chaque écran de l'admin, il est servi en HTML au premier
+ * l'import au nom de la personne connectée, puis rattache à leur créneau les envois des résidents qui n'en ont qu'un
+ * possible (9.12). Un admin y règle aussi le calendrier des groupes (intent=cycle). Les autres blocs prévus (prochains
+ * événements, images sans texte alternatif : 9.2) viendront avec leurs écrans. Comme chaque écran de l'admin, il est servi en HTML au premier
  * affichage et en JSON quand l'application navigue (src/components/admin/router.tsx).
  */
-import type { ImportResponse, Screen } from "../../components/admin/types";
+import type { CycleResponse, ImportResponse, Screen } from "../../components/admin/types";
 import Admin from "../../layouts/Admin.astro";
 import { importSummary, logImport, readProgramme } from "../../lib/admin/imports";
+import { removeImages } from "../../lib/admin/storage";
 import { dashboardData, json, wantsJson } from "../../lib/admin/views";
 
 export const prerender = false;
@@ -18,11 +20,28 @@ const admin = Astro.locals.admin!;
 
 if (Astro.request.method === "POST") {
   const data = await Astro.request.formData();
+  if (data.get("intent") === "cycle") {
+    const saved = await admin.saveCycle({
+      group1Start: String(data.get("group1Start") ?? ""),
+      blockDays: Number(data.get("blockDays")),
+      deadlineDays: Number(data.get("deadlineDays")),
+    });
+    if (!saved.ok) return json(saved, 422);
+    return json({ ok: true, message: "Calendrier des groupes enregistré", data: await dashboardData(admin) } satisfies CycleResponse);
+  }
   if (data.get("intent") !== "radiocult") return json({ ok: false, errors: { form: "Action inconnue." } }, 400);
   try {
     const result = await admin.importRadioCult(await readProgramme());
     logImport(result, Astro.locals.member!.name);
-    return json({ ok: result.ok, message: importSummary(result), data: await dashboardData(admin) } satisfies ImportResponse, result.ok ? 200 : 502);
+    // Les envois qui attendaient leur créneau, et n'en ont plus qu'un possible, s'y rattachent.
+    let attached = 0;
+    if (result.ok) {
+      const done = await admin.rattacherSeul();
+      await removeImages(await admin.releaseMedia(done.previousCovers));
+      attached = done.attached.length;
+    }
+    const message = importSummary(result) + (attached ? ` ${attached > 1 ? `${attached} envois rattachés` : "Un envoi rattaché"} à leur créneau.` : "");
+    return json({ ok: result.ok, message, data: await dashboardData(admin) } satisfies ImportResponse, result.ok ? 200 : 502);
   } catch (failure) {
     console.error("admin : l'import Radio Cult a échoué", failure);
     return json({ ok: false, errors: { form: "L'import n'a pas pu écrire dans la base. Rien n'a changé ; réessaie dans un instant." } } satisfies ImportResponse, 500);
