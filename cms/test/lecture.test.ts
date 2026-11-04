@@ -56,7 +56,7 @@ describe("liste des shows", () => {
     expect(slugs((await cms.listShows({ energy: { min: 4 } })).items)).toEqual(["exemple-carte-blanche", "exemple-dimanche-house-a-la-chapelle", "exemple-techno-de-minuit"]);
     expect(slugs((await cms.listShows({ energy: { max: 2 } })).items)).toEqual(["exemple-matin-calme", "exemple-jazz-du-marche-dejean"]);
     // Toute l'échelle : aucun filtre, les shows sans mood compris.
-    expect((await cms.listShows({ energy: { min: 1, max: 5 } })).total).toBe(8);
+    expect((await cms.listShows({ energy: { min: 1, max: 4 } })).total).toBe(8);
     expect((await cms.listShows({ energy: { min: 4, max: 2 } })).total).toBe(0);
     expect((await cms.listShows({ energy: { min: 2.5 } })).total).toBe(0);
   });
@@ -70,7 +70,7 @@ describe("liste des shows", () => {
   it("combine les filtres", async () => {
     const { items } = await cms.listShows({ type: "dj_set", tags: ["house-techno", "club"] });
     expect(slugs(items)).toEqual(["exemple-carte-blanche"]);
-    expect(slugs((await cms.listShows({ type: "dj_set", tags: ["techno"], energy: { min: 5 } })).items)).toEqual(["exemple-techno-de-minuit"]);
+    expect(slugs((await cms.listShows({ type: "dj_set", tags: ["techno"], energy: { min: 4 } })).items)).toEqual(["exemple-carte-blanche", "exemple-techno-de-minuit"]);
     expect((await cms.listShows({ type: "podcast", tags: ["techno"] })).total).toBe(0);
   });
 
@@ -100,7 +100,7 @@ describe("liste des shows", () => {
       { slug: "detroit-techno", name: "Detroit techno" },
       { slug: "techno", name: "Techno" },
     ]);
-    expect(techno.energy).toBe(5);
+    expect(techno.energy).toBe(4);
     expect(techno.cover?.url).toBe(`${MEDIA_BASE}/exemples/pochette-techno-de-minuit.webp`);
     // L'invitée en brouillon n'apparaît pas sur un show publié.
     const carte = items.find((item) => item.slug === "exemple-carte-blanche")!;
@@ -122,7 +122,7 @@ describe("mois des shows", () => {
       { month: "2026-05", count: 3 },
     ]);
     expect(await cms.listShowMonths({ type: "podcast", period: "past", now: NOW })).toEqual([{ month: "2026-05", count: 2 }]);
-    expect(await cms.listShowMonths({ tags: ["house-techno"], energy: { min: 5 }, period: "past", now: NOW })).toEqual([{ month: "2026-06", count: 1 }]);
+    expect(await cms.listShowMonths({ tags: ["house-techno"], energy: { min: 4 }, period: "past", now: NOW })).toEqual([{ month: "2026-06", count: 3 }]);
     expect(await cms.listShowMonths({ period: "upcoming", now: NOW })).toEqual([{ month: "2026-06", count: 1 }]);
   });
 

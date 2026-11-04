@@ -1,13 +1,13 @@
 /**
  * La fiche d'un artiste (cms/README.md, 9.2) : la barre de la fiche en haut (sheet.tsx), puis le nom en grand, le
- * rôle, ses étiquettes (une ligne par filtre des artistes : Activité — podcast, playlist, DJ), la bio et les liens
- * (dans l'ordre) ; à côté, la photo, ses shows et les informations. Même enregistrement que la fiche d'un show, sans
- * quitter l'écran. La photo, elle, se met en place dès son envoi (ImageField).
+ * rôle, ses étiquettes (une ligne par filtre des artistes : Activité — podcast, playlist, DJ), la bio, les liens (dans
+ * l'ordre) et ses émissions ; à côté, la photo et les informations (le lien de sa page, sa fiche Radio Cult). Même
+ * enregistrement que la fiche d'une émission, sans quitter l'écran. La photo, elle, se met en place dès son envoi (ImageField).
  */
 import { LABELS } from "@parabole/cms/labels";
 import type { ArtistForm, FieldErrors } from "@parabole/cms";
 import { BookmarkIcon, PersonIcon } from "@radix-ui/react-icons";
-import { Badge, DataList, Flex, SegmentedControl, Select, Text, TextField } from "@radix-ui/themes";
+import { Badge, DataList, Flex, SegmentedControl, Select, Text } from "@radix-ui/themes";
 import { useEffect, useMemo, useState } from "react";
 import { FacetPicker } from "./FacetPicker";
 import { ImageField, placeImage } from "./ImageField";
@@ -15,7 +15,7 @@ import { StatusBadge, TypeTile } from "./marks";
 import { forgetRecent, rememberRecent } from "./recents";
 import { useBlocker, useRouter } from "./router";
 import { filledRow, newRow, RowsEditor, type Row } from "./RowsEditor";
-import { Field, filledPlaces, FormError, mergeSaved, placeErrors, postForm, Property, Section, SheetBar, SidePanel, TitleInput, useSheetKeys, type Intent, type SaveIntent } from "./sheet";
+import { Field, filledPlaces, FormError, mergeSaved, placeErrors, postForm, Property, Section, SheetBar, SidePanel, SlugField, TitleInput, useSheetKeys, type Intent, type SaveIntent } from "./sheet";
 import { counted } from "./text";
 import { TextEditor } from "./TextEditor";
 import { useNotify } from "./toast";
@@ -126,7 +126,7 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
   useBlocker(dirty, () => save("save"));
   useSheetKeys(dirty, () => void save("save"));
   const name = form.name.trim() || (sheet.id ? "Sans nom" : "Nouvel artiste");
-  const linked = [sheet.shows.length && counted(sheet.shows.length, "show"), sheet.events && counted(sheet.events, "événement")].filter(Boolean).join(" et ");
+  const linked = [sheet.shows.length && counted(sheet.shows.length, "émission"), sheet.events && counted(sheet.events, "événement")].filter(Boolean).join(" et ");
 
   return (
     <form
@@ -138,7 +138,7 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
       }}
     >
       <SheetBar
-        back={{ label: "Artistes", href: "/admin/artistes" }}
+        back={{ label: "Résidents", href: "/admin/artistes" }}
         name={name}
         status={sheet.status}
         isNew={!sheet.id}
@@ -156,7 +156,7 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
           <div className="admin-sheet-main">
             <TitleInput id="name" label="Nom de l'artiste" value={form.name} onChange={(value) => set("name", value)} placeholder="Nom de l'artiste" error={errors.name} />
             <div className="admin-props">
-              <Property label="Rôle" icon={<PersonIcon />} hint={form.role === "resident" ? "Résident : une émission régulière sur Parabole." : "Invité : de passage, le temps d'un show ou d'un événement."} error={errors.role}>
+              <Property label="Rôle" icon={<PersonIcon />} hint={form.role === "resident" ? "Résident : une émission régulière sur Parabole." : "Invité : de passage, le temps d'une émission ou d'un événement."} error={errors.role}>
                 <SegmentedControl.Root value={form.role} onValueChange={(value) => set("role", value)} aria-label="Rôle" size="2">
                   {Object.entries(LABELS.artistRole).map(([value, label]) => (
                     <SegmentedControl.Item key={value} value={value}>
@@ -178,7 +178,7 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
               ))}
             </div>
             <Section title="Bio">
-              <TextEditor id="bio" label="Bio" value={form.bio} onChange={(value) => set("bio", value)} error={errors.bio} placeholder="Qui est-ce, ce qu'on entend dans ses shows, d'où ça vient…" />
+              <TextEditor id="bio" label="Bio" value={form.bio} onChange={(value) => set("bio", value)} error={errors.bio} placeholder="Qui est-ce, ce qu'on entend dans ses émissions, d'où ça vient…" />
             </Section>
             <RowsEditor
               title="Liens"
@@ -193,25 +193,10 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
               errors={errors}
               onChange={(links) => set("links", links)}
             />
-          </div>
-
-          <aside className="admin-sheet-side" aria-label="Photo, shows et informations">
-            <SidePanel title="Photo">
-              <ImageField
-                image={sheet.photo}
-                kind="photo"
-                shape="square"
-                suggestion={`Portrait de ${form.name.trim() || "l'artiste"}`}
-                uploads={sheet.uploads}
-                blocked={sheet.id ? undefined : "Enregistre d'abord la fiche : sa photo s'ajoute ensuite."}
-                onPlace={placePhoto}
-                onDescribed={(photo) => setSheet((current) => ({ ...current, photo }))}
-              />
-            </SidePanel>
             {sheet.id && (
-              <SidePanel title="Ses shows" aside={sheet.shows.length ? <Badge color="gray" radius="full">{sheet.shows.length}</Badge> : undefined}>
+              <Section title="Ses émissions" count={sheet.shows.length ? <Badge color="gray" radius="full">{sheet.shows.length}</Badge> : undefined}>
                 {sheet.shows.length ? (
-                  <div className="admin-mini-list">
+                  <div className="admin-mini-list admin-mini-grid">
                     {sheet.shows.map((show) => (
                       <a key={show.id} className="admin-mini-item" href={`/admin/shows/${show.id}`} data-astro-prefetch="false">
                         <TypeTile type={show.type} size={28} />
@@ -228,24 +213,29 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
                     ))}
                   </div>
                 ) : (
-                  <Text size="2" color="gray">
-                    Aucun show pour l'instant. On relie un artiste à un show depuis la fiche du show.
+                  <Text as="p" size="2" color="gray">
+                    Aucune émission pour l'instant. Elles arrivent avec l'import de Radio Cult (si l'artiste y est relié, ci-contre), ou depuis la fiche d'une émission.
                   </Text>
                 )}
-              </SidePanel>
+              </Section>
             )}
+          </div>
+
+          <aside className="admin-sheet-side" aria-label="Photo et informations">
+            <SidePanel title="Photo">
+              <ImageField
+                image={sheet.photo}
+                kind="photo"
+                shape="square"
+                suggestion={`Portrait de ${form.name.trim() || "l'artiste"}`}
+                uploads={sheet.uploads}
+                blocked={sheet.id ? undefined : "Enregistre d'abord la fiche : sa photo s'ajoute ensuite."}
+                onPlace={placePhoto}
+                onDescribed={(photo) => setSheet((current) => ({ ...current, photo }))}
+              />
+            </SidePanel>
             <SidePanel title="Informations">
-              <Field label="Adresse sur le site" htmlFor="slug" optional hint="Minuscules, chiffres et tirets. Vide, elle est tirée du nom." error={errors.slug}>
-                <TextField.Root
-                  id="slug"
-                  value={form.slug}
-                  onChange={(e) => set("slug", e.target.value)}
-                  color={errors.slug ? "red" : undefined}
-                  autoComplete="off"
-                  autoCapitalize="off"
-                  className="admin-mono"
-                />
-              </Field>
+              <SlugField base="/residents" value={form.slug} saved={sheet.form.slug} published={sheet.status === "published"} from="du nom" error={errors.slug} onChange={(value) => set("slug", value)} />
               <RadioCultField
                 value={form.radiocultArtistId ?? ""}
                 choices={sheet.radiocult.choices}
@@ -296,10 +286,11 @@ function RadioCultField({
   onChange(value: string): void;
 }) {
   const label = (choice: { id: string; name: string }) => choice.name || `Sans nom (${choice.id.slice(0, 8)})`;
-  const hint = "Ses créneaux dans la grille de Radio Cult deviennent ses shows, à chaque import.";
+  const hint =
+    "Sa fiche chez Radio Cult, la station du direct. Reliée, l'import de chaque nuit fait de ses créneaux de la grille des émissions sur cette fiche, en brouillon à compléter.";
   if (!choices)
     return (
-      <Field label="Artiste Radio Cult" optional hint={hint} error={error}>
+      <Field label="Fiche Radio Cult" optional hint={hint} error={error}>
         <Text size="2" color="gray">
           {value ? "Relié à un artiste de Radio Cult." : "Relié à aucun artiste."} La liste de Radio Cult ne répond pas : le lien reste tel quel.
         </Text>
@@ -308,7 +299,7 @@ function RadioCultField({
   // Un artiste relié puis retiré de Radio Cult reste visible, pour qu'on voie le lien à défaire.
   const listed = value && !choices.some((choice) => choice.id === value) ? [...choices, { id: value, name: "" }] : choices;
   return (
-    <Field label="Artiste Radio Cult" htmlFor="radiocult" optional hint={hint} error={error}>
+    <Field label="Fiche Radio Cult" htmlFor="radiocult" optional hint={hint} error={error}>
       <Select.Root value={value || NO_RADIOCULT} onValueChange={(next) => onChange(next === NO_RADIOCULT ? "" : next)}>
         <Select.Trigger id="radiocult" color={error ? "red" : undefined} />
         <Select.Content position="popper">

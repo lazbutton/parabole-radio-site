@@ -162,10 +162,10 @@
 .panneau-puce .regie-nombre { min-width: 2ch; font-size: 9px; text-align: right; }
 .panneau-note { padding: 0 14px 14px; color: rgba(255,255,255,0.7); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; line-height: 1.4; text-align: right; text-transform: none; }
 
-/* Le mood : de calme à énergique, une rampe de segments allumés jusqu'à --n, comme le volume */
+/* Le mood : de calme à énergique, une rampe de quatre crans allumés jusqu'à --n, comme le volume */
 .mood-barres {
   --n: 0; display: inline-block; flex-shrink: 0; width: 38px; height: 12px;
-  background: linear-gradient(90deg, currentColor calc(var(--n) * 20%), rgba(255,255,255,0.28) calc(var(--n) * 20%));
+  background: linear-gradient(90deg, currentColor calc(var(--n) * 25%), rgba(255,255,255,0.28) calc(var(--n) * 25%));
   clip-path: polygon(0 100%, 100% 0, 100% 100%);
   -webkit-mask: repeating-linear-gradient(90deg, #000 0 6px, transparent 6px 8px);
           mask: repeating-linear-gradient(90deg, #000 0 6px, transparent 6px 8px);

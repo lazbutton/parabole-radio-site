@@ -6,7 +6,7 @@ import type { Tx } from "../access.ts";
 import { outer } from "../read/common.ts";
 import { artist, member, show, tag, tagGroup, tagMember, type ContentStatus, type ShowType, type TeamRole } from "../schema.ts";
 import { lacksBio, lacksPhoto } from "./artists.ts";
-import { artistNames, lacksSound, lacksTracklist } from "./shows.ts";
+import { artistNames, lacksCover, lacksDescription, lacksSound, lacksTags, lacksTracklist } from "./shows.ts";
 
 export type TeamMember = { userId: string; email: string; name: string; role: TeamRole };
 
@@ -27,11 +27,12 @@ export type Overview = {
   /** Les prochains shows à diffuser, du plus proche au plus lointain, brouillons compris. */
   upcoming: { id: string; title: string; type: ShowType; status: ContentStatus; broadcastAt: Date; artists: string[] }[];
   /**
-   * Ce qui reste à compléter : shows déjà diffusés sans tracklist ou sans son, artistes sans photo ou sans bio,
-   * étiquettes à classer (sans place dans les filtres). Les mêmes conditions que les listes où l'on arrive : le nombre
-   * annoncé est celui de la liste.
+   * Ce qui reste à compléter : émissions déjà diffusées sans tracklist (sauf les podcasts), sans son, sans pochette,
+   * sans description ou sans étiquette (`untagged`), artistes sans photo ou sans bio, étiquettes à classer (`tags`,
+   * sans place dans les filtres). Les mêmes conditions que les listes où l'on arrive : le nombre annoncé est celui de
+   * la liste.
    */
-  missing: { tracklist: number; sound: number; photo: number; bio: number; tags: number };
+  missing: { tracklist: number; sound: number; cover: number; description: number; untagged: number; photo: number; bio: number; tags: number };
 };
 
 const counts = (status: typeof show.status | typeof artist.status) => ({
@@ -46,6 +47,9 @@ export async function overview(tx: Tx, { drafts = 8, upcoming = 5, now = new Dat
       ...counts(show.status),
       tracklist: sql<number>`count(*) filter (where ${lacksTracklist(now)})`.mapWith(Number),
       sound: sql<number>`count(*) filter (where ${lacksSound(now)})`.mapWith(Number),
+      cover: sql<number>`count(*) filter (where ${lacksCover(now)})`.mapWith(Number),
+      description: sql<number>`count(*) filter (where ${lacksDescription(now)})`.mapWith(Number),
+      untagged: sql<number>`count(*) filter (where ${lacksTags(now)})`.mapWith(Number),
     })
     .from(show);
   const [artists] = await tx
@@ -75,6 +79,15 @@ export async function overview(tx: Tx, { drafts = 8, upcoming = 5, now = new Dat
       .slice(0, drafts),
     // La condition de la requête écarte les shows sans date.
     upcoming: next.map((row) => ({ ...row, broadcastAt: row.broadcastAt as Date })),
-    missing: { tracklist: shows?.tracklist ?? 0, sound: shows?.sound ?? 0, photo: artists?.photo ?? 0, bio: artists?.bio ?? 0, tags: unplaced?.n ?? 0 },
+    missing: {
+      tracklist: shows?.tracklist ?? 0,
+      sound: shows?.sound ?? 0,
+      cover: shows?.cover ?? 0,
+      description: shows?.description ?? 0,
+      untagged: shows?.untagged ?? 0,
+      photo: artists?.photo ?? 0,
+      bio: artists?.bio ?? 0,
+      tags: unplaced?.n ?? 0,
+    },
   };
 }

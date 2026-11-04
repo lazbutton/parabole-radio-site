@@ -1,13 +1,15 @@
 /**
- * Les shows : tous, brouillons compris, rangés par mois (« À venir » en tête), avec la recherche et les filtres de
- * cms/README.md (9.2) en pastilles — statut, type, étiquette, artiste, ce qui manque — et l'ordre. Tout s'applique
- * sans recharger la page, et vit dans l'adresse : une liste filtrée se garde ou se partage. Chaque ligne dit d'un coup
- * d'œil ce qui manque à un show déjà diffusé : sa tracklist, son son.
+ * Les émissions : toutes, brouillons compris, rangées par mois (« À venir » en tête : les créneaux de Radio Cult des
+ * deux semaines qui viennent, importés en brouillons à préparer), avec la recherche et les filtres de cms/README.md
+ * (9.2) en pastilles — type, étiquette, artiste, puis statut et ce qui manque, côte à côte — et l'ordre. Tout
+ * s'applique sans recharger la page, et vit dans l'adresse : une liste filtrée se garde ou se partage. La colonne
+ * « À compléter » dit d'un coup d'œil ce qui manque à une émission déjà diffusée : tracklist (sauf podcast), son,
+ * pochette, description, étiquettes.
  */
 import { LABELS } from "@parabole/cms/labels";
-import { ChevronLeftIcon, ChevronRightIcon, DiscIcon, ListBulletIcon, PlusIcon, SpeakerLoudIcon } from "@radix-ui/react-icons";
+import { BookmarkIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon, DiscIcon, ImageIcon, ListBulletIcon, PlusIcon, SpeakerLoudIcon, TextAlignLeftIcon } from "@radix-ui/react-icons";
 import { Badge, Button, Card, Flex, Link, Select, Table, Text, Tooltip } from "@radix-ui/themes";
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import { PageHeader } from "./AdminShell";
 import { FilterPill, listHref, SearchField, TagFilterPill, useListFilters } from "./filters";
 import { StatusBadge, TypeTile } from "./marks";
@@ -17,8 +19,14 @@ import type { ShowFilters, ShowRow, ShowsListData } from "./types";
 
 const hrefOf = (filters: ShowFilters, page?: number) => listHref("/admin/shows", filters, { page, defaults: { order: "recent" } });
 
-/** Ce qui manque à un show déjà diffusé : les choix du filtre, et leurs libellés. */
-const MISSING: Record<string, string> = { tracklist: "Sans tracklist", sound: "Sans son" };
+/** Ce qui manque à une émission déjà diffusée : les choix du filtre, et leurs libellés. */
+const MISSING: Record<string, string> = {
+  tracklist: "Sans tracklist",
+  sound: "Sans son",
+  cover: "Sans pochette",
+  description: "Sans description",
+  tags: "Sans étiquette",
+};
 
 /** Le groupe d'une ligne : « À venir », le mois de diffusion, ou « Sans date ». */
 const groupOf = (row: ShowRow) => (row.upcoming ? "À venir" : row.month || "Sans date");
@@ -43,12 +51,12 @@ export function ShowsList({ rows, total, page, pages, filters, artists, tags }: 
   return (
     <div className="admin-page">
       <PageHeader
-        title="Shows"
-        description={`${counted(total, "show")}${filtered ? " pour ces filtres" : ""}`}
+        title="Émissions"
+        description={`${counted(total, "émission")}${filtered ? " pour ces filtres" : ""}`}
         actions={
           <Button asChild>
             <a href="/admin/shows/nouveau" data-astro-prefetch="false">
-              <PlusIcon /> Nouveau show
+              <PlusIcon /> Nouvelle émission
             </a>
           </Button>
         }
@@ -56,10 +64,6 @@ export function ShowsList({ rows, total, page, pages, filters, artists, tags }: 
       <div className="admin-toolbar">
         <SearchField query={query} placeholder="Rechercher un titre, un artiste, un morceau…" />
         <div className="admin-pills">
-          <FilterPill label="Statut" allLabel="Tous les statuts" value={shown.status} valueLabel={shown.status === "draft" ? "Brouillons" : "Publiés"} onChange={(status) => set({ status })}>
-            <Select.Item value="published">Publiés</Select.Item>
-            <Select.Item value="draft">Brouillons</Select.Item>
-          </FilterPill>
           <FilterPill label="Type" allLabel="Tous les types" value={shown.type} valueLabel={LABELS.showType[shown.type as keyof typeof LABELS.showType]} onChange={(type) => set({ type })}>
             {Object.entries(LABELS.showType).map(([value, label]) => (
               <Select.Item key={value} value={value}>
@@ -75,9 +79,19 @@ export function ShowsList({ rows, total, page, pages, filters, artists, tags }: 
               </Select.Item>
             ))}
           </FilterPill>
-          <FilterPill label="À compléter" allLabel="Tous les shows" value={shown.missing} valueLabel={MISSING[shown.missing]} onChange={(missing) => set({ missing })}>
-            <Select.Item value="tracklist">Diffusés sans tracklist</Select.Item>
-            <Select.Item value="sound">Diffusés sans son</Select.Item>
+          <FilterPill label="Statut" allLabel="Tous les statuts" value={shown.status} valueLabel={shown.status === "draft" ? "Brouillons" : "Publiées"} onChange={(status) => set({ status })}>
+            <Select.Item value="published">Publiées</Select.Item>
+            <Select.Item value="draft">Brouillons</Select.Item>
+          </FilterPill>
+          <FilterPill label="À compléter" allLabel="Toutes les émissions" value={shown.missing} valueLabel={MISSING[shown.missing]} onChange={(missing) => set({ missing })}>
+            <Select.Group>
+              <Select.Label>Déjà diffusées</Select.Label>
+              <Select.Item value="tracklist">Sans tracklist</Select.Item>
+              <Select.Item value="sound">Sans son</Select.Item>
+              <Select.Item value="cover">Sans pochette</Select.Item>
+              <Select.Item value="description">Sans description</Select.Item>
+              <Select.Item value="tags">Sans étiquette</Select.Item>
+            </Select.Group>
           </FilterPill>
           {filtered && (
             <Button variant="ghost" color="gray" size="2" asChild>
@@ -103,9 +117,9 @@ export function ShowsList({ rows, total, page, pages, filters, artists, tags }: 
           <Table.Root variant="ghost" size="2" className="admin-table">
             <Table.Header>
               <Table.Row>
-                <Table.ColumnHeaderCell>Show</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Émission</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell className="admin-hide-mobile">Diffusion</Table.ColumnHeaderCell>
-                <Table.ColumnHeaderCell className="admin-hide-tablet">Contenu</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell className="admin-hide-tablet">À compléter</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell justify="end">Statut</Table.ColumnHeaderCell>
               </Table.Row>
             </Table.Header>
@@ -138,10 +152,10 @@ export function ShowsList({ rows, total, page, pages, filters, artists, tags }: 
                 <DiscIcon width="22" height="22" />
               </span>
               <Text size="3" weight="medium">
-                {filtered ? "Aucun show pour ces filtres" : "Pas encore de show"}
+                {filtered ? "Aucune émission pour ces filtres" : "Pas encore d'émission"}
               </Text>
               <Text size="2" color="gray" align="center">
-                {filtered ? "Essaie une autre recherche, ou retire un filtre." : "Un show, c'est une émission : son titre, sa date, ses artistes et sa tracklist."}
+                {filtered ? "Essaie une autre recherche, ou retire un filtre." : "Une émission : son titre, sa date, ses artistes et sa tracklist."}
               </Text>
               {filtered ? (
                 <Button variant="soft" asChild>
@@ -180,11 +194,9 @@ export function ShowsList({ rows, total, page, pages, filters, artists, tags }: 
   );
 }
 
-/** Une ligne : la vignette du type, le titre et les artistes, la diffusion, ce que contient le show, son statut. */
+/** Une ligne : la vignette du type, le titre et les artistes, la diffusion, ce qui reste à compléter, son statut. */
 function ShowLine({ row }: { row: ShowRow }) {
   const href = `/admin/shows/${row.id}`;
-  // Ce qui manque ne compte que pour un show déjà diffusé (ou sans date) : un show à venir n'a pas encore de son.
-  const due = !row.upcoming && Boolean(row.day);
   return (
     <Table.Row className="admin-row" data-href={href}>
       <Table.RowHeaderCell>
@@ -222,29 +234,49 @@ function ShowLine({ row }: { row: ShowRow }) {
         )}
       </Table.Cell>
       <Table.Cell className="admin-hide-tablet">
-        <Flex align="center" gap="3">
-          <Tooltip content={row.tracks ? counted(row.tracks, "morceau", "morceaux") : "Pas de tracklist"}>
-            <span className="admin-fact" data-off={!row.tracks || undefined} data-missing={(due && !row.tracks) || undefined}>
-              <ListBulletIcon aria-hidden /> {row.tracks || "—"}
-              <span className="admin-sr-only">{row.tracks ? counted(row.tracks, "morceau", "morceaux") : "pas de tracklist"}</span>
-            </span>
-          </Tooltip>
-          <Tooltip content={row.hasSound ? "Piste SoundCloud renseignée" : "Pas de son"}>
-            <span className="admin-fact" data-off={!row.hasSound || undefined} data-missing={(due && !row.hasSound) || undefined}>
-              <SpeakerLoudIcon aria-hidden />
-              <span className="admin-sr-only">{row.hasSound ? "son renseigné" : "pas de son"}</span>
-            </span>
-          </Tooltip>
-          {row.fromRadioCult && (
-            <Badge size="1" color="gray" variant="outline">
-              Radio Cult
-            </Badge>
-          )}
-        </Flex>
+        <ToComplete row={row} />
       </Table.Cell>
       <Table.Cell justify="end">
-        <StatusBadge status={row.status} />
+        <StatusBadge status={row.status} feminine />
       </Table.Cell>
     </Table.Row>
+  );
+}
+
+/**
+ * Ce qui manque à une émission, en pastilles : orange une fois diffusée (le compte de l'accueil), grises avant. La
+ * tracklist et le son n'arrivent qu'après la diffusion ; un podcast n'a pas forcément de tracklist.
+ */
+function ToComplete({ row }: { row: ShowRow }) {
+  const due = !row.upcoming && Boolean(row.day);
+  const lacking: { key: string; label: string; icon: ReactNode }[] = [
+    ...(due && row.type !== "podcast" && !row.tracks ? [{ key: "tracklist", label: "Tracklist", icon: <ListBulletIcon /> }] : []),
+    ...(due && !row.hasSound ? [{ key: "sound", label: "Son", icon: <SpeakerLoudIcon /> }] : []),
+    ...(!row.hasCover ? [{ key: "cover", label: "Pochette", icon: <ImageIcon /> }] : []),
+    ...(!row.hasDescription ? [{ key: "description", label: "Description", icon: <TextAlignLeftIcon /> }] : []),
+    ...(!row.tags ? [{ key: "tags", label: "Étiquettes", icon: <BookmarkIcon /> }] : []),
+  ];
+  if (!lacking.length)
+    return (
+      <Text size="1" color="green" className="admin-complete">
+        <CheckIcon aria-hidden /> Complète
+      </Text>
+    );
+  return (
+    <Flex gap="1" wrap="wrap" aria-label={`À compléter : ${lacking.map((item) => item.label.toLowerCase()).join(", ")}`}>
+      {lacking.map((item) => (
+        <Badge key={item.key} size="1" variant="soft" color={due ? "amber" : "gray"} radius="full">
+          {item.icon}
+          {item.label}
+        </Badge>
+      ))}
+      {row.fromRadioCult && (
+        <Tooltip content="Créée par l'import de la programmation Radio Cult">
+          <Badge size="1" color="gray" variant="outline">
+            Radio Cult
+          </Badge>
+        </Tooltip>
+      )}
+    </Flex>
   );
 }

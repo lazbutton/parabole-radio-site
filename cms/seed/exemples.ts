@@ -225,7 +225,7 @@ export const EXAMPLE_SHOWS: ExampleShow[] = [
     description: "Un b2b inventé pour l'exemple, techno sombre et rapide.",
     cover: "pochette-techno-de-minuit",
     soundcloud: "1000000002",
-    energy: 5,
+    energy: 4,
     artists: ["bastien", "yaya"],
     tags: ["techno", "detroit-techno"],
     tracks: [

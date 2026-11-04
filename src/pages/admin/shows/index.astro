@@ -34,7 +34,7 @@ const [result, choices, tags] = await Promise.all([
 ]);
 const screen: Screen = {
   name: "shows",
-  title: "Shows",
+  title: "Émissions",
   data: {
     rows: result.items.map((item) => ({
       id: item.id,
@@ -48,6 +48,9 @@ const screen: Screen = {
       duration: item.durationSeconds ? duration(item.durationSeconds) : "",
       tracks: item.tracks,
       hasSound: item.hasSound,
+      hasCover: item.hasCover,
+      hasDescription: item.hasDescription,
+      tags: item.tags,
       status: item.status,
       fromRadioCult: item.fromRadioCult,
     })),

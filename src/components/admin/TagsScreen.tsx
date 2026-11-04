@@ -7,7 +7,7 @@
  * ajouter, en retirer), contenus, fusion avec une autre, suppression. La recherche trouve une étiquette dans tous les
  * filtres. Chaque action répond par le classement à jour, que le routeur affiche ; changer d'onglet ne recharge rien.
  */
-import { LABELS } from "@parabole/cms/labels";
+import { ENERGY, LABELS } from "@parabole/cms/labels";
 import type { DocumentChanges, FieldErrors, KeptTag } from "@parabole/cms";
 import {
   ArrowDownIcon,
@@ -51,10 +51,11 @@ import { Field, postForm } from "./sheet";
 import { counted, normalize } from "./text";
 import { useNotify } from "./toast";
 import { TokenPicker } from "./TokenPicker";
+import { isRubrique, MOOD_TAB, RUBRIQUES, facetsOf, rubriqueOf, SCOPE_OF_RUBRIQUE, showFacetGroups } from "./rubriques";
 import { UNPLACED, type DocumentResponse, type FacetScope, type FacetView, type TagRow, type TagsData, type TagsResponse } from "./types";
 
 const HREF = "/admin/etiquettes";
-const TITLE = "Étiquettes";
+const TITLE = "Filtres";
 const hrefOf = (current: string) => `${HREF}?filtre=${encodeURIComponent(current)}`;
 
 /** Une place d'une étiquette : un filtre, et le groupe où elle est rangée (null : c'est un groupe du filtre). */
@@ -63,9 +64,9 @@ type Act = (values: Record<string, string | string[]>, options?: { quiet?: boole
 
 const firstError = (errors: FieldErrors) => errors.names ?? errors.name ?? errors.slug ?? errors.into ?? errors.form ?? Object.values(errors)[0] ?? "Le serveur a refusé.";
 
-/** Ce que porte une étiquette dans un filtre de ce contenu : « 3 shows », « 1 artiste ». */
+/** Ce que porte une étiquette dans un filtre de ce contenu : « 3 émissions », « 1 artiste ». */
 const uses = (tag: TagRow, scope: FacetScope) => (scope === "show" ? tag.shows : scope === "artist" ? tag.artists : tag.events);
-const USE_WORDS: Record<FacetScope, [string, string]> = { show: ["show", "shows"], artist: ["artiste", "artistes"], event: ["événement", "événements"] };
+const USE_WORDS: Record<FacetScope, [string, string]> = { show: ["émission", "émissions"], artist: ["artiste", "artistes"], event: ["événement", "événements"] };
 const usesText = (count: number, scope: FacetScope) => counted(count, ...USE_WORDS[scope]);
 /** Tout ce que porte une étiquette, quel que soit le filtre. */
 const allUses = (tag: TagRow) => tag.shows + tag.artists + tag.events;
@@ -76,7 +77,7 @@ function usesSummary(tag: TagRow): string {
 
 const PLURALS = { dj_set: "DJ sets", playlist: "playlists", podcast: "podcasts" } satisfies Record<FacetView["showTypes"][number], string>;
 
-/** « Shows · DJ sets et playlists », « Artistes », « Événements ». */
+/** « Émissions · DJ sets et playlists », « Résidents », « Événements ». */
 function scopeText(facet: FacetView): string {
   const types = facet.showTypes.map((type) => PLURALS[type]);
   if (facet.scope !== "show" || !types.length) return LABELS.facetScope[facet.scope];
@@ -124,6 +125,7 @@ export function TagsScreen({ facets, tags, current }: TagsData) {
   const act: Act = async (values, { quiet = false } = {}) => {
     const body = new FormData();
     body.set("filtre", current);
+    body.set("rubrique", rubriqueOf(data));
     for (const [name, value] of Object.entries(values)) for (const one of Array.isArray(value) ? value : [value]) body.append(name, one);
     const result = await postForm<TagsResponse>(HREF, body);
     if (result.ok) {
@@ -139,23 +141,49 @@ export function TagsScreen({ facets, tags, current }: TagsData) {
     scrollTo({ top: 0 });
   };
 
-  const placedCount = tags.length - unplaced.length;
   const searching = query.trim().length > 0;
   const context = { byId, places, act, open: setOpenTag, ask: setConfirm };
+  const rubrique = rubriqueOf(data);
+  const heading = RUBRIQUES.find((one) => one.slug === rubrique)!;
+  const own = facetsOf(facets, rubrique);
+  const placedIn = new Set(own.flatMap((one) => one.groups.flatMap((group) => [group.tagId, ...group.members])));
+  const description =
+    rubrique === UNPLACED
+      ? unplaced.length
+        ? `${counted(unplaced.length, "étiquette")} sans place dans les filtres`
+        : "Tout est rangé"
+      : `${counted(placedIn.size, "étiquette rangée", "étiquettes rangées")} dans ${counted(own.length, "filtre")}${unplaced.length ? ` · ${unplaced.length} à classer` : ""}`;
+  const tab = (slug: string, label: ReactNode, count?: number) => (
+    <TabNav.Link
+      key={slug}
+      href={hrefOf(slug)}
+      active={slug === current}
+      onClick={(event) => {
+        event.preventDefault();
+        select(slug);
+      }}
+    >
+      {label}
+      {count !== undefined && <span className="admin-tab-count">{count}</span>}
+    </TabNav.Link>
+  );
+  const sizeOf = (one: FacetView) => one.groups.reduce((total, group) => total + 1 + group.members.length, 0);
 
   return (
     <div className="admin-page">
       <PageHeader
-        title={TITLE}
-        description={`${counted(placedCount, "étiquette rangée", "étiquettes rangées")} dans ${counted(facets.length, "filtre")}${unplaced.length ? ` · ${unplaced.length} à classer` : ""}`}
+        title={heading.title}
+        description={description}
         actions={
           <>
             <Button variant="soft" color="gray" onClick={() => setImporting(true)}>
               <FileTextIcon /> Importer le document
             </Button>
-            <Button variant="soft" onClick={() => setFacetForm("new")}>
-              <PlusIcon /> Nouveau filtre
-            </Button>
+            {rubrique !== UNPLACED && (
+              <Button variant="soft" onClick={() => setFacetForm("new")}>
+                <PlusIcon /> Nouveau filtre
+              </Button>
+            )}
           </>
         }
       />
@@ -172,7 +200,7 @@ export function TagsScreen({ facets, tags, current }: TagsData) {
               setQuery("");
             }
           }}
-          placeholder="Chercher une étiquette…"
+          placeholder="Chercher une étiquette dans tous les filtres…"
           aria-label="Chercher une étiquette"
           autoComplete="off"
         >
@@ -193,57 +221,52 @@ export function TagsScreen({ facets, tags, current }: TagsData) {
         <SearchResults query={query} tags={tags} {...context} />
       ) : (
         <>
-          <TabNav.Root className="admin-tabs" aria-label="Filtres">
-            {facets.map((one) => (
-              <TabNav.Link
-                key={one.id}
-                href={hrefOf(one.slug)}
-                active={one.slug === current}
-                onClick={(event) => {
-                  event.preventDefault();
-                  select(one.slug);
-                }}
-              >
-                {one.name}
-                <span className="admin-tab-count">{one.groups.reduce((total, group) => total + 1 + group.members.length, 0)}</span>
-              </TabNav.Link>
-            ))}
-            <TabNav.Link
-              href={hrefOf(UNPLACED)}
-              active={current === UNPLACED}
-              onClick={(event) => {
-                event.preventDefault();
-                select(UNPLACED);
-              }}
-            >
-              À classer
-              {unplaced.length > 0 && (
-                <span className="admin-tab-count" data-alert>
-                  {unplaced.length}
-                </span>
-              )}
-            </TabNav.Link>
-          </TabNav.Root>
+          {rubrique === "emissions" ? (
+            // Le schéma : « Podcast » (son thème), puis « Playlist + DJ sets » (genre, géographie, mood).
+            <nav className="admin-subnav" aria-label="Filtres des émissions">
+              {showFacetGroups(own).map((group) => (
+                <div key={group.label} className="admin-subnav-group">
+                  <Text as="div" size="1" weight="medium" color="gray" className="admin-subnav-label">
+                    {group.label}
+                  </Text>
+                  <TabNav.Root className="admin-tabs">
+                    {group.facets.map((one) => tab(one.slug, one.name, sizeOf(one)))}
+                    {group.mood && tab(MOOD_TAB, "Mood")}
+                  </TabNav.Root>
+                </div>
+              ))}
+            </nav>
+          ) : (
+            own.length > 1 && <TabNav.Root className="admin-tabs" aria-label={heading.title}>{own.map((one) => tab(one.slug, one.name, sizeOf(one)))}</TabNav.Root>
+          )}
 
           {facet ? (
             <FacetPanel
               key={facet.id}
               facet={facet}
-              first={facets[0]?.id === facet.id}
-              last={facets.at(-1)?.id === facet.id}
+              first={own[0]?.id === facet.id}
+              last={own.at(-1)?.id === facet.id}
               onEdit={() => setFacetForm(facet)}
               {...context}
             />
+          ) : current === MOOD_TAB ? (
+            <MoodPanel />
           ) : current === UNPLACED ? (
             <UnplacedPanel tags={unplaced} {...context} />
           ) : (
-            <Empty>Pas encore de filtre : crée le premier avec « Nouveau filtre ».</Empty>
+            <Empty>Pas encore de filtre ici : crée le premier avec « Nouveau filtre ».</Empty>
           )}
         </>
       )}
 
       <TagDialog key={openTag ?? ""} tag={openTag ? (byId.get(openTag) ?? null) : null} facets={facets} tags={tags} onClose={() => setOpenTag(null)} {...context} />
-      <FacetDialog key={facetForm === "new" ? "new" : (facetForm?.id ?? "none")} facet={facetForm} onClose={() => setFacetForm(null)} act={act} />
+      <FacetDialog
+        key={facetForm === "new" ? `new-${rubrique}` : (facetForm?.id ?? "none")}
+        facet={facetForm}
+        scope={isRubrique(rubrique) ? SCOPE_OF_RUBRIQUE[rubrique] : "show"}
+        onClose={() => setFacetForm(null)}
+        act={act}
+      />
       <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />
       {importing && <DocumentDialog onClose={() => setImporting(false)} act={act} />}
     </div>
@@ -541,6 +564,42 @@ function AddField({
 // À classer, et la recherche
 // ---------------------------------------------------------------------------------------------------------------
 
+/**
+ * Le mood, rangé avec les filtres des playlists et des DJ sets comme dans le document des filtres : ce n'est pas une
+ * liste d'étiquettes, mais une échelle que chaque fiche règle, et que le site propose dans TRIER PAR.
+ */
+function MoodPanel() {
+  const steps = Array.from({ length: ENERGY.max - ENERGY.min + 1 }, (_, index) => ENERGY.min + index);
+  return (
+    <section className="admin-facet" aria-label="Mood">
+      <div className="admin-facet-head">
+        <Flex direction="column" gap="1" minWidth="0">
+          <Text size="2" weight="medium">
+            {LABELS.facetScope.show} · Playlists et DJ sets
+          </Text>
+          <Text as="p" size="2" color="gray">
+            Le mood n'est pas une liste d'étiquettes : chaque playlist et chaque DJ set le règle sur sa fiche, de {LABELS.energy.low.toLowerCase()} à{" "}
+            {LABELS.energy.high.toLowerCase()}, en {steps.length} crans. Sur le site, il se choisit dans « Trier par › Mood ». Les podcasts n'en ont pas.
+          </Text>
+        </Flex>
+      </div>
+      <Flex align="center" gap="3" wrap="wrap" className="admin-mood-scale" aria-hidden>
+        <Text size="2" color="gray">
+          {LABELS.energy.low}
+        </Text>
+        {steps.map((step) => (
+          <span key={step} className="admin-mood-step">
+            {step}
+          </span>
+        ))}
+        <Text size="2" color="gray">
+          {LABELS.energy.high}
+        </Text>
+      </Flex>
+    </section>
+  );
+}
+
 function UnplacedPanel({ tags, ...context }: { tags: TagRow[] } & Context) {
   const { act, open, ask } = context;
   const unused = tags.filter((tag) => allUses(tag) === 0).length;
@@ -551,7 +610,7 @@ function UnplacedPanel({ tags, ...context }: { tags: TagRow[] } & Context) {
           <InfoCircledIcon />
         </Callout.Icon>
         <Callout.Text>
-          Une étiquette à classer n'a de place dans aucun filtre : créée depuis la fiche d'un show, ou retirée de ses groupes. Elle reste sur ses contenus, mais le
+          Une étiquette à classer n'a de place dans aucun filtre : créée depuis la fiche d'une émission, ou retirée de ses groupes. Elle reste sur ses contenus, mais le
           site ne la propose dans aucun menu. Clique dessus pour la ranger dans un groupe, la fusionner avec une autre ou la supprimer.
         </Callout.Text>
       </Callout.Root>
@@ -580,7 +639,7 @@ function UnplacedPanel({ tags, ...context }: { tags: TagRow[] } & Context) {
               onClick={() =>
                 ask({
                   title: unused > 1 ? `Supprimer les ${unused} étiquettes qui ne servent à rien ?` : "Supprimer l'étiquette qui ne sert à rien ?",
-                  text: "Seulement celles à classer qui ne sont posées sur aucun show, aucun artiste, aucun événement.",
+                  text: "Seulement celles à classer qui ne sont posées sur aucune émission, aucun artiste, aucun événement.",
                   action: "Supprimer",
                   run: () => act({ intent: "delete-unused" }),
                 })
@@ -697,7 +756,7 @@ function TagDialog({ tag, facets, tags, onClose, ...context }: { tag: TagRow | n
             <>
               {" · "}
               <a href={`/admin/shows?tag=${tag.id}`} data-astro-prefetch="false" onClick={onClose}>
-                voir les shows
+                voir les émissions
               </a>
             </>
           )}
@@ -918,11 +977,11 @@ function TagDialog({ tag, facets, tags, onClose, ...context }: { tag: TagRow | n
 
 const SHOW_TYPES = Object.entries(LABELS.showType) as [keyof typeof LABELS.showType, string][];
 
-function FacetDialog({ facet, onClose, act }: { facet: FacetView | "new" | null; onClose(): void; act: Act }) {
+function FacetDialog({ facet, scope: newScope, onClose, act }: { facet: FacetView | "new" | null; scope: FacetScope; onClose(): void; act: Act }) {
   const editing = facet && facet !== "new" ? facet : null;
   const [name, setName] = useState(editing?.name ?? "");
   const [slug, setSlug] = useState(editing?.slug ?? "");
-  const [scope, setScope] = useState<FacetScope>(editing?.scope ?? "show");
+  const [scope, setScope] = useState<FacetScope>(editing?.scope ?? newScope);
   const [showTypes, setShowTypes] = useState<string[]>(editing?.showTypes ?? []);
   const [description, setDescription] = useState(editing?.description ?? "");
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -972,7 +1031,7 @@ function FacetDialog({ facet, onClose, act }: { facet: FacetView | "new" | null;
               </RadioGroup.Root>
             </Field>
             {scope === "show" && (
-              <Field label="Pour quels shows" hint="Aucun coché : tous les types.">
+              <Field label="Pour quelles émissions" hint="Aucun coché : tous les types.">
                 <CheckboxGroup.Root value={showTypes} onValueChange={setShowTypes} className="admin-radios">
                   {SHOW_TYPES.map(([value, label]) => (
                     <CheckboxGroup.Item key={value} value={value}>
@@ -1284,7 +1343,7 @@ function DocumentChangesView({
                 {one.name}
               </Text>
               <Text size="1" color="gray">
-                {[one.shows && counted(one.shows, "show"), one.artists && counted(one.artists, "artiste"), one.events && counted(one.events, "événement")].filter(Boolean).join(", ")}
+                {[one.shows && counted(one.shows, "émission"), one.artists && counted(one.artists, "artiste"), one.events && counted(one.events, "événement")].filter(Boolean).join(", ")}
               </Text>
               <Select.Root value={renames[one.id] || KEEP} onValueChange={(value) => onRename(one.id, value === KEEP ? "" : value)} disabled={disabled}>
                 <Select.Trigger variant="soft" aria-label={`Ce que devient « ${one.name} »`} />

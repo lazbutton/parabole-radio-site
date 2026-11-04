@@ -12,7 +12,7 @@
  * la lui confie par data-archive, et elle continue d'une page à l'autre. En haut, ◂ ÉMISSIONS ramène à la liste.
  * Rendue à la demande, gardée une minute par le cache de Vercel, comme la liste.
  */
-import { formatTimecode, LABELS, type ShowCard, type ShowDetail } from "@parabole/cms";
+import { ENERGY, formatTimecode, LABELS, type ShowCard, type ShowDetail } from "@parabole/cms";
 import Interruption from "../../components/Interruption.astro";
 import Carte from "../../components/emissions/Carte.astro";
 import Description from "../../components/emissions/Description.astro";
@@ -147,10 +147,10 @@ const description = resume
                 <li>{tag.name}</li>
               ))}
               {show.energy && (
-                <li class="emission-mood" title={`Mood ${show.energy} sur 5, de ${LABELS.energy.low.toLowerCase()} à ${LABELS.energy.high.toLowerCase()}`}>
+                <li class="emission-mood" title={`Mood ${show.energy} sur ${ENERGY.max}, de ${LABELS.energy.low.toLowerCase()} à ${LABELS.energy.high.toLowerCase()}`}>
                   <span aria-hidden="true">Mood</span>
                   <span class="mood-barres" style={`--n:${show.energy}`} aria-hidden="true" />
-                  <span class="sr-only">Mood {show.energy} sur 5</span>
+                  <span class="sr-only">Mood {show.energy} sur {ENERGY.max}</span>
                 </li>
               )}
             </ul>

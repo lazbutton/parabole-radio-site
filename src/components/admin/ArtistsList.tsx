@@ -36,8 +36,8 @@ export function ArtistsList({ groups, total, filters, tags }: ArtistsListData) {
   return (
     <div className="admin-page">
       <PageHeader
-        title="Artistes"
-        description={`${counted(total, "artiste")}${filtered ? " pour ces filtres" : ""}`}
+        title="Résidents"
+        description={`${counted(total, "fiche")} : résidents et invités${filtered ? ", pour ces filtres" : ""}`}
         actions={
           <Button asChild>
             <a href="/admin/artistes/nouveau" data-astro-prefetch="false">
@@ -99,7 +99,7 @@ export function ArtistsList({ groups, total, filters, tags }: ArtistsListData) {
             <Table.Header>
               <Table.Row>
                 <Table.ColumnHeaderCell>Artiste</Table.ColumnHeaderCell>
-                <Table.ColumnHeaderCell className="admin-hide-mobile">Shows</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell className="admin-hide-mobile">Émissions</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell className="admin-hide-tablet">Fiche</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell justify="end">Statut</Table.ColumnHeaderCell>
               </Table.Row>
@@ -134,14 +134,14 @@ export function ArtistsList({ groups, total, filters, tags }: ArtistsListData) {
                               <Text size="1" color="gray">
                                 {LABELS.artistRole[artist.role]}
                                 {artist.tags.length > 0 && ` · ${artist.tags.join(", ")}`}
-                                <span className="admin-show-mobile"> · {artist.shows ? counted(artist.shows, "show") : "aucun show"}</span>
+                                <span className="admin-show-mobile"> · {artist.shows ? counted(artist.shows, "émission") : "aucune émission"}</span>
                               </Text>
                             </Flex>
                           </Flex>
                         </Table.RowHeaderCell>
                         <Table.Cell className="admin-hide-mobile">
                           <Text size="2" color={artist.shows ? undefined : "gray"}>
-                            {artist.shows ? counted(artist.shows, "show") : "Aucun"}
+                            {artist.shows ? counted(artist.shows, "émission") : "Aucune"}
                           </Text>
                         </Table.Cell>
                         <Table.Cell className="admin-hide-tablet">

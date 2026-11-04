@@ -8,13 +8,16 @@ import { Badge } from "@radix-ui/themes";
 import { useEffect, useState } from "react";
 import type { ShowType } from "@parabole/cms";
 
-/** Brouillon ou publié : une pastille, avec son point de couleur et son mot (la couleur ne dit jamais tout). */
-export function StatusBadge({ status, size = "1" }: { status: "draft" | "published"; size?: "1" | "2" }) {
+/**
+ * Brouillon ou publié : une pastille, avec son point de couleur et son mot (la couleur ne dit jamais tout). `feminine` :
+ * « Publiée », pour une émission.
+ */
+export function StatusBadge({ status, size = "1", feminine = false }: { status: "draft" | "published"; size?: "1" | "2"; feminine?: boolean }) {
   const published = status === "published";
   return (
     <Badge color={published ? "green" : "gray"} variant="soft" radius="full" size={size} className="admin-status">
       <span className="admin-status-dot" aria-hidden />
-      {published ? "Publié" : "Brouillon"}
+      {published ? (feminine ? "Publiée" : "Publié") : "Brouillon"}
     </Badge>
   );
 }

@@ -1,7 +1,9 @@
 /**
- * L'accueil : de quoi savoir quoi faire en arrivant. Les prochaines diffusions, ce qui reste à compléter (chaque
- * ligne mène à la liste filtrée, avec le même nombre), les brouillons à reprendre, les chiffres des rubriques, et
- * l'import de la programmation Radio Cult : son dernier passage, ce qu'il reste à relire, et « Importer maintenant ».
+ * L'accueil : de quoi savoir quoi faire en arrivant. Les prochaines diffusions, puis ce qui reste à compléter, en un
+ * seul bloc depuis les retours du 4 novembre 2026 : ce qui manque (chaque ligne mène à la liste filtrée, avec le même
+ * nombre) et les derniers brouillons à reprendre. À droite, l'import de la programmation Radio Cult (son dernier
+ * passage, ce qu'il reste à relire, et « Importer maintenant ») et les chiffres des rubriques. Créer une fiche se
+ * fait depuis sa rubrique, ou la recherche (⌘K).
  */
 import { LABELS } from "@parabole/cms/labels";
 import {
@@ -13,12 +15,11 @@ import {
   ExclamationTriangleIcon,
   FileTextIcon,
   ImageIcon,
-  InfoCircledIcon,
   ListBulletIcon,
   MagnifyingGlassIcon,
   PersonIcon,
-  PlusIcon,
   SpeakerLoudIcon,
+  TextAlignLeftIcon,
   UpdateIcon,
 } from "@radix-ui/react-icons";
 import { Badge, Button, Callout, Card, Flex, Heading, Kbd, Text } from "@radix-ui/themes";
@@ -32,14 +33,20 @@ import { counted } from "./text";
 import { useNotify } from "./toast";
 import type { DashboardData, ImportLine, ImportResponse, RadioCultPanel, Viewer } from "./types";
 
+/** « Émission diffusée », « Émissions diffusées » : le début d'une ligne de « À compléter ». */
+const aired = (count: number) => (count > 1 ? "Émissions diffusées" : "Émission diffusée");
+
 export function Dashboard({ viewer, today, stats, upcoming, missing, drafts, radiocult }: DashboardData & { viewer: Viewer }) {
   const firstName = viewer.name.split(" ")[0];
   const openCommand = useCommand();
   const mod = useModKey();
   const todo: { count: number; label: string; href: string; icon: ReactNode }[] = [
-    { count: stats.shows.draft, label: `${stats.shows.draft > 1 ? "Shows" : "Show"} en brouillon`, href: "/admin/shows?status=draft", icon: <FileTextIcon /> },
-    { count: missing.tracklist, label: `${missing.tracklist > 1 ? "Shows diffusés" : "Show diffusé"} sans tracklist`, href: "/admin/shows?missing=tracklist", icon: <ListBulletIcon /> },
-    { count: missing.sound, label: `${missing.sound > 1 ? "Shows diffusés" : "Show diffusé"} sans son`, href: "/admin/shows?missing=sound", icon: <SpeakerLoudIcon /> },
+    { count: stats.shows.draft, label: `${stats.shows.draft > 1 ? "Émissions" : "Émission"} en brouillon`, href: "/admin/shows?status=draft", icon: <FileTextIcon /> },
+    { count: missing.tracklist, label: `${aired(missing.tracklist)} sans tracklist`, href: "/admin/shows?missing=tracklist", icon: <ListBulletIcon /> },
+    { count: missing.sound, label: `${aired(missing.sound)} sans son`, href: "/admin/shows?missing=sound", icon: <SpeakerLoudIcon /> },
+    { count: missing.cover, label: `${aired(missing.cover)} sans pochette`, href: "/admin/shows?missing=cover", icon: <ImageIcon /> },
+    { count: missing.description, label: `${aired(missing.description)} sans description`, href: "/admin/shows?missing=description", icon: <TextAlignLeftIcon /> },
+    { count: missing.untagged, label: `${aired(missing.untagged)} sans étiquette`, href: "/admin/shows?missing=tags", icon: <BookmarkIcon /> },
     { count: stats.artists.draft, label: `${stats.artists.draft > 1 ? "Artistes" : "Artiste"} en brouillon`, href: "/admin/artistes?status=draft", icon: <FileTextIcon /> },
     { count: missing.photo, label: `${missing.photo > 1 ? "Artistes" : "Artiste"} sans photo`, href: "/admin/artistes?missing=photo", icon: <ImageIcon /> },
     { count: missing.bio, label: `${missing.bio > 1 ? "Artistes" : "Artiste"} sans bio`, href: "/admin/artistes?missing=bio", icon: <PersonIcon /> },
@@ -52,27 +59,15 @@ export function Dashboard({ viewer, today, stats, upcoming, missing, drafts, rad
         title={`Bonjour ${firstName}`}
         description={today.charAt(0).toUpperCase() + today.slice(1)}
         actions={
-          <>
-            <Button variant="soft" color="gray" onClick={openCommand} className="admin-hide-mobile">
-              <MagnifyingGlassIcon /> Rechercher <Kbd size="1">{mod} K</Kbd>
-            </Button>
-            <Button asChild variant="soft">
-              <a href="/admin/artistes/nouveau" data-astro-prefetch="false">
-                <PlusIcon /> Nouvel artiste
-              </a>
-            </Button>
-            <Button asChild>
-              <a href="/admin/shows/nouveau" data-astro-prefetch="false">
-                <PlusIcon /> Nouveau show
-              </a>
-            </Button>
-          </>
+          <Button variant="soft" color="gray" onClick={openCommand} className="admin-hide-mobile">
+            <MagnifyingGlassIcon /> Rechercher <Kbd size="1">{mod} K</Kbd>
+          </Button>
         }
       />
 
       <div className="admin-dashboard">
         <Flex direction="column" gap="5" minWidth="0">
-          <Panel title="Prochaines diffusions" action={<PanelLink href="/admin/shows">Tous les shows</PanelLink>}>
+          <Panel title="Prochaines diffusions" action={<PanelLink href="/admin/shows">Toutes les émissions</PanelLink>}>
             {upcoming.length ? (
               <ul className="admin-rows">
                 {upcoming.map((show) => (
@@ -97,40 +92,9 @@ export function Dashboard({ viewer, today, stats, upcoming, missing, drafts, rad
                 ))}
               </ul>
             ) : (
-              <Empty icon={<DiscIcon />}>Aucun show daté à venir. Les créneaux de Radio Cult arrivent ici chaque nuit, ou avec « Importer maintenant ».</Empty>
+              <Empty icon={<DiscIcon />}>Aucune émission datée à venir. Les créneaux de Radio Cult arrivent ici chaque nuit, ou avec « Importer maintenant ».</Empty>
             )}
           </Panel>
-
-          <Panel title="Brouillons à reprendre" action={drafts.length ? <PanelLink href="/admin/shows?status=draft">Shows en brouillon</PanelLink> : undefined}>
-            {drafts.length ? (
-              <ul className="admin-rows">
-                {drafts.map((draft) => (
-                  <li key={draft.href}>
-                    <a className="admin-row-link" href={draft.href} data-astro-prefetch="false">
-                      <span className="admin-row-icon" aria-hidden>
-                        {draft.kind === "show" ? <DiscIcon /> : <PersonIcon />}
-                      </span>
-                      <span className="admin-row-main">
-                        <Text as="span" size="2" weight="medium" highContrast className="admin-break">
-                          {draft.title}
-                        </Text>
-                        <Text as="span" size="1" color="gray">
-                          {draft.kind === "show" ? "Show" : "Artiste"} · modifié {draft.since}
-                        </Text>
-                      </span>
-                      <ArrowRightIcon className="admin-row-arrow" aria-hidden />
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <Empty icon={<CheckCircledIcon />}>Aucun brouillon en cours.</Empty>
-            )}
-          </Panel>
-        </Flex>
-
-        <Flex direction="column" gap="5" minWidth="0">
-          <RadioCult panel={radiocult} />
 
           <Panel title="À compléter">
             {todo.length ? (
@@ -153,26 +117,48 @@ export function Dashboard({ viewer, today, stats, upcoming, missing, drafts, rad
                 ))}
               </ul>
             ) : (
-              <Empty icon={<CheckCircledIcon />}>Tout est à jour : chaque show diffusé a sa tracklist et son son, chaque artiste sa photo et sa bio.</Empty>
+              <Empty icon={<CheckCircledIcon />}>Tout est à jour : chaque émission diffusée est complète, chaque artiste a sa photo et sa bio.</Empty>
+            )}
+            {drafts.length > 0 && (
+              <>
+                <Text as="p" size="1" weight="medium" color="gray" mt="4" mb="1">
+                  Derniers brouillons modifiés
+                </Text>
+                <ul className="admin-rows">
+                  {drafts.slice(0, SHOWN).map((draft) => (
+                    <li key={draft.href}>
+                      <a className="admin-row-link" href={draft.href} data-astro-prefetch="false">
+                        <span className="admin-row-icon" aria-hidden>
+                          {draft.kind === "show" ? <DiscIcon /> : <PersonIcon />}
+                        </span>
+                        <span className="admin-row-main">
+                          <Text as="span" size="2" weight="medium" highContrast className="admin-break">
+                            {draft.title}
+                          </Text>
+                          <Text as="span" size="1" color="gray">
+                            {draft.kind === "show" ? "Émission" : "Artiste"} · modifié{draft.kind === "show" ? "e" : ""} {draft.since}
+                          </Text>
+                        </span>
+                        <ArrowRightIcon className="admin-row-arrow" aria-hidden />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
           </Panel>
+        </Flex>
+
+        <Flex direction="column" gap="5" minWidth="0">
+          <RadioCult panel={radiocult} />
 
           <Panel title="En chiffres">
             <div className="admin-stats">
-              <Stat label="Shows" icon={<DiscIcon />} published={stats.shows.published} draft={stats.shows.draft} href="/admin/shows" />
-              <Stat label="Artistes" icon={<PersonIcon />} published={stats.artists.published} draft={stats.artists.draft} href="/admin/artistes" />
+              <Stat label="Émissions" icon={<DiscIcon />} published={counted(stats.shows.published, "publiée")} draft={stats.shows.draft} total={stats.shows.published + stats.shows.draft} href="/admin/shows" />
+              <Stat label="Résidents" icon={<PersonIcon />} published={counted(stats.artists.published, "publié")} draft={stats.artists.draft} total={stats.artists.published + stats.artists.draft} href="/admin/artistes" />
             </div>
           </Panel>
 
-          <Card size="2" variant="ghost" className="admin-note">
-            <Flex gap="2" align="start">
-              <InfoCircledIcon className="admin-note-icon" aria-hidden />
-              <Text as="p" size="1" color="gray">
-                Les pages Show et Residents du site ne lisent pas encore le CMS : ce qui est publié ici y apparaîtra quand elles seront branchées. Les
-                images, les événements, les pages et l'équipe arrivent aux prochaines étapes.
-              </Text>
-            </Flex>
-          </Card>
         </Flex>
       </div>
     </div>
@@ -254,7 +240,7 @@ function RadioCult({ panel }: { panel: RadioCultPanel }) {
       {fixes.length > 0 && (
         <ImportGroup
           label="À corriger à la main"
-          hint="L'import ne touche ni aux shows publiés ni aux créneaux disparus : corrige la fiche, ou le créneau chez Radio Cult."
+          hint="L'import ne touche ni aux émissions publiées ni aux créneaux disparus : corrige la fiche, ou le créneau chez Radio Cult."
           lines={fixes}
           icon={<ExclamationTriangleIcon />}
           alert
@@ -263,7 +249,7 @@ function RadioCult({ panel }: { panel: RadioCultPanel }) {
       {panel.created.length > 0 && <ImportGroup label="Nouveaux brouillons" lines={panel.created} icon={<FileTextIcon />} />}
       {panel.updated.length > 0 && <ImportGroup label="Brouillons mis à jour" lines={panel.updated} icon={<UpdateIcon />} />}
       {panel.artists.length > 0 && <ImportGroup label="Artistes créés" lines={panel.artists} icon={<PersonIcon />} />}
-      {last?.ok && quiet && <Empty icon={<CheckCircledIcon />}>Rien à relire : les shows suivent la programmation.</Empty>}
+      {last?.ok && quiet && <Empty icon={<CheckCircledIcon />}>Rien à relire : les émissions suivent la programmation.</Empty>}
 
       {(panel.notes.length > 0 || !panel.key) && (
         <Flex direction="column" gap="1" mt="2">
@@ -357,7 +343,7 @@ function Empty({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   );
 }
 
-function Stat({ label, icon, published, draft, href }: { label: string; icon: ReactNode; published: number; draft: number; href: string }) {
+function Stat({ label, icon, published, draft, total, href }: { label: string; icon: ReactNode; published: string; draft: number; total: number; href: string }) {
   return (
     <a className="admin-stat" href={href} data-astro-prefetch="false">
       <Flex align="center" gap="2">
@@ -369,10 +355,10 @@ function Stat({ label, icon, published, draft, href }: { label: string; icon: Re
         </Text>
       </Flex>
       <Text as="p" size="7" weight="bold" mt="2" className="admin-stat-value">
-        {published + draft}
+        {total}
       </Text>
       <Text as="p" size="1" color="gray">
-        {counted(published, "publié")} · {draft} en brouillon
+        {published} · {draft} en brouillon
       </Text>
     </a>
   );

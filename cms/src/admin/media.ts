@@ -61,7 +61,7 @@ const SLOTS = {
       tx.update(artist).set({ photoId: fileId }).where(eq(artist.id, id)).returning({ version: versionOf(artist.updatedAt) }),
   },
   cover: {
-    gone: "Ce show n'existe plus : il a peut-être été supprimé.",
+    gone: "Cette émission n'existe plus : elle a peut-être été supprimée.",
     read: (tx: Tx, id: string) => tx.select({ fileId: show.coverId, version: versionOf(show.updatedAt) }).from(show).where(eq(show.id, id)).for("update"),
     write: (tx: Tx, id: string, fileId: string | null) =>
       tx.update(show).set({ coverId: fileId }).where(eq(show.id, id)).returning({ version: versionOf(show.updatedAt) }),

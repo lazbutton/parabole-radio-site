@@ -13,7 +13,7 @@
  * est rendue déjà filtrée d'après son adresse, et les pastilles sont des liens. Gardée une minute par le cache de
  * Vercel, comme les résidents.
  */
-import { LABELS, type FacetMenu, type ShowCard } from "@parabole/cms";
+import { ENERGY, LABELS, type FacetMenu, type ShowCard } from "@parabole/cms";
 import Interruption from "../../components/Interruption.astro";
 import Carte from "../../components/emissions/Carte.astro";
 import Base from "../../layouts/Base.astro";
@@ -378,10 +378,10 @@ const filtre = actifs.length > 0;
                           data-nom={`Mood ${n}`}
                           aria-current={etat.mood === n ? "true" : undefined}
                           aria-disabled={!m && etat.mood !== n ? "true" : undefined}
-                          aria-label={`Mood ${n} sur 5${n === 1 ? `, ${LABELS.energy.low.toLowerCase()}` : n === 5 ? `, ${LABELS.energy.high.toLowerCase()}` : ""}`}
+                          aria-label={`Mood ${n} sur ${ENERGY.max}${n === ENERGY.min ? `, ${LABELS.energy.low.toLowerCase()}` : n === ENERGY.max ? `, ${LABELS.energy.high.toLowerCase()}` : ""}`}
                         >
-                          {n === 1 && <span class="mood-mot">{LABELS.energy.low}</span>}
-                          {n === 5 && <span class="mood-mot">{LABELS.energy.high}</span>}
+                          {n === ENERGY.min && <span class="mood-mot">{LABELS.energy.low}</span>}
+                          {n === ENERGY.max && <span class="mood-mot">{LABELS.energy.high}</span>}
                           <span class="mood-barres" style={`--n:${n}`} aria-hidden="true" />
                           <span class="mood-chiffre">{n}</span>
                           <span class="regie-nombre">{m}</span>

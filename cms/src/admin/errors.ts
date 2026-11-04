@@ -6,14 +6,14 @@ import type { FieldErrors } from "./input.ts";
 
 /** Le champ et le message de chaque contrainte que l'écran peut déclencher. */
 const CONSTRAINTS: Record<string, [field: string, message: string]> = {
-  show_slug_unique: ["slug", "Cette adresse sert déjà à un autre show."],
+  show_slug_unique: ["slug", "Cette adresse sert déjà à une autre émission."],
   show_slug_format: ["slug", "Minuscules, chiffres et tirets seulement."],
-  show_soundcloud_track_id_unique: ["soundcloudTrackId", "Cette piste SoundCloud est déjà liée à un autre show."],
+  show_soundcloud_track_id_unique: ["soundcloudTrackId", "Cette piste SoundCloud est déjà liée à une autre émission."],
   show_soundcloud_track_id: ["soundcloudTrackId", "Des chiffres seulement."],
   show_soundcloud_url: ["soundcloudUrl", "L'adresse de la piste commence par https://soundcloud.com/."],
   show_published_has_date: ["broadcastAt", "Il faut une date de diffusion pour publier."],
   show_duration: ["duration", "La durée doit dépasser zéro."],
-  show_energy: ["energy", "Le mood va de 1 (calme) à 5 (énergique)."],
+  show_energy: ["energy", "Le mood va de 1 (calme) à 4 (énergique)."],
   track_hopper_url: ["tracks", "Un lien Hopper commence par https://hppr.fr/."],
   track_start: ["tracks", "Un minutage ne peut pas être négatif."],
   artist_slug_unique: ["slug", "Cette adresse sert déjà à un autre artiste."],

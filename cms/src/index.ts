@@ -14,7 +14,7 @@ export * from "./admin/index.ts";
 export { createAntenne, type Antenne, type EtatAntenne, type Envoi, type Issue, type MessageAntenne, type Moi } from "./chat/index.ts";
 export { COULEURS as CHAT_COLORS, estCouleur } from "./chat/forme.ts";
 export { connect, type ConnectOptions, type Connection, type Db } from "./db.ts";
-export { ENERGY, LABELS } from "./labels.ts";
+export { clampEnergy, ENERGY, LABELS } from "./labels.ts";
 export { coveredTags, mediaUrl, startOfParisDay } from "./read/common.ts";
 export { fromParisInput, STATION_TIME_ZONE, toParisInput } from "./paris.ts";
 export { indexLetter } from "./read/artists.ts";

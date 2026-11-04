@@ -99,7 +99,7 @@ erDiagram
         enum status "draft, published"
         timestamptz broadcast_at "diffusion"
         int duration_seconds
-        smallint energy "mood, 1 calme à 5 énergique"
+        smallint energy "mood, 1 calme à 4 énergique"
         text description "Markdown"
         uuid cover_id FK "image carrée"
         text soundcloud_url
@@ -258,7 +258,7 @@ erDiagram
 
 | Table | Ce qu'elle garde | À savoir |
 |---|---|---|
-| `show` | Un épisode archivé ou à venir | Publier exige une date de diffusion. `energy` : le mood d'un DJ set ou d'une playlist, de 1 (calme) à 5 (énergique), le curseur des filtres du site. Le son est sur le compte SoundCloud de Parabole : le lecteur joue `soundcloud_track_id` (URN `soundcloud:tracks:<id>`), `soundcloud_url` mène à la piste (crédit exigé par SoundCloud). `radiocult_event_id` relie le show au créneau Radio Cult importé (l'identifiant d'un créneau seul ; « série@jour » pour une occurrence d'un créneau répété, section 9.4) |
+| `show` | Un épisode archivé ou à venir | Publier exige une date de diffusion. `energy` : le mood d'un DJ set ou d'une playlist, de 1 (calme) à 4 (énergique), le curseur des filtres du site (la contrainte accepte encore 5, l'ancienne échelle : lu 4 partout, `clampEnergy`). Le son est sur le compte SoundCloud de Parabole : le lecteur joue `soundcloud_track_id` (URN `soundcloud:tracks:<id>`), `soundcloud_url` mène à la piste (crédit exigé par SoundCloud). `radiocult_event_id` relie le show au créneau Radio Cult importé (l'identifiant d'un créneau seul ; « série@jour » pour une occurrence d'un créneau répété, section 9.4) |
 | `track` | La tracklist d'un show | Une ligne par morceau, `position` 1, 2, 3… sans doublon. Le minutage est en secondes depuis le début du show. Le lien Hopper commence forcément par `https://hppr.fr/` |
 | `artist` | Un résident ou un invité | Le rôle est celui de l'artiste (filtres Resident / Guest). `links` : une liste `[{ "label": "Instagram", "url": "…" }]` |
 | `show_artist` | Les artistes d'un show | Dans l'ordre d'affichage (« A b2b B ») |
@@ -540,7 +540,7 @@ Toutes les lectures se font sous le rôle `anon`, en lecture seule. Elles ne voi
 
 | Fonction | Paramètres | Rend |
 |---|---|---|
-| `listShows(filtres)` | `type`, `tags` (adresses d'étiquettes, toutes exigées ; une étiquette de groupe vaut pour tout son groupe : `"club"` trouve aussi les shows Amapiano), `energy` (`{ min, max }`, de 1 à 5), `artist` (slug), `period` (`"past"` : archives, `"upcoming"` : à venir), `limit` (24 par défaut, 100 au plus), `offset`, `now` | `{ items: ShowCard[], total, limit, offset }`, du plus récent au plus ancien (à venir : du plus proche au plus lointain) |
+| `listShows(filtres)` | `type`, `tags` (adresses d'étiquettes, toutes exigées ; une étiquette de groupe vaut pour tout son groupe : `"club"` trouve aussi les shows Amapiano), `energy` (`{ min, max }`, de 1 à 4), `artist` (slug), `period` (`"past"` : archives, `"upcoming"` : à venir), `limit` (24 par défaut, 100 au plus), `offset`, `now` | `{ items: ShowCard[], total, limit, offset }`, du plus récent au plus ancien (à venir : du plus proche au plus lointain) |
 | `listShowMonths(filtres)` | les filtres de `listShows`, sans `limit` ni `offset` | `[{ month: "2026-05", count }]` : les mois de la liste (l'heure de Paris décide du mois), dans son ordre. Le rail des mois de la page Émissions, et la page de la liste où commence chaque mois |
 | `getShow(slug)` | | `ShowDetail` : la vignette, plus la description, la piste SoundCloud, le créneau Radio Cult et la tracklist dans l'ordre ; ses artistes portent leurs liens (`links`). Ou `null` |
 | `listFacets({ scope, type, all })` | ce que montre la page (`"show"`, `"artist"`, `"event"`), le type de show, `all` : garder les étiquettes sans contenu | Les menus des filtres de la page : `[{ slug, name, groups: [{ slug, name, count, tags: [{ slug, name, count }] }] }]`, filtres et groupes dans l'ordre de l'admin, étiquettes dans l'ordre alphabétique, avec leur nombre de contenus publiés (un groupe compte ceux de toutes ses étiquettes, chacun une fois) |
@@ -806,7 +806,7 @@ La lecture du document, pour s'y retrouver :
 - dans les listes de genres, un passage en gras est un groupe, et les noms qui suivent sont ses étiquettes (« **HIP-HOP, R'N'B,** DRILL, RNB, RAP, TRAP » : le groupe « Hip-hop, R'n'B » et quatre étiquettes) ;
 - une étiquette qui porte le nom de son groupe (SOUL dans SOUL, CLUB dans CLUB) n'est pas recopiée dedans : le groupe se choisit lui-même ;
 - les noms passent des capitales du document aux minuscules, sigles et noms propres gardés (« Rap UK », « K-pop », « Folk du Rajasthan », « Techno de Détroit »), et l'accent oublié sur une capitale revient (« ELECTRONIQUE » donne « Électronique ») ;
-- le mood (« calme — énergique ») n'est pas une étiquette : c'est `show.energy`, de 1 à 5 ;
+- le mood (« calme — énergique ») n'est pas une étiquette : c'est `show.energy`, de 1 à 4 (5 avant le 4 novembre 2026) ;
 - les résidents et les invités restent le rôle d'un artiste ; leur sous-filtre (podcast, playlist, DJ) est le filtre Activité ;
 - la lecture s'arrête à « À propos » ou à « POUBELLE ».
 
@@ -838,7 +838,7 @@ Ce que l'import n'a pas su lire (une rubrique inconnue, des étiquettes avant to
 - Un grand filtre (Genre, Géographie) montre ses groupes ; un clic sur un groupe ouvre ses étiquettes en dessous, avec « Tout « Club » » pour choisir le groupe lui-même. Ce qui est choisi reste visible en haut, à retirer d'un clic, et une recherche trouve une étiquette dans le filtre (Entrée la coche).
 - Une pastille choisie se colore ; un groupe montre combien de ses étiquettes sont choisies. Une étiquette à deux places (Amapiano) se coche dans les deux filtres à la fois.
 - Une étiquette rangée seulement dans un filtre d'un autre type (un genre sur un podcast) est signalée, à retirer d'un clic. « Autres » prend une étiquette qui n'est dans aucun filtre : un nom inconnu crée une étiquette à classer.
-- Le mood se règle de 1 à 5 pour un DJ set ou une playlist (un podcast n'en garde pas). La fiche d'un artiste montre ses filtres de la même façon (Activité : Podcast, Playlist, DJ). Les listes des shows et des artistes ont un filtre « Étiquette » (« Activité » pour les artistes) rangé comme les filtres du site ; choisir un groupe garde aussi les contenus de ses étiquettes. Le tableau de bord compte les étiquettes à classer.
+- Le mood se règle de 1 à 4 pour un DJ set ou une playlist (un podcast n'en garde pas). La fiche d'un artiste montre ses filtres de la même façon (Activité : Podcast, Playlist, DJ). Les listes des shows et des artistes ont un filtre « Étiquette » (« Activité » pour les artistes) rangé comme les filtres du site ; choisir un groupe garde aussi les contenus de ses étiquettes. Le tableau de bord compte les étiquettes à classer.
 
 **Sur le site**, les pages liront `listFacets()` pour leurs menus (section 7) et `listShows({ tags, energy })`, `listArtists({ tag })`, `listEvents({ tag })` pour leurs listes. Les pages Résidents et Événements sont construites ; la page Show ne l'est pas encore.
 
@@ -919,3 +919,17 @@ La rubrique du site (`/emissions` et `/emissions/<adresse>`), d'après les croqu
 Rendues à la demande, gardées une minute par le cache de Vercel. Une émission inconnue ou en brouillon répond « Pas de signal » (404) ; une base injoignable, le carton « Interruption momentanée ».
 
 Pas encore : le zapping d'une émission à l'autre, reprendre une émission là où on l'avait laissée, le lecteur maison (avec l'application SoundCloud).
+
+### 9.16 Les retours du 4 novembre 2026 sur l'admin
+
+Notes de l'équipe sur l'admin en ligne, appliquées sans changer la base (aucune migration) :
+
+- **Barre latérale** rangée comme le schéma : Contenus (Émissions, Résidents, Événements, À propos), Filtres (Émissions, Résidents, Événements, À classer), Site (Vidéos de fond, Antenne libre). Les adresses ne changent pas (`/admin/shows`, `/admin/artistes`) ; « shows » devient « émissions » dans tous les textes.
+- **Filtres** (`/admin/etiquettes`) : une rubrique par contenu (`src/components/admin/rubriques.ts`, `?rubrique=residents` ouvre son premier filtre). Pour les émissions, « Podcast » (Thème) puis « Playlist + DJ sets » (Genre, Géographie et l'onglet Mood, qui explique l'échelle).
+- **Accueil** : plus de boutons « Nouvel artiste » et « Nouveau show » (on crée depuis la rubrique, ou ⌘K) ; « Brouillons à reprendre » rejoint « À compléter », qui compte aussi les émissions diffusées sans pochette, sans description ou sans étiquette ; la note périmée sur les pages du site est partie.
+- **Émissions** : les pastilles Statut et À compléter côte à côte ; À compléter propose aussi « sans pochette », « sans description », « sans étiquette » (`lacksCover`, `lacksDescription`, `lacksTags`) ; la colonne « Contenu » devient « À compléter » et dit ce qui manque. Un podcast sans tracklist ne manque de rien (`lacksTracklist`).
+- **Fiche d'une émission** : le mood passe à 4 crans (`ENERGY.max`), sur le site aussi ; un 5 déjà enregistré se lit 4 et s'enregistre 4 à la prochaine sauvegarde.
+- **Fiche d'un résident** : « Ses émissions » dans la colonne principale ; « Lien de la page » et « Fiche Radio Cult » expliquent ce qu'ils font.
+- **Événements** : deux parties titrées, « À venir » et « Passés » (par mois), et un menu « … » au bout de chaque ligne : Modifier, Supprimer (confirmé).
+- **Antenne libre** : messages au bandeau, mode lent, différé et liens ne se règlent plus ici ; ils gardent leur valeur en base. Restent : ouverte ou fermée, mode prudent, signalements.
+
