@@ -1,0 +1,53 @@
+---
+/**
+ * La page d'envoi d'un résident (cms/README.md, 9.12) : /envoyer/<jeton>. Le jeton seul l'ouvre, sans compte : l'équipe
+ * le crée dans la fiche de l'artiste (bloc « Lien d'envoi »). Rendue par le serveur à chaque visite ; la suite passe par
+ * /api/envoi, le jeton dans le corps des requêtes. Un lien inconnu ou désactivé répond 404, sans dire s'il a existé.
+ */
+import { UPLOAD_TOKEN } from "@parabole/cms";
+import EnvoiApp from "../../components/envoi/EnvoiApp";
+import type { EnvoiPageData } from "../../components/envoi/types";
+import Envoi from "../../layouts/Envoi.astro";
+import { envoisDuSite, pageData, PRIVATE_HEADERS } from "../../lib/envois";
+
+export const prerender = false;
+
+for (const [name, value] of Object.entries(PRIVATE_HEADERS)) Astro.response.headers.set(name, value);
+
+const jeton = Astro.params.jeton ?? "";
+let data: EnvoiPageData | null = null;
+let down = false;
+if (UPLOAD_TOKEN.test(jeton)) {
+  try {
+    const page = await (await envoisDuSite()).ouvrir(jeton);
+    if (page) data = pageData(jeton, page);
+  } catch (failure) {
+    console.error("envoyer : la page ne s'est pas ouverte", failure);
+    down = true;
+  }
+}
+if (!data) Astro.response.status = down ? 503 : 404;
+---
+
+<Envoi title={data ? `Envoyer une émission · ${data.artist.name}` : down ? "Page indisponible" : "Lien inconnu"}>
+  {
+    data ? (
+      <EnvoiApp client:load data={data} />
+    ) : (
+      <main class="envoi-dead">
+        <p class="envoi-dead-name">Parabole Radio</p>
+        {down ? (
+          <>
+            <h1>La page ne répond pas pour l'instant</h1>
+            <p>Réessaie dans quelques minutes. Si ça dure, préviens l'équipe.</p>
+          </>
+        ) : (
+          <>
+            <h1>Ce lien ne marche plus</h1>
+            <p>Il a peut-être été remplacé par un nouveau. Demande ton lien d'envoi à l'équipe de Parabole.</p>
+          </>
+        )}
+      </main>
+    )
+  }
+</Envoi>

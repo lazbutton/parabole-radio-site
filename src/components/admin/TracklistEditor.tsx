@@ -10,7 +10,7 @@
 import { parseTracklist, type TrackLine } from "@parabole/cms/tracklist";
 import { ArrowDownIcon, ArrowUpIcon, ClipboardIcon, DotsHorizontalIcon, DragHandleDots2Icon, ExclamationTriangleIcon, ExternalLinkIcon, Link2Icon, PlusIcon, TrashIcon } from "@radix-ui/react-icons";
 import { Badge, Button, Callout, Dialog, DropdownMenu, Flex, IconButton, Popover, Table, Text, TextArea, TextField } from "@radix-ui/themes";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { FieldErrors } from "@parabole/cms";
 import { Section } from "./sheet";
 import { useSortable } from "./sortable";
@@ -31,7 +31,24 @@ const LABELS: Record<(typeof FIELDS)[number], string> = { start: "Minutage", art
 
 const morceaux = (n: number) => counted(n, "morceau", "morceaux");
 
-export function TracklistEditor({ rows, onChange, errors }: { rows: TrackRow[]; onChange(rows: TrackRow[]): void; errors: FieldErrors }) {
+/** `hopper` : la colonne des liens Hopper ; la page d'envoi d'un résident s'en passe (l'équipe les ajoute). */
+export function TracklistEditor({
+  rows,
+  onChange,
+  errors,
+  hopper = true,
+  title = "Tracklist",
+  empty = "Pas encore de morceau. Colle toute la tracklist d'un coup, telle que l'artiste l'a envoyée, ou ajoute les morceaux un par un.",
+}: {
+  rows: TrackRow[];
+  onChange(rows: TrackRow[]): void;
+  errors: FieldErrors;
+  hopper?: boolean;
+  /** Le titre du bloc : la page d'envoi y met le numéro de son étape. */
+  title?: ReactNode;
+  /** Ce qu'on lit quand elle est vide : la page d'envoi s'adresse à l'artiste lui-même. */
+  empty?: string;
+}) {
   const sortable = useSortable(rows, onChange);
   const [pasting, setPasting] = useState(false);
   const list = useRef<HTMLDivElement | null>(null);
@@ -75,7 +92,7 @@ export function TracklistEditor({ rows, onChange, errors }: { rows: TrackRow[]; 
 
   return (
     <Section
-      title="Tracklist"
+      title={title}
       count={
         rows.length > 0 && (
           <Badge color="gray" radius="full">
@@ -104,7 +121,7 @@ export function TracklistEditor({ rows, onChange, errors }: { rows: TrackRow[]; 
       {rows.length === 0 ? (
         <div className="admin-tracks-empty">
           <Text as="p" size="2" color="gray">
-            Pas encore de morceau. Colle toute la tracklist d'un coup, telle que l'artiste l'a envoyée, ou ajoute les morceaux un par un.
+            {empty}
           </Text>
           <Flex gap="2" wrap="wrap" justify="center">
             <Button type="button" variant="soft" onClick={() => setPasting(true)}>
@@ -131,9 +148,13 @@ export function TracklistEditor({ rows, onChange, errors }: { rows: TrackRow[]; 
                 {LABELS[field]}
               </span>
             ))}
-            <span className="admin-track-hopper" title="Lien Hopper">
-              <Link2Icon />
-            </span>
+            {hopper ? (
+              <span className="admin-track-hopper" title="Lien Hopper">
+                <Link2Icon />
+              </span>
+            ) : (
+              <span />
+            )}
             <span />
           </div>
           {rows.map((row, index) => {
@@ -161,7 +182,11 @@ export function TracklistEditor({ rows, onChange, errors }: { rows: TrackRow[]; 
                     onKeyDown={onKeyDown(index, field)}
                   />
                 ))}
-                <HopperLink index={index} value={row.hopperUrl} error={errors[`tracks.${index}.hopperUrl`]} onChange={(value) => update(index, "hopperUrl", value)} />
+                {hopper ? (
+                  <HopperLink index={index} value={row.hopperUrl} error={errors[`tracks.${index}.hopperUrl`]} onChange={(value) => update(index, "hopperUrl", value)} />
+                ) : (
+                  <span className="admin-track-hopper" aria-hidden />
+                )}
                 <DropdownMenu.Root>
                   <DropdownMenu.Trigger>
                     <IconButton type="button" size="1" variant="ghost" color="gray" className="admin-track-menu" aria-label={`Actions du morceau ${index + 1}`}>
@@ -205,6 +230,7 @@ export function TracklistEditor({ rows, onChange, errors }: { rows: TrackRow[]; 
       <PasteDialog
         open={pasting}
         onOpenChange={setPasting}
+        hopper={hopper}
         hasRows={rows.length > 0}
         onAdd={(lines, replace) => {
           const kept = replace ? [] : rows.filter((row) => FIELDS.some((field) => row[field].trim()));
@@ -288,7 +314,7 @@ function HopperLink({ index, value, error, onChange }: { index: number; value: s
 }
 
 /** Le dialogue « Coller une tracklist » : le texte, ce qui en est lu, puis Ajouter (à la fin) ou Remplacer. */
-function PasteDialog({ open, onOpenChange, hasRows, onAdd }: { open: boolean; onOpenChange(open: boolean): void; hasRows: boolean; onAdd(lines: TrackLine[], replace: boolean): void }) {
+function PasteDialog({ open, onOpenChange, hasRows, onAdd, hopper }: { open: boolean; onOpenChange(open: boolean): void; hasRows: boolean; onAdd(lines: TrackLine[], replace: boolean): void; hopper: boolean }) {
   const [text, setText] = useState("");
   const lines = parseTracklist(text);
   const incomplete = lines.filter((line) => !line.artist || !line.title).length;
@@ -301,8 +327,8 @@ function PasteDialog({ open, onOpenChange, hasRows, onAdd }: { open: boolean; on
       <Dialog.Content maxWidth="760px">
         <Dialog.Title>Coller une tracklist</Dialog.Title>
         <Dialog.Description size="2" color="gray" mb="3">
-          Une ligne par morceau : le minutage (m:ss ou h:mm:ss, facultatif), l'artiste, un tiret, le titre. Les numéros, les crochets, les liens
-          Hopper et les colonnes copiées d'un tableur sont reconnus.
+          Une ligne par morceau : le minutage (m:ss ou h:mm:ss, facultatif), l'artiste, un tiret, le titre. Les numéros, les crochets
+          {hopper ? ", les liens Hopper" : ""} et les colonnes copiées d'un tableur sont reconnus.
         </Dialog.Description>
         <TextArea
           value={text}
@@ -335,7 +361,7 @@ function PasteDialog({ open, onOpenChange, hasRows, onAdd }: { open: boolean; on
                     <Table.ColumnHeaderCell>Minutage</Table.ColumnHeaderCell>
                     <Table.ColumnHeaderCell>Artiste</Table.ColumnHeaderCell>
                     <Table.ColumnHeaderCell>Titre</Table.ColumnHeaderCell>
-                    <Table.ColumnHeaderCell>Hopper</Table.ColumnHeaderCell>
+                    {hopper && <Table.ColumnHeaderCell>Hopper</Table.ColumnHeaderCell>}
                   </Table.Row>
                 </Table.Header>
                 <Table.Body>
@@ -344,7 +370,7 @@ function PasteDialog({ open, onOpenChange, hasRows, onAdd }: { open: boolean; on
                       <Table.Cell className="admin-mono">{line.start || "—"}</Table.Cell>
                       <Table.Cell>{line.artist || <Text color="amber">manque</Text>}</Table.Cell>
                       <Table.Cell>{line.title || <Text color="amber">manque</Text>}</Table.Cell>
-                      <Table.Cell>{line.hopperUrl ? "✓" : ""}</Table.Cell>
+                      {hopper && <Table.Cell>{line.hopperUrl ? "✓" : ""}</Table.Cell>}
                     </Table.Row>
                   ))}
                 </Table.Body>

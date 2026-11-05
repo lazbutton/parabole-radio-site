@@ -72,6 +72,7 @@ export const artistFormOf = (artist: AdminArtist): ArtistForm => ({
   links: artist.links,
   tags: artist.tags.map((tag) => tag.id),
   radiocultArtistId: artist.radiocultArtistId ?? "",
+  broadcastGroup: artist.broadcastGroup === 1 || artist.broadcastGroup === 2 ? String(artist.broadcastGroup) : "",
 });
 
 /** Le formulaire d'un artiste tel qu'envoyé. */
@@ -87,6 +88,7 @@ export function artistFormFrom(data: FormData): ArtistForm {
     tags: texts(data, "tag"),
     // Absent du formulaire (Radio Cult ne répondait pas à l'ouverture de la fiche) : le lien ne change pas.
     ...(data.has("radiocultArtistId") ? { radiocultArtistId: text(data, "radiocultArtistId") } : {}),
+    ...(data.has("broadcastGroup") ? { broadcastGroup: text(data, "broadcastGroup") } : {}),
   };
 }
 

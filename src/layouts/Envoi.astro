@@ -1,0 +1,43 @@
+---
+/**
+ * Le document de la page d'envoi d'un résident (/envoyer/<jeton>, cms/README.md, 9.12) : sans la coque du site, aux
+ * couleurs de l'admin (Radix Themes, src/styles/admin.css), dont la page reprend les briques. Ni indexée, ni gardée en
+ * cache, et son adresse, qui porte le jeton, n'est jamais transmise aux sites qu'elle ouvre (no-referrer).
+ */
+import "@radix-ui/themes/styles.css";
+import "../styles/admin.css";
+import "../styles/envoi.css";
+
+interface Props {
+  title: string;
+}
+const { title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="color-scheme" content="light dark" />
+    <title>{title} — Parabole Radio</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>"
+    />
+    <!-- L'apparence du système, posée avant le premier affichage : un écran sombre ne s'allume pas en blanc. -->
+    <script is:inline>
+      (() => {
+        const dark = matchMedia("(prefers-color-scheme: dark)");
+        const apply = () => document.documentElement.classList.toggle("dark", dark.matches);
+        apply();
+        dark.addEventListener("change", apply);
+      })();
+    </script>
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

@@ -17,14 +17,17 @@ import { Button, DataList, Flex, IconButton, SegmentedControl, Text, TextField }
 import { useEffect, useMemo, useState } from "react";
 import { forgetRecent, rememberRecent } from "./recents";
 import { useBlocker, useRouter } from "./router";
+import { Assembler } from "./Assembler";
+import { ReceivedParts, ReceivedSound, SubmissionPanel } from "./EnvoiPanels";
 import { FacetPicker } from "./FacetPicker";
 import { ImageField, placeImage } from "./ImageField";
 import { Field, filledPlaces, FormError, mergeSaved, placeErrors, postForm, Property, Section, SheetBar, SidePanel, SlugField, TitleInput, useSheetKeys, type Intent, type SaveIntent } from "./sheet";
 import { TextEditor } from "./TextEditor";
 import { useNotify } from "./toast";
 import { TokenPicker } from "./TokenPicker";
+import { useTagChoices } from "./tagChoices";
 import { trackRow, TracklistEditor, type TrackRow } from "./TracklistEditor";
-import type { Choice, MediaView, SaveResponse, ShowEditorData, ShowSheet } from "./types";
+import type { MediaView, SaveResponse, ShowEditorData, ShowSheet } from "./types";
 
 type EditorForm = Omit<ShowForm, "tracks"> & { tracks: TrackRow[] };
 
@@ -53,34 +56,6 @@ function formData(form: EditorForm, intent: Intent, version: string): FormData {
 const DONE: Record<SaveIntent, string> = { save: "Émission enregistrée", publish: "Émission publiée", unpublish: "Émission dépubliée : repassée en brouillon" };
 const PLURALS = { dj_set: "DJ sets", playlist: "playlists", podcast: "podcasts" };
 const ENERGY_STEPS = Array.from({ length: ENERGY.max - ENERGY.min + 1 }, (_, index) => String(ENERGY.min + index));
-
-/**
- * Les étiquettes de la fiche, rangées pour être choisies à la souris : les filtres qui valent pour ce type de show, ce
- * qui a été choisi ailleurs (dans un filtre d'un autre type de show), et ce qui n'est dans aucun filtre (« Autres »).
- */
-function useTagChoices(sheet: ShowSheet, chosen: string[], type: string) {
-  return useMemo(() => {
-    const facets = new Map(sheet.facets.map((facet) => [facet.id, facet]));
-    const names = new Map(sheet.tags.map((tag) => [tag.id, tag.name]));
-    const places = new Map(sheet.tags.map((tag) => [tag.id, tag.places]));
-    const fits = (facetId: string) => {
-      const facet = facets.get(facetId);
-      return !type || !facet || !facet.showTypes.length || facet.showTypes.includes(type as never);
-    };
-    /** Les autres places d'une étiquette, en mots : l'aide au survol d'une pastille. */
-    const elsewhere = (tagId: string, facetId: string, groupId: string | null) =>
-      (places.get(tagId) ?? [])
-        .filter((place) => !(place.facetId === facetId && place.groupId === groupId))
-        .map((place) => (place.groupId ? `${facets.get(place.facetId)?.name} › ${names.get(place.groupId)}` : `${facets.get(place.facetId)?.name}`));
-    const isNew = (value: string) => value.startsWith("nouveau:");
-    // Rangées seulement dans des filtres d'un autre type de show : elles ne comptent pas pour celui-ci.
-    const stray = chosen.filter((value) => !isNew(value) && (places.get(value)?.length ?? 0) > 0 && !places.get(value)!.some((place) => fits(place.facetId)));
-    // Nouvelles, ou dans aucun filtre : les « Autres ».
-    const loose = chosen.filter((value) => isNew(value) || !(places.get(value)?.length ?? 0));
-    const looseOptions: Choice[] = sheet.tags.filter((tag) => !tag.places.length).map((tag) => ({ id: tag.id, name: tag.name }));
-    return { names, elsewhere, shown: sheet.facets.filter((facet) => fits(facet.id)), stray, loose, looseOptions };
-  }, [sheet.facets, sheet.tags, chosen, type]);
-}
 
 export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
   const router = useRouter();
@@ -350,6 +325,23 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
               />
             </Section>
             <TracklistEditor rows={form.tracks} onChange={(tracks) => set("tracks", tracks)} errors={errors} />
+            {sheet.id && sheet.form.type === "playlist" ? (
+              <Assembler
+                url={url}
+                sheet={sheet}
+                dirty={dirty}
+                onAssembled={(fresh) => {
+                  // La fiche à jour : son son, sa setlist, sa nouvelle version.
+                  const form = toEditor(fresh.form);
+                  setSheet(fresh);
+                  setForm(form);
+                  setSaved(fingerprint(form));
+                  router.invalidate();
+                }}
+              />
+            ) : (
+              <ReceivedParts url={url} envoi={sheet.envoi} onChange={(envoi) => setSheet((current) => ({ ...current, envoi }))} />
+            )}
           </div>
 
           <aside className="admin-sheet-side" aria-label="Pochette, son et informations">
@@ -365,7 +357,23 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
                 onDescribed={(cover) => setSheet((current) => ({ ...current, cover }))}
               />
             </SidePanel>
+            <SubmissionPanel url={url} envoi={sheet.envoi} dirty={dirty} />
             <SidePanel title="Son">
+              <ReceivedSound
+                url={url}
+                envoi={sheet.envoi}
+                dirty={dirty}
+                scheduled={Boolean(sheet.form.broadcastAt)}
+                onChange={(envoi) => setSheet((current) => ({ ...current, envoi }))}
+                onPublished={(fresh) => {
+                  // SoundCloud a répondu : la fiche prend la piste, son statut, sa nouvelle version ; une saisie en cours reste.
+                  const next = toEditor(fresh.form);
+                  setForm((current) => mergeSaved(current, toEditor(sheet.form), next));
+                  setSaved(fingerprint(next));
+                  setSheet(fresh);
+                  router.invalidate();
+                }}
+              />
               <Field label="Piste SoundCloud" htmlFor="soundcloudUrl" optional error={errors.soundcloudUrl}>
                 <TextField.Root
                   id="soundcloudUrl"

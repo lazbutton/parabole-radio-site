@@ -19,13 +19,17 @@ import type { ShowFilters, ShowRow, ShowsListData } from "./types";
 
 const hrefOf = (filters: ShowFilters, page?: number) => listHref("/admin/shows", filters, { page, defaults: { order: "recent" } });
 
-/** Ce qui manque à une émission déjà diffusée : les choix du filtre, et leurs libellés. */
+/** Ce qui manque à une émission déjà diffusée, et ce qui attend dans les envois des résidents : les choix du filtre, et leurs libellés. */
 const MISSING: Record<string, string> = {
   tracklist: "Sans tracklist",
   sound: "Sans son",
   cover: "Sans pochette",
   description: "Sans description",
   tags: "Sans étiquette",
+  review: "Sons à écouter",
+  failed: "Échecs SoundCloud",
+  assemble: "Playlists à assembler",
+  slot: "Envois sans créneau",
 };
 
 /** Le groupe d'une ligne : « À venir », le mois de diffusion, ou « Sans date ». */
@@ -91,6 +95,14 @@ export function ShowsList({ rows, total, page, pages, filters, artists, tags }: 
               <Select.Item value="cover">Sans pochette</Select.Item>
               <Select.Item value="description">Sans description</Select.Item>
               <Select.Item value="tags">Sans étiquette</Select.Item>
+            </Select.Group>
+            <Select.Separator />
+            <Select.Group>
+              <Select.Label>Envois des résidents</Select.Label>
+              <Select.Item value="review">Sons à écouter</Select.Item>
+              <Select.Item value="failed">Publications SoundCloud en échec</Select.Item>
+              <Select.Item value="assemble">Playlists à assembler</Select.Item>
+              <Select.Item value="slot">Envois sans créneau</Select.Item>
             </Select.Group>
           </FilterPill>
           {filtered && (

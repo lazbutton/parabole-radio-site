@@ -6,9 +6,10 @@
  */
 import { LABELS } from "@parabole/cms/labels";
 import type { ArtistForm, FieldErrors } from "@parabole/cms";
-import { BookmarkIcon, PersonIcon } from "@radix-ui/react-icons";
+import { BookmarkIcon, CalendarIcon, PersonIcon } from "@radix-ui/react-icons";
 import { Badge, DataList, Flex, SegmentedControl, Select, Text } from "@radix-ui/themes";
 import { useEffect, useMemo, useState } from "react";
+import { UploadLinkPanel } from "./EnvoiPanels";
 import { FacetPicker } from "./FacetPicker";
 import { ImageField, placeImage } from "./ImageField";
 import { StatusBadge, TypeTile } from "./marks";
@@ -42,11 +43,15 @@ function formData(form: EditorForm, intent: Intent, version: string, radiocult: 
     data.append("linkUrl", link.url);
   }
   if (radiocult) data.set("radiocultArtistId", form.radiocultArtistId ?? "");
+  // Les groupes de diffusion sont ceux des résidents : un invité n'en a pas.
+  data.set("broadcastGroup", form.role === "resident" ? (form.broadcastGroup ?? "") : "");
   return data;
 }
 
 /** La valeur « aucun » de la liste des artistes de Radio Cult (une valeur vide n'est pas permise). */
 const NO_RADIOCULT = "aucun";
+/** De même pour le groupe de diffusion. */
+const NO_GROUP = "aucun";
 
 const DONE: Record<SaveIntent, string> = { save: "Fiche enregistrée", publish: "Artiste publié", unpublish: "Artiste dépublié : repassé en brouillon" };
 
@@ -165,6 +170,20 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
                   ))}
                 </SegmentedControl.Root>
               </Property>
+              {form.role === "resident" && (
+                <Property
+                  label="Groupe"
+                  icon={<CalendarIcon />}
+                  hint="Les deux groupes alternent à l'antenne par blocs de deux semaines : la deadline de ses envois suit son groupe."
+                  error={errors.broadcastGroup}
+                >
+                  <SegmentedControl.Root value={form.broadcastGroup || NO_GROUP} onValueChange={(value) => set("broadcastGroup", value === NO_GROUP ? "" : value)} aria-label="Groupe de diffusion" size="2">
+                    <SegmentedControl.Item value={NO_GROUP}>Aucun</SegmentedControl.Item>
+                    <SegmentedControl.Item value="1">Groupe 1</SegmentedControl.Item>
+                    <SegmentedControl.Item value="2">Groupe 2</SegmentedControl.Item>
+                  </SegmentedControl.Root>
+                </Property>
+              )}
               {sheet.facets.map((facet) => (
                 <Property key={facet.id} label={facet.name} icon={<BookmarkIcon />} error={errors.tags}>
                   {facet.groups.length ? (
@@ -221,7 +240,7 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
             )}
           </div>
 
-          <aside className="admin-sheet-side" aria-label="Photo et informations">
+          <aside className="admin-sheet-side" aria-label="Photo, lien d'envoi et informations">
             <SidePanel title="Photo">
               <ImageField
                 image={sheet.photo}
@@ -234,6 +253,7 @@ export function ArtistEditor({ sheet: initialSheet }: ArtistEditorData) {
                 onDescribed={(photo) => setSheet((current) => ({ ...current, photo }))}
               />
             </SidePanel>
+            {sheet.id && <UploadLinkPanel url={url} name={sheet.form.name || "l'artiste"} link={sheet.uploadLink} onChange={(uploadLink) => setSheet((current) => ({ ...current, uploadLink }))} />}
             <SidePanel title="Informations">
               <SlugField base="/residents" value={form.slug} saved={sheet.form.slug} published={sheet.status === "published"} from="du nom" error={errors.slug} onChange={(value) => set("slug", value)} />
               <RadioCultField

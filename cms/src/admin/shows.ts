@@ -10,6 +10,7 @@ import { escapeLike, prefixQuery } from "../read/search.ts";
 import { artist, contentStatus, SEARCH_CONFIG, show, showArtist, showTag, showType, tag, track, type ContentStatus, type ShowType } from "../schema.ts";
 import { slugify } from "../slug.ts";
 import { freeSlug, versionOf, type NotSaved, type Saved } from "./common.ts";
+import { awaitsAssembly, awaitsReview, awaitsSlot, sendFailed } from "./envois.ts";
 import { isUuid, type ArtistPick, type ShowValues, type TagPick } from "./input.ts";
 import { getMedia, type AdminMedia } from "./media.ts";
 import { tagChoices, type AdminFacetChoice, type AdminTagChoice } from "./tags.ts";
@@ -51,7 +52,9 @@ export type AdminShowFilters = {
   artist?: string;
   /**
    * Ce qui manque à une émission déjà diffusée : « tracklist », « sound » (la piste SoundCloud), « cover » (la pochette),
-   * « description », « tags » (aucune étiquette des filtres).
+   * « description », « tags » (aucune étiquette des filtres). Et ce qui attend l'équipe dans les envois des résidents :
+   * « review » (son à écouter), « failed » (refusé par SoundCloud), « assemble » (playlist à assembler), « slot » (envoi
+   * sans créneau).
    */
   missing?: string;
   /** « recent » (par défaut) : les plus récents d'abord, ceux sans date en tête ; « oldest » : les plus anciens. */
@@ -93,7 +96,18 @@ export const lacksDescription = (now: Date) => sql`(${aired(now)} and ${blankDes
 export const lacksTags = (now: Date) => sql`(${aired(now)} and not exists (select 1 from ${showTag} st where st.show_id = ${outer(show.id)}))`;
 
 /** Les conditions de « À compléter », par valeur du filtre. */
-const LACKS: Record<string, (now: Date) => SQL> = { tracklist: lacksTracklist, sound: lacksSound, cover: lacksCover, description: lacksDescription, tags: lacksTags };
+// Les envois des résidents (cms/README.md, 9.12) passent par la même table : le tableau de bord compte comme la liste.
+const LACKS: Record<string, (now: Date) => SQL> = {
+  tracklist: lacksTracklist,
+  sound: lacksSound,
+  cover: lacksCover,
+  description: lacksDescription,
+  tags: lacksTags,
+  review: awaitsReview,
+  failed: sendFailed,
+  assemble: awaitsAssembly,
+  slot: awaitsSlot,
+};
 
 /** La recherche de l'admin : comme celle du site (src/read/search.ts), brouillons compris. */
 function matching(input: string): SQL | undefined {

@@ -6,6 +6,7 @@ import type { Tx } from "../access.ts";
 import { outer } from "../read/common.ts";
 import { artist, member, show, tag, tagGroup, tagMember, type ContentStatus, type ShowType, type TeamRole } from "../schema.ts";
 import { lacksBio, lacksPhoto } from "./artists.ts";
+import { awaitsAssembly, awaitsReview, awaitsSlot, deadlinePanels, sendFailed, type DeadlinePanel } from "./envois.ts";
 import { artistNames, lacksCover, lacksDescription, lacksSound, lacksTags, lacksTracklist } from "./shows.ts";
 
 export type TeamMember = { userId: string; email: string; name: string; role: TeamRole };
@@ -33,6 +34,13 @@ export type Overview = {
    * la liste.
    */
   missing: { tracklist: number; sound: number; cover: number; description: number; untagged: number; photo: number; bio: number; tags: number };
+  /**
+   * Les envois des résidents : sons à écouter, refusés par SoundCloud, playlists à assembler, envois sans créneau
+   * (mêmes conditions que la liste des shows).
+   */
+  envois: { review: number; failed: number; assemble: number; slot: number };
+  /** Les deadlines des groupes : celle qui vient de passer (tant que le bloc n'a pas commencé), puis la prochaine. */
+  deadlines: DeadlinePanel[];
 };
 
 const counts = (status: typeof show.status | typeof artist.status) => ({
@@ -50,6 +58,10 @@ export async function overview(tx: Tx, { drafts = 8, upcoming = 5, now = new Dat
       cover: sql<number>`count(*) filter (where ${lacksCover(now)})`.mapWith(Number),
       description: sql<number>`count(*) filter (where ${lacksDescription(now)})`.mapWith(Number),
       untagged: sql<number>`count(*) filter (where ${lacksTags(now)})`.mapWith(Number),
+      review: sql<number>`count(*) filter (where ${awaitsReview()})`.mapWith(Number),
+      failed: sql<number>`count(*) filter (where ${sendFailed()})`.mapWith(Number),
+      assemble: sql<number>`count(*) filter (where ${awaitsAssembly()})`.mapWith(Number),
+      slot: sql<number>`count(*) filter (where ${awaitsSlot()})`.mapWith(Number),
     })
     .from(show);
   const [artists] = await tx
@@ -89,5 +101,7 @@ export async function overview(tx: Tx, { drafts = 8, upcoming = 5, now = new Dat
       bio: artists?.bio ?? 0,
       tags: unplaced?.n ?? 0,
     },
+    envois: { review: shows?.review ?? 0, failed: shows?.failed ?? 0, assemble: shows?.assemble ?? 0, slot: shows?.slot ?? 0 },
+    deadlines: await deadlinePanels(tx, now),
   };
 }

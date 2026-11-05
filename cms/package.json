@@ -12,7 +12,9 @@
     "./schema": "./src/schema.ts",
     "./labels": "./src/labels.ts",
     "./tracklist": "./src/tracklist.ts",
-    "./antenne": "./src/chat/forme.ts"
+    "./antenne": "./src/chat/forme.ts",
+    "./envois": "./src/envois/navigateur.ts",
+    "./assemblage": "./src/assemblage.ts"
   },
   "scripts": {
     "db:generate": "drizzle-kit generate",

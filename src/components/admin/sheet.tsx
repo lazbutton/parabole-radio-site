@@ -116,7 +116,7 @@ export function TitleInput({ id, label, value, onChange, placeholder, error }: {
 }
 
 /** Un bloc du corps de la fiche (Description, Tracklist, Liens) : son titre, un compte, des actions à droite. */
-export function Section({ title, count, aside, children }: { title: string; count?: ReactNode; aside?: ReactNode; children: ReactNode }) {
+export function Section({ title, count, aside, children }: { title: ReactNode; count?: ReactNode; aside?: ReactNode; children: ReactNode }) {
   return (
     <section className="admin-section">
       <Flex justify="between" align="center" gap="3" wrap="wrap" mb="3">

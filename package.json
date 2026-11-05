@@ -32,13 +32,16 @@
     "@tiptap/react": "3.32.0",
     "@tiptap/starter-kit": "3.32.0",
     "@vercel/blob": "2.8.2",
+    "@vercel/functions": "3.10.2",
     "astro": "7.3.8",
+    "aws4fetch": "1.0.20",
     "markdown-it": "15.0.3",
     "radix-ui": "1.8.1",
     "react": "19.2.9",
     "react-dom": "19.2.9",
     "sharp": "0.35.5",
-    "socket.io-client": "4.8.1"
+    "socket.io-client": "4.8.1",
+    "wasm-media-encoders": "0.7.0"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.10",

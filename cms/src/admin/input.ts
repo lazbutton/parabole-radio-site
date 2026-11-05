@@ -270,6 +270,8 @@ export type ArtistForm = {
   tags: string[];
   /** Son artiste chez Radio Cult, choisi dans la liste de la station ; vide : aucun ; absent : inchangé. */
   radiocultArtistId?: string;
+  /** Son groupe de diffusion : « 1 », « 2 », vide pour aucun ; absent : inchangé. */
+  broadcastGroup?: string;
 };
 
 export type ArtistValues = {
@@ -282,6 +284,8 @@ export type ArtistValues = {
   tags: string[];
   /** Null : relié à aucun ; absent : inchangé. */
   radiocultArtistId?: string | null;
+  /** 1 ou 2 ; null : hors des groupes ; absent : inchangé. */
+  broadcastGroup?: 1 | 2 | null;
 };
 
 export const emptyArtistForm = (): ArtistForm => ({ name: "", slug: "", role: "guest", bio: "", links: [], tags: [], radiocultArtistId: "" });
@@ -352,6 +356,11 @@ export function readArtistForm(input: ArtistForm): { form: ArtistForm; values: A
   const radiocultArtistId = form.radiocultArtistId === undefined ? undefined : clean(form.radiocultArtistId) || null;
   if (radiocultArtistId && !/^[A-Za-z0-9_-]{1,64}$/.test(radiocultArtistId)) errors.radiocultArtistId = "Choisis un artiste dans la liste de Radio Cult.";
 
+  // Le groupe de diffusion d'un résident : 1, 2, ou aucun.
+  const group = form.broadcastGroup === undefined ? undefined : clean(form.broadcastGroup);
+  if (group && group !== "1" && group !== "2") errors.broadcastGroup = "Choisis le groupe 1, le groupe 2, ou aucun.";
+  const broadcastGroup = group === undefined ? undefined : group === "1" ? 1 : group === "2" ? 2 : null;
+
   return {
     form,
     errors,
@@ -364,6 +373,7 @@ export function readArtistForm(input: ArtistForm): { form: ArtistForm; values: A
       links: values,
       tags,
       ...(radiocultArtistId === undefined ? {} : { radiocultArtistId }),
+      ...(broadcastGroup === undefined ? {} : { broadcastGroup }),
     },
   };
 }
