@@ -2,14 +2,16 @@
  * La publication sur SoundCloud (cms/README.md, 9.14), sans SoundCloud : un faux réseau (fetch) et un faux seau. Le
  * corps multipart à l'octet près, le PKCE, le compte relié et la rotation de ses jetons, les émissions du matin,
  * l'envoi (la piste inscrite, la page publiée, les morceaux effacés), l'échec noté sans nouvel essai, jamais deux
- * envois de la même émission.
+ * envois de la même émission. La durée lue dans le MP3 (des MP3 fabriqués ici), l'adresse sans paramètres de suivi, et
+ * les durées complétées le matin.
  */
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Connection, Db } from "../src/db.ts";
 import { artist, audioFile, media, show, showArtist, tag, showTag, track } from "../src/schema.ts";
-import { aPublier, descriptionOf, multipart, plainText, prendre, publier, tagListOf, trackIdOf, type PublishDeps } from "../src/soundcloud/index.ts";
+import { aPublier, cleanPermalink, completerDurees, descriptionOf, keepHead, mp3Seconds, multipart, plainText, prendre, publier, tagListOf, trackIdOf, type PublishDeps } from "../src/soundcloud/index.ts";
+import { id3Size } from "../src/soundcloud/mp3.ts";
 import { authorizeUrl, challengeOf, compteSoundCloud, delierSoundCloud, jetonSoundCloud, relierSoundCloud, SoundCloudError, type SoundCloudApp } from "../src/soundcloud/oauth.ts";
 import { freshDb } from "./helpers.ts";
 
@@ -37,6 +39,85 @@ const stream = (bytes: Uint8Array, piece = 3) =>
       controller.close();
     },
   });
+
+/** Des MP3 fabriqués : une étiquette ID3, des trames de couche III vides qui portent chacune leur en-tête. */
+const ID3 = (size: number, footer = false) => {
+  const bytes = new Uint8Array(10 + size);
+  bytes.set([0x49, 0x44, 0x33, 4, 0, footer ? 0x10 : 0, (size >> 21) & 0x7f, (size >> 14) & 0x7f, (size >> 7) & 0x7f, size & 0x7f]);
+  return bytes;
+};
+/** MPEG-1, 320 kbit/s, 44,1 kHz, stéréo : des trames de 1 044 octets. */
+const MPEG1_320 = { header: [0xff, 0xfb, 0xe0, 0x44], length: 1044 };
+/** MPEG-2, 64 kbit/s, 22,05 kHz, mono : des trames de 208 octets. */
+const MPEG2_64_MONO = { header: [0xff, 0xf3, 0x80, 0xc0], length: 208 };
+const frames = ({ header, length }: { header: number[]; length: number }, count: number) => {
+  const bytes = new Uint8Array(length * count);
+  for (let index = 0; index < count; index++) bytes.set(header, index * length);
+  return bytes;
+};
+const join = (...parts: Uint8Array[]) => {
+  const bytes = new Uint8Array(parts.reduce((total, part) => total + part.byteLength, 0));
+  let at = 0;
+  for (const part of parts) {
+    bytes.set(part, at);
+    at += part.byteLength;
+  }
+  return bytes;
+};
+/** Écrit un en-tête de durée (Xing, Info : drapeau puis trames ; VBRI : trames 14 octets plus loin) à cet endroit. */
+const durationHeader = (bytes: Uint8Array, at: number, tag: "Xing" | "Info" | "VBRI", count: number) => {
+  bytes.set(new TextEncoder().encode(tag), at);
+  const view = new DataView(bytes.buffer, bytes.byteOffset);
+  if (tag === "VBRI") view.setUint32(at + 14, count);
+  else {
+    view.setUint32(at + 4, 1);
+    view.setUint32(at + 8, count);
+  }
+  return bytes;
+};
+
+describe("la durée d'un MP3", () => {
+  it("lit l'en-tête Xing, Info ou VBRI de la première trame, sinon le débit constant, après l'étiquette ID3", () => {
+    // Débit constant, sans en-tête : 1 044 × 2 500 octets à 320 kbit/s font 65,25 s.
+    const tagged = join(ID3(990), frames(MPEG1_320, 3));
+    expect(id3Size(tagged)).toBe(1000);
+    expect(mp3Seconds(tagged, 1000 + 1044 * 2500)).toBe(65);
+    // Info (LAME, débit constant) et Xing (débit variable) : 2 583 trames de 1 152 échantillons à 44,1 kHz.
+    expect(mp3Seconds(durationHeader(frames(MPEG1_320, 3), 4 + 32, "Info", 2583), 999_999_999)).toBe(67);
+    expect(mp3Seconds(durationHeader(join(ID3(90), frames(MPEG1_320, 3)), 100 + 4 + 32, "Xing", 2583), 1)).toBe(67);
+    expect(mp3Seconds(durationHeader(frames(MPEG1_320, 3), 4 + 32, "VBRI", 1000), 1)).toBe(26);
+    // MPEG-2 mono : l'en-tête est à 9 octets, les trames font 576 échantillons à 22,05 kHz.
+    expect(mp3Seconds(durationHeader(frames(MPEG2_64_MONO, 3), 4 + 9, "Xing", 5000), 1)).toBe(131);
+    // Une étiquette avec pied compte 10 octets de plus.
+    expect(id3Size(ID3(100, true))).toBe(120);
+  });
+
+  it("ne se laisse pas prendre par une fausse trame, et rend null pour ce qui n'est pas un MP3", () => {
+    // Un faux début de trame juste après l'étiquette : la trame suivante n'est pas là, la vraie commence 100 octets plus loin.
+    const fake = new Uint8Array(100);
+    fake.set(MPEG1_320.header);
+    const head = join(ID3(90), fake, frames(MPEG1_320, 3));
+    expect(mp3Seconds(head, 200 + 1044 * 2500)).toBe(65);
+    expect(mp3Seconds(new TextEncoder().encode("MP3"), 3)).toBeNull();
+    expect(mp3Seconds(new Uint8Array(4096), 4096)).toBeNull();
+    expect(mp3Seconds(new Uint8Array(0), 0)).toBeNull();
+  });
+
+  it("garde le début du flux pendant qu'il passe, l'étiquette ID3 entière comprise, sans rien changer au flux", async () => {
+    const plain = new Uint8Array(200 * 1024).map((_, index) => index % 251);
+    const kept = keepHead(stream(plain, 7 * 1024));
+    expect(new Uint8Array(await new Response(kept.stream).arrayBuffer())).toEqual(plain);
+    expect(kept.head().byteLength).toBeGreaterThanOrEqual(64 * 1024);
+    expect(kept.head().byteLength).toBeLessThan(72 * 1024);
+    expect(kept.head()).toEqual(plain.subarray(0, kept.head().byteLength));
+
+    const tagged = join(ID3(100 * 1024), frames(MPEG1_320, 100));
+    const big = keepHead(stream(tagged, 7 * 1024));
+    await new Response(big.stream).arrayBuffer();
+    expect(big.head().byteLength).toBeGreaterThanOrEqual(10 + 100 * 1024 + 64 * 1024);
+    expect(mp3Seconds(big.head(), tagged.byteLength)).toBe(mp3Seconds(tagged, tagged.byteLength));
+  });
+});
 
 describe("le corps multipart", () => {
   it("s'écrit à l'octet près, avec sa longueur exacte", async () => {
@@ -100,6 +181,8 @@ describe("le compte relié et la publication", () => {
       }
       if (url === "https://api.soundcloud.com/me") return json({ urn: "soundcloud:users:1724317019", username: "PARABOLE RADIO", permalink_url: "https://soundcloud.com/parabole-radio" });
       if (url === "https://api.soundcloud.com/tracks") return tracks(body);
+      // La durée d'une piste déjà partie (completerDurees) : 16,3 s.
+      if (url.startsWith("https://api.soundcloud.com/tracks/soundcloud:tracks:")) return json({ urn: url.slice(url.lastIndexOf("/") + 1), duration: 16_300 });
       return json({ error: "inconnu" }, 404);
     });
 
@@ -211,6 +294,33 @@ describe("le compte relié et la publication", () => {
     expect(await prendre(db, showId, new Date(Date.now() + 16 * 60_000))).toMatchObject({ showId });
   });
 
+  it("lit la durée dans le MP3 quand SoundCloud ne la donne pas encore, et garde l'adresse sans paramètres de suivi", async () => {
+    const { showId } = await episode({ durationSeconds: null, broadcastAt: null });
+    // Un MP3 de 65 s à 320 kbit/s (2,6 Mo), et SoundCloud qui transcode encore (durée 0), avec une piste privée.
+    const sound = join(ID3(990), frames(MPEG1_320, 2500));
+    const { fetcher } = soundcloud(() => json({ urn: "soundcloud:tracks:777", permalink_url: "https://soundcloud.com/parabole/essai/s-AbC123?utm_medium=api&utm_campaign=social_sharing&utm_source=id_332624", duration: 0 }, 201));
+    const done = await publier(db, showId, { ...deps(fetcher, new Date(NOV10.getTime() + 5 * 3600_000)), readAudio: async () => ({ body: stream(sound, 64 * 1024), size: sound.byteLength }) }, { sharing: "private" });
+    expect(done).toMatchObject({ ok: true, trackId: "777", url: "https://soundcloud.com/parabole/essai/s-AbC123" });
+    const [after] = await db.select({ duration: show.durationSeconds, url: show.soundcloudUrl }).from(show).where(eq(show.id, showId));
+    expect(after).toEqual({ duration: 65, url: "https://soundcloud.com/parabole/essai/s-AbC123" });
+  });
+
+  it("complète le matin la durée des émissions parties sans elle, et seulement celles-là", async () => {
+    const sent = await episode({ durationSeconds: null, soundcloudTrackId: "2432511870", broadcastAt: null }, "sent");
+    const typed = await episode({ durationSeconds: null, soundcloudTrackId: "999", broadcastAt: null });
+    const { fetcher, calls } = soundcloud();
+    expect(await completerDurees(db, { app: APP, fetcher, now: () => new Date(NOV10.getTime() + 5 * 3600_000) })).toBe(1);
+    const asked = calls.filter((call) => call.url.startsWith("https://api.soundcloud.com/tracks/"));
+    expect(asked.map((call) => call.url)).toEqual(["https://api.soundcloud.com/tracks/soundcloud:tracks:2432511870"]);
+    expect((asked[0]!.init.headers as Record<string, string>).Authorization).toBe("OAuth acces-4");
+    const durations = await db.select({ id: show.id, duration: show.durationSeconds }).from(show).where(eq(show.durationSeconds, 16));
+    expect(durations.map((row) => row.id)).toEqual([sent.showId]);
+    const [left] = await db.select({ duration: show.durationSeconds }).from(show).where(eq(show.id, typed.showId));
+    expect(left!.duration).toBeNull();
+    // Plus rien à compléter : aucun appel.
+    expect(await completerDurees(db, { app: APP, fetcher, now: () => new Date(NOV10.getTime() + 5 * 3600_000) })).toBe(0);
+  });
+
   it("note un refus avec sa raison, sans nouvel essai le lendemain ; « Publier maintenant » peut réessayer", async () => {
     const { showId, fileId } = await episode({});
     const { fetcher } = soundcloud(() => json({ errors: [{ error_message: "Upload quota exceeded" }] }, 403));
@@ -225,6 +335,12 @@ describe("le compte relié et la publication", () => {
     expect(retried).toMatchObject({ ok: true });
     const [row] = await db.select({ status: show.status }).from(show).where(eq(show.id, showId));
     expect(row!.status).toBe("draft");
+  });
+
+  it("enlève les paramètres de suivi d'une adresse de piste, pas le reste", () => {
+    expect(cleanPermalink("https://soundcloud.com/nowavesc/yo/s-7rwj5plRrmy?utm_medium=api&utm_campaign=social_sharing&utm_source=id_332624")).toBe("https://soundcloud.com/nowavesc/yo/s-7rwj5plRrmy");
+    expect(cleanPermalink("https://soundcloud.com/a/b?utm_source=x&in=playlist#t=10")).toBe("https://soundcloud.com/a/b?in=playlist");
+    expect(cleanPermalink("pas une adresse")).toBe("pas une adresse");
   });
 
   it("met en forme la description et les étiquettes, et lit l'identifiant de la piste", () => {

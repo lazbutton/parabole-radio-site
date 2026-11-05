@@ -9,12 +9,13 @@
  *     longtemps (l'envoi s'est interrompu) ; jamais deux fois ;
  *   - envoyer : le MP3 va du seau à SoundCloud en flux (POST /tracks), avec le titre, les artistes, la description (le
  *     texte, la setlist, le lien de la page), les étiquettes, la date de diffusion et la pochette en JPEG ; puis la
- *     piste est inscrite sur l'émission (identifiant, adresse, durée si elle manquait), sa page publiée, et les
- *     morceaux d'une playlist assemblée effacés (rendus pour le seau). Un échec passe en « failed », avec sa raison, et
- *     n'est pas réessayé seul.
+ *     piste est inscrite sur l'émission (identifiant, adresse sans paramètres de suivi, durée si elle manquait, lue
+ *     dans le MP3 lui-même pendant l'envoi), sa page publiée, et les morceaux d'une playlist assemblée effacés (rendus
+ *     pour le seau). Un échec passe en « failed », avec sa raison, et n'est pas réessayé seul ;
+ *   - completerDurees : la durée des émissions parties sans elle, demandée à SoundCloud (la tâche du matin).
  * Les accès (le seau, la pochette, le réseau) sont passés par l'appelant : le site en production, de faux dans les tests.
  */
-import { and, eq, inArray, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import { getShow, type AdminShow } from "../admin/shows.ts";
 import type { AdminMedia } from "../admin/media.ts";
 import type { Db } from "../db.ts";
@@ -22,10 +23,12 @@ import { parisDay } from "../envois/calendrier.ts";
 import { STUCK_SENDING_MS } from "../envois/fichiers.ts";
 import { audioFile, show } from "../schema.ts";
 import { formatTimecode } from "../tracklist.ts";
+import { keepHead, mp3Seconds } from "./mp3.ts";
 import { multipart, type Part } from "./multipart.ts";
 import { API_URL, jetonSoundCloud, SoundCloudError, type SoundCloudApp } from "./oauth.ts";
 
 export { authorizeUrl, challengeOf, compteSoundCloud, delierSoundCloud, jetonSoundCloud, pkce, relierSoundCloud, SoundCloudError, type SoundCloudApp } from "./oauth.ts";
+export { keepHead, mp3Seconds } from "./mp3.ts";
 export { multipart, type Part } from "./multipart.ts";
 
 /** Ce que l'envoi demande au site : l'appli SoundCloud, le réseau, le MP3 dans le seau, la pochette en JPEG, son adresse. */
@@ -144,6 +147,21 @@ function refusal(status: number, body: Record<string, unknown>): string {
   return `SoundCloud refuse la piste (${status})${said ? ` : ${said}` : ""}.`;
 }
 
+/**
+ * L'adresse d'une piste sans les paramètres de suivi que l'API y ajoute (utm_…). Le jeton d'une piste privée est dans
+ * le chemin (/s-…) : il reste.
+ */
+export function cleanPermalink(url: string): string {
+  try {
+    const clean = new URL(url);
+    for (const name of [...clean.searchParams.keys()]) if (name.startsWith("utm_")) clean.searchParams.delete(name);
+    clean.hash = "";
+    return clean.href;
+  } catch {
+    return url;
+  }
+}
+
 /** L'identifiant d'une piste rendue par SoundCloud : de son URN (« soundcloud:tracks:123 »), sinon son id. */
 export function trackIdOf(body: Record<string, unknown>): string | null {
   const urn = typeof body.urn === "string" ? /^soundcloud:tracks:(\d+)$/.exec(body.urn)?.[1] : undefined;
@@ -163,10 +181,12 @@ export async function envoyer(db: Db, job: Job, deps: PublishDeps, { sharing = "
     if (!current) throw new SoundCloudError("Cette émission n'existe plus.");
     const token = await jetonSoundCloud(db, deps.app, { fetcher, now });
     const audio = await deps.readAudio(job.key);
+    // Le début du son est gardé au passage : il donne la durée, que SoundCloud ne rend pas tant qu'il transcode.
+    const sound = keepHead(audio.body);
     const artwork = current.cover ? await deps.readCover(current.cover).catch(() => null) : null;
     const parts: Part[] = [
       ...trackFields(current, deps.siteUrl, sharing),
-      { name: "track[asset_data]", fileName: `${current.slug}.mp3`, type: "audio/mpeg", size: audio.size, open: () => audio.body },
+      { name: "track[asset_data]", fileName: `${current.slug}.mp3`, type: "audio/mpeg", size: audio.size, open: () => sound.stream },
       ...(artwork ? [{ name: "track[artwork_data]", fileName: `${current.slug}.jpg`, type: "image/jpeg", size: artwork.byteLength, open: () => artwork } satisfies Part] : []),
     ];
     const { body, length, type } = multipart(parts);
@@ -184,9 +204,10 @@ export async function envoyer(db: Db, job: Job, deps: PublishDeps, { sharing = "
     const reply = (await answer.json().catch(() => ({}))) as Record<string, unknown>;
     if (!answer.ok) throw new SoundCloudError(refusal(answer.status, reply));
     const trackId = trackIdOf(reply);
-    const url = typeof reply.permalink_url === "string" ? reply.permalink_url : null;
+    const url = typeof reply.permalink_url === "string" ? cleanPermalink(reply.permalink_url) : null;
     if (!trackId || !url) throw new SoundCloudError("SoundCloud a pris le son sans rendre sa piste : vérifie le compte avant de réessayer.");
-    const seconds = typeof reply.duration === "number" && reply.duration > 0 ? Math.round(reply.duration / 1000) : null;
+    const reported = typeof reply.duration === "number" && reply.duration > 0 ? Math.round(reply.duration / 1000) : null;
+    const seconds = mp3Seconds(sound.head(), audio.size) ?? reported;
     const removedKeys = await db
       .transaction(async (tx) => {
         await tx.update(audioFile).set({ status: "sent", sentAt: now, error: null }).where(eq(audioFile.id, job.fileId));
@@ -213,6 +234,35 @@ export async function envoyer(db: Db, job: Job, deps: PublishDeps, { sharing = "
     await db.update(audioFile).set({ status: "failed", error: error.slice(0, 500) }).where(and(eq(audioFile.id, job.fileId), eq(audioFile.status, "sending")));
     return { ok: false, showId: job.showId, error };
   }
+}
+
+/**
+ * La durée des émissions parties sur SoundCloud sans elle (un son que le MP3 ne disait pas, SoundCloud qui transcodait
+ * encore) : demandée à SoundCloud, une piste après l'autre, des plus récentes aux plus anciennes (une piste introuvable
+ * ne bloque pas les nouvelles). Seulement celles que le site a envoyées, et qui n'ont pas de durée. Rend le nombre
+ * d'émissions complétées.
+ */
+export async function completerDurees(db: Db, deps: Pick<PublishDeps, "app" | "fetcher" | "now">, limit = 20): Promise<number> {
+  const fetcher = deps.fetcher ?? fetch;
+  const rows = await db
+    .select({ id: show.id, trackId: show.soundcloudTrackId })
+    .from(show)
+    .innerJoin(audioFile, and(eq(audioFile.showId, show.id), eq(audioFile.role, "main"), eq(audioFile.status, "sent")))
+    .where(and(sql`${show.soundcloudTrackId} is not null`, sql`${show.durationSeconds} is null`))
+    .orderBy(desc(audioFile.sentAt))
+    .limit(limit);
+  if (!rows.length) return 0;
+  const token = await jetonSoundCloud(db, deps.app, { fetcher, now: deps.now?.() ?? new Date() });
+  let filled = 0;
+  for (const row of rows) {
+    const answer = await fetcher(`${API_URL}/tracks/soundcloud:tracks:${row.trackId}`, { headers: { Accept: "application/json; charset=utf-8", Authorization: `OAuth ${token}` } });
+    const body = (await answer.json().catch(() => ({}))) as Record<string, unknown>;
+    const seconds = answer.ok && typeof body.duration === "number" && body.duration > 0 ? Math.round(body.duration / 1000) : null;
+    if (!seconds) continue;
+    await db.update(show).set({ durationSeconds: sql`coalesce(${show.durationSeconds}, ${seconds})` }).where(eq(show.id, row.id));
+    filled++;
+  }
+  return filled;
 }
 
 /** Prend puis envoie une émission ; null si elle n'était pas à prendre. */

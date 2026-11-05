@@ -6,9 +6,10 @@
  * ses 300) : un MP3 de 750 Mo passe du seau à SoundCloud en quelques dizaines de secondes. S'il en reste, la tâche
  * lance un nouvel appel d'elle-même (même en-tête, `?tour=n`, 20 tours au plus) sans l'attendre : il a ses propres
  * 300 s. Un échec est noté sur le son (« failed ») et n'est pas réessayé : il s'affiche à l'accueil de l'admin. Sans
- * compte relié, rien ne part (et rien n'est marqué en échec).
+ * compte relié, rien ne part (et rien n'est marqué en échec). Au premier tour, les émissions déjà parties sans durée la
+ * reçoivent de SoundCloud (completerDurees).
  */
-import { aPublier, compteSoundCloud, publier, type Published } from "@parabole/cms";
+import { aPublier, completerDurees, compteSoundCloud, publier, type Published } from "@parabole/cms";
 import { waitUntil } from "@vercel/functions";
 import type { APIRoute } from "astro";
 import { CRON_SECRET } from "astro:env/server";
@@ -47,6 +48,15 @@ export const GET: APIRoute = async ({ request, url }) => {
       if (done.ok) await removeFiles(done.removedKeys);
       console.log(done.ok ? `SoundCloud, publication : émission ${done.showId} publiée (${done.url}).` : `SoundCloud, publication : émission ${done.showId} en échec : ${done.error}`);
     }
+    // Les durées manquantes, au premier tour seulement : une erreur ici n'empêche pas la suite.
+    const durations =
+      round === 1
+        ? await completerDurees(db, publishDeps(app)).catch((failure: unknown) => {
+            console.error("SoundCloud, durées : lecture impossible", failure);
+            return 0;
+          })
+        : 0;
+    if (durations) console.log(`SoundCloud, durées : ${durations} émission(s) complétée(s).`);
     const more = (await aPublier(db, new Date(), 1)).length > 0;
     if (more && results.length && round < ROUNDS) {
       // L'appel suivant est lancé, pas attendu : trois secondes pour qu'il parte, puis cette fonction s'arrête.
@@ -59,7 +69,7 @@ export const GET: APIRoute = async ({ request, url }) => {
           .finally(() => clearTimeout(timer)),
       );
     }
-    return json({ round, published: results.filter((one) => one.ok).length, failed: results.filter((one) => !one.ok).length, more }, "no-store", 200);
+    return json({ round, published: results.filter((one) => one.ok).length, failed: results.filter((one) => !one.ok).length, durations, more }, "no-store", 200);
   } catch (failure) {
     console.error("SoundCloud, publication : la base du CMS ne répond pas", failure);
     return json({ ok: false, error: "database unavailable" }, "no-store", 500);

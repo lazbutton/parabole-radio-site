@@ -52,6 +52,8 @@ export { rattacherEnvois } from "./envois/rattacher.ts";
 export {
   aPublier,
   authorizeUrl,
+  cleanPermalink,
+  completerDurees,
   compteSoundCloud,
   delierSoundCloud,
   envoyer,
