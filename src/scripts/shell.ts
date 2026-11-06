@@ -16,6 +16,7 @@ import "./residents"; // la grille des résidents : filtres sur place, index A�
 import "./artiste"; // la page d'un artiste : bio, prochaine émission, rangées, zapping
 import "./evenement"; // la page d'un événement : ses photos, en rangée et en grand
 import "./a-propos"; // À propos : le film qu'on lance, et la page qui s'efface devant lui
+import "./candidater"; // Candidater : les trois écrans du formulaire, puis « C'est reçu »
 import "./beat"; // BEAT : le pouls de la musique
 import "./globe"; // GLOBE : le logo audioréactif
 import "./contributors"; // le bouton contributeurs
