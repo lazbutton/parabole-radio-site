@@ -148,6 +148,20 @@
       "when": 1793960563406,
       "tag": "0020_candidatures_acces",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793966698624,
+      "tag": "0021_reglages_du_site",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793966699006,
+      "tag": "0022_reglages_du_site_acces",
+      "breakpoints": true
     }
   ]
 }

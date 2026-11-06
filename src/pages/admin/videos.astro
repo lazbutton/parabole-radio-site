@@ -8,6 +8,8 @@
  * l'envoi d'un fichier, puis « add » ou « replace » vérifie dans le magasin que la vidéo est bien arrivée avant de
  * l'inscrire. Les fichiers qu'une action rend inutiles (ancien fichier remplacé, vidéo supprimée, envoi abandonné)
  * sont effacés du magasin ; ceux livrés avec le site ne sont jamais touchés.
+ *
+ * Le même écran règle le filtre cathodique posé sur tout le site (action « look ») : allumé ou éteint, et sa force.
  */
 import { readClipFile, readClipTitle } from "@parabole/cms";
 import type { Screen } from "../../components/admin/types";
@@ -24,7 +26,7 @@ if (Astro.request.method === "POST") {
   const text = (name: string) => String(data.get(name) ?? "");
   const id = text("id");
   /** La liste à jour, après une action réussie. */
-  const done = async (message?: string) => json({ ok: true, data: clipsData(await admin.listClips()), message });
+  const done = async (message?: string) => json({ ok: true, data: clipsData(await admin.listClips(), await admin.siteLook()), message });
   const refused = (errors: Record<string, string>, status = 422) => json({ ok: false, errors }, status);
 
   switch (text("intent")) {
@@ -107,11 +109,26 @@ if (Astro.request.method === "POST") {
       await removeFiles([removed.videoUrl, removed.posterUrl]);
       return done(`« ${removed.title || "Sans titre"} » supprimée`);
     }
+
+    case "look": {
+      const change: { crtFilter?: boolean; crtStrength?: number } = {};
+      if (data.has("crtFilter")) change.crtFilter = text("crtFilter") === "on";
+      if (data.has("crtStrength")) change.crtStrength = Number(text("crtStrength"));
+      const saved = await admin.saveSiteLook(change);
+      if (!saved.ok) return refused(saved.errors);
+      const message =
+        change.crtFilter === false
+          ? "Filtre cathodique éteint"
+          : change.crtFilter === true
+            ? "Filtre cathodique allumé"
+            : `Intensité du filtre : ${saved.look.crtStrength} %`;
+      return done(message);
+    }
   }
   return refused({ form: "Action inconnue." }, 400);
 }
 
-const screen: Screen = { name: "clips", title: "Vidéos de fond", data: clipsData(await admin.listClips()) };
+const screen: Screen = { name: "clips", title: "Vidéos de fond", data: clipsData(await admin.listClips(), await admin.siteLook()) };
 if (wantsJson(Astro.request)) return json(screen);
 ---
 

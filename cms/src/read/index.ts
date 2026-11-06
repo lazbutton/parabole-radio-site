@@ -19,6 +19,7 @@ import { getEvent, listEvents, type EventFilters } from "./events.ts";
 import { listFacets, type FacetFilters } from "./facets.ts";
 import { getPage } from "./pages.ts";
 import { search } from "./search.ts";
+import { getSiteLook } from "./site.ts";
 import { getShow, listAirings, listShowMonths, listShows, type ShowFilters } from "./shows.ts";
 
 export type ReaderOptions = {
@@ -54,6 +55,8 @@ export function createReader(db: Db, { mediaBaseUrl }: ReaderOptions) {
     search: (query: string, options: { limit?: number } = {}) => asPublic(db, (tx) => search(tx, mediaBaseUrl, query, options)),
     /** Les vidéos de fond de la rotation, dans l'ordre de la liste de l'admin. */
     listBackgroundClips: () => asPublic(db, (tx) => listBackgroundClips(tx)),
+    /** Le filtre cathodique posé sur tout le site : allumé ou non, et sa force en pour cent (100 : l'effet d'origine). */
+    getSiteLook: () => asPublic(db, (tx) => getSiteLook(tx)),
   };
 }
 
@@ -67,4 +70,5 @@ export type { EventCard, EventDetail, EventFilters, EventPhoto } from "./events.
 export type { FacetFilters, FacetGroup, FacetMenu, FacetTag } from "./facets.ts";
 export type { PageContent } from "./pages.ts";
 export type { SearchResults } from "./search.ts";
+export type { SiteLook } from "./site.ts";
 export type { Airing, ShowCard, ShowDetail, ShowFilters, ShowHost, ShowMonth, ShowTrack } from "./shows.ts";

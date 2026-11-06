@@ -35,6 +35,8 @@ import {
   type ChatSettingsChange,
 } from "./chat.ts";
 import { addClip, deleteClip, getClip, listClips, moveClip, replaceClipFile, updateClip, type ClipAdd, type ClipChange } from "./clips.ts";
+import { getSiteLook, saveSiteLook } from "./site.ts";
+import type { SiteLook } from "../read/site.ts";
 import { addEventPhotos, captionEventPhoto, deleteEvent, eventChoices, getEvent, listEvents, orderEventPhotos, removeEventPhoto, saveEvent, type AdminEventFilters, type EventSave } from "./events.ts";
 import type { NotSaved } from "./common.ts";
 import type { ClipFile, FacetValues, MediaText } from "./input.ts";
@@ -195,6 +197,10 @@ export function createAdmin(db: Db, userId: string) {
     moveClip: (id: string, direction: "up" | "down") => as((tx) => moveClip(tx, id, direction)),
     /** Supprime une vidéo de fond. Rend les adresses de ses fichiers, à effacer du stockage, ou null. */
     deleteClip: (id: string) => as((tx) => deleteClip(tx, id)),
+    /** Le filtre cathodique posé sur tout le site : allumé ou non, et sa force en pour cent. */
+    siteLook: () => as((tx) => getSiteLook(tx)),
+    /** Allume ou éteint le filtre cathodique, ou change sa force (de 10 à 200 %). */
+    saveSiteLook: (change: Partial<SiteLook>) => saving(() => as((tx) => saveSiteLook(tx, change))),
     /** La page À propos et le corps des mentions légales, ou null si sa ligne manque dans la base. */
     about: () => as((tx) => getAbout(tx)),
     /** Enregistre les textes de la page À propos, et les mentions légales. */
@@ -303,6 +309,7 @@ export type { AdminArtist, AdminArtistFilters, AdminArtistIndex, AdminArtistRow,
 export { DELAY_CHOICES, MUTE_CHOICES, SLOW_CHOICES } from "./chat.ts";
 export type { AdminAntenne, AdminChatAuthor, AdminChatMessage, AdminChatSettings, AdminChatTerm, ChatSettingsChange } from "./chat.ts";
 export type { AdminClip, ClipAdd, ClipChange, ClipFiles } from "./clips.ts";
+export { CRT_STRENGTH } from "./site.ts";
 export type { AdminEvent, AdminEventFilters, AdminEventPhoto, AdminEventRow, EventSave, GalleryChanged } from "./events.ts";
 export { UPLOAD_FOLDER, type AdminMedia, type MediaPlace, type MediaSlot, type MediaUpload } from "./media.ts";
 export type { DocumentChanges, DocumentFacet, DocumentRename, FacetChanges, KeptTag, TagDocument } from "./document.ts";
