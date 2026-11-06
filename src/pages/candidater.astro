@@ -1,41 +1,35 @@
 ---
 /**
- * Candidater (/candidater) : un DJ, un podcasteur ou un curateur qu'on ne connaît pas encore propose une émission à
- * Parabole. Une rubrique du site, dans la coque : le direct continue dans l'en-tête pendant qu'on remplit. Hors du menu :
- * on y arrive par le bouton jaune de l'accueil, le bloc CANDIDATER d'À propos, ou le lien que l'équipe colle sur Insta.
+ * Candidater (/candidater, cms/README.md, 9.17) : un DJ, un podcasteur ou un curateur qu'on ne connaît pas encore
+ * propose une émission à Parabole. Une rubrique du site, dans la coque : le direct continue dans l'en-tête pendant qu'on
+ * remplit. Hors du menu : on y arrive par le bouton jaune de l'accueil, le bloc CANDIDATER d'À propos, ou le lien que
+ * l'équipe colle sur Insta.
  *
  * Sur un grand écran, deux colonnes : à gauche, l'écran d'accueil (PASSE À L'ANTENNE, puis la page de télétexte
  * « Comment ça se passe »), qui reste en place ; à droite, le formulaire, sur une feuille au cadre jaune. Sur un
  * téléphone, le titre, puis le formulaire tout de suite, puis « Comment ça se passe ». Le formulaire tient en trois
  * écrans (Ton émission, Toi, Fais-nous écouter), puis « C'est reçu ». Tout est écrit ici ; le script
- * (src/scripts/candidater.ts) passe d'un écran à l'autre, vérifie chaque écran, adapte le dernier au type choisi, garde
- * le brouillon dans le navigateur et envoie. Sans script, les trois écrans s'affichent l'un sous l'autre. Les styles
- * proposés sont les groupes du premier filtre de l'admin pour chaque type (Genre, Thème…).
+ * (src/scripts/candidater.ts) passe d'un écran à l'autre, vérifie chaque écran avec les règles du serveur
+ * (@parabole/cms/candidatures), adapte le dernier au type choisi, garde le brouillon dans le navigateur et envoie à
+ * /api/candidature. Sans script, les trois écrans s'affichent l'un sous l'autre.
  *
- * Prototype du 6 nov. 2026 : l'envoi (/api/candidature), la table et la rubrique de l'admin ne sont pas encore faits
- * (plan : CANDIDATURES.pdf). En développement, « C'est reçu » s'affiche quand même, pour voir le parcours en entier ;
- * en ligne, l'envoi dit que les candidatures ouvrent bientôt, et les réponses restent dans le brouillon.
+ * Les réglages viennent de l'admin (Candidatures) : un type fermé est « complet pour le moment », tous fermés, la page
+ * le dit à la place du formulaire ; le délai de réponse annoncé. Les styles proposés sont les groupes du premier filtre
+ * des émissions de chaque type (Genre, Thème…). Un champ piège, caché, attrape les robots.
  */
-import type { ShowType } from "@parabole/cms";
+import { CANDIDATURES_MOIS_GARDES, IDEE_MAX, STYLES_MAX, type ReglagesCandidatures, type ShowType, type StylesDuType } from "@parabole/cms";
 import Base from "../layouts/Base.astro";
-import { reader } from "../lib/cms";
+import { candidaturesDuSite, delaiEnMots } from "../lib/candidatures";
 
 export const prerender = false;
 
-/** Ce qu'on annonce, en attendant la décision de l'équipe (CANDIDATURES.pdf, « À décider ensemble »). */
-const DELAI = "3 semaines";
-const CONSERVATION = "6 mois";
-/** Au plus, dans Ton style. */
-const STYLES_MAX = 3;
-
-const TYPES: { type: ShowType; nom: string; mot: string; idee: string; lien: string; lienRequis: boolean }[] = [
+const TYPES: { type: ShowType; nom: string; mot: string; idee: string; lien: string }[] = [
   {
     type: "dj_set",
     nom: "DJ set",
     mot: "Un mix enregistré : ta sélection, ton style.",
     idee: "Ton style, ce que tu aimes jouer, l'ambiance de ton set…",
     lien: "Un de tes mixes : SoundCloud, Mixcloud, YouTube, Drive…",
-    lienRequis: true,
   },
   {
     type: "podcast",
@@ -43,7 +37,6 @@ const TYPES: { type: ShowType; nom: string; mot: string; idee: string; lien: str
     mot: "Une émission parlée : un sujet, des voix, des invités.",
     idee: "Le sujet, le format, qui parle, pourquoi ça te tient à cœur…",
     lien: "Un épisode, un pilote, même brut. Pas encore ? Laisse vide.",
-    lienRequis: false,
   },
   {
     type: "playlist",
@@ -51,32 +44,31 @@ const TYPES: { type: ShowType; nom: string; mot: string; idee: string; lien: str
     mot: "Des morceaux choisis et enchaînés, sans mixer.",
     idee: "Le fil de ta sélection, l'ambiance, le moment de la journée…",
     lien: "Ta playlist : Spotify, Deezer, YouTube, SoundCloud…",
-    lienRequis: true,
   },
 ];
 
-/** Les styles à cocher, par type : les groupes du premier filtre de l'admin qui vaut pour ce type. */
-type Styles = { type: ShowType; filtre: string; groupes: { slug: string; name: string }[] };
-let styles: Styles[] = [];
+// Sans la base, la page s'affiche quand même, tout ouvert et sans styles à cocher ; l'envoi dira qu'il n'a pas pu partir.
+let reglages: ReglagesCandidatures = { openTypes: ["dj_set", "podcast", "playlist"], replyDays: 21 };
+let styles: StylesDuType[] = [];
 try {
-  const cms = await reader();
-  styles = await Promise.all(
-    TYPES.map(async ({ type }) => {
-      const [premier] = await cms.listFacets({ scope: "show", type, all: true });
-      return { type, filtre: premier?.name ?? "", groupes: (premier?.groups ?? []).map(({ slug, name }) => ({ slug, name })) };
-    }),
-  );
+  const candidatures = await candidaturesDuSite();
+  [reglages, styles] = await Promise.all([candidatures.reglages(), candidatures.styles()]);
 } catch (erreur) {
-  // sans la base, la page marche quand même, sans les styles à cocher
-  console.error("candidater : les filtres ne se lisent pas", erreur);
+  console.error("candidater : les réglages ne se lisent pas", erreur);
 }
+// Un réglage changé dans l'admin se voit ici au plus une minute après.
 Astro.response.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
 Astro.response.headers.set("Vercel-CDN-Cache-Control", "max-age=60, stale-while-revalidate=600");
 
+const DELAI = delaiEnMots(reglages.replyDays);
+const CONSERVATION = `${CANDIDATURES_MOIS_GARDES} mois`;
+const ouvert = (type: ShowType) => reglages.openTypes.includes(type);
+/** Tout est complet : la page le dit, sans formulaire. */
+const ferme = !TYPES.some(({ type }) => ouvert(type));
+
 const config = {
-  delai: DELAI,
   stylesMax: STYLES_MAX,
-  types: Object.fromEntries(TYPES.map(({ type, idee, lien, lienRequis }) => [type, { idee, lien, lienRequis }])),
+  types: Object.fromEntries(TYPES.map(({ type, idee, lien }) => [type, { idee, lien }])),
 };
 
 const ETAPES = ["Ton émission", "Toi", "Fais-nous écouter"];
@@ -116,7 +108,27 @@ const ETAPES = ["Ton émission", "Toi", "Fais-nous écouter"];
     </div>
 
     <section class="cand-panneau" aria-label="Le formulaire de candidature">
-      <form class="cand-form" data-form action="/api/candidature" method="post" novalidate>
+      {
+        ferme && (
+          <div class="cand-recu cand-ferme" role="status">
+            <div class="cand-mire" aria-hidden="true" />
+            <p class="cand-page">
+              <span class="teletexte-numero">P600</span> Candidatures
+            </p>
+            <h2 class="cand-recu-titre">Complet pour le moment</h2>
+            <p class="cand-recu-texte">On écoute tout ce qu'on a déjà reçu : les candidatures rouvrent bientôt. Repasse nous voir !</p>
+            <div class="cand-recu-liens">
+              <a class="cand-suivant" href="/">
+                Écouter le direct
+              </a>
+              <a class="cand-retour" href="/emissions">
+                Réécouter les émissions
+              </a>
+            </div>
+          </div>
+        )
+      }
+      <form class="cand-form" data-form action="/api/candidature" method="post" novalidate hidden={ferme}>
         <ol class="cand-progres" data-progres aria-label="Les étapes">
           {
             ETAPES.map((nom, rang) => (
@@ -140,11 +152,12 @@ const ETAPES = ["Ton émission", "Toi", "Fais-nous écouter"];
             <div class="cand-chaines">
               {
                 TYPES.map(({ type, nom, mot }, rang) => (
-                  <label class="cand-chaine">
-                    <input type="radio" name="type" value={type} required aria-describedby="candErreurType" />
+                  <label class="cand-chaine" data-complet={!ouvert(type) || undefined}>
+                    <input type="radio" name="type" value={type} required disabled={!ouvert(type)} aria-describedby="candErreurType" />
                     <span class="cand-chaine-num">CH {String(rang + 1).padStart(2, "0")}</span>
                     <span class="cand-chaine-nom">{nom}</span>
                     <span class="cand-chaine-mot">{mot}</span>
+                    {!ouvert(type) && <span class="cand-chaine-complet">Complet pour le moment</span>}
                   </label>
                 ))
               }
@@ -214,9 +227,9 @@ const ETAPES = ["Ton émission", "Toi", "Fais-nous écouter"];
           <div class="cand-question cand-champ" data-champ="idee">
             <div class="cand-label-ligne">
               <label class="cand-label" for="candIdee">Ton idée</label>
-              <span class="cand-compteur" data-compteur aria-hidden="true">0 / 800</span>
+              <span class="cand-compteur" data-compteur aria-hidden="true">0 / {IDEE_MAX}</span>
             </div>
-            <textarea id="candIdee" name="idee" rows="5" required maxlength="800" placeholder={TYPES[0]!.idee} data-placeholder aria-describedby="candErreurIdee"></textarea>
+            <textarea id="candIdee" name="idee" rows="5" required maxlength={IDEE_MAX} placeholder={TYPES[0]!.idee} data-placeholder aria-describedby="candErreurIdee"></textarea>
             <p class="cand-erreur" id="candErreurIdee" data-erreur="idee" hidden></p>
           </div>
 
@@ -253,6 +266,13 @@ const ETAPES = ["Ton émission", "Toi", "Fais-nous écouter"];
             <a href="/mentions-legales">Mentions légales</a>
           </p>
         </section>
+
+        <!-- Le champ piège : caché à tous, seul un robot le remplit (src/pages/api/candidature.ts). -->
+        <div class="cand-piege" aria-hidden="true">
+          <label for="candSite">Ton site web (laisse vide)</label>
+          <input id="candSite" name="site" type="text" tabindex="-1" autocomplete="off" />
+        </div>
+        <div class="cand-verification" data-verification hidden></div>
 
         <div class="cand-pied">
           <button type="button" class="cand-retour" data-retour hidden>← Retour</button>

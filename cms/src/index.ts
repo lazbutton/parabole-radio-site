@@ -12,7 +12,9 @@
  *     (rattacherEnvois, pour la tâche de nuit) ; leurs fichiers et leur calendrier aussi dans le navigateur
  *     (@parabole/cms/envois) ;
  *   - la publication sur SoundCloud : le compte relié (OAuth 2.1 avec PKCE) et l'envoi des émissions diffusées
- *     (aPublier, publier, pour la tâche du matin ; prendre puis envoyer, pour « Publier maintenant »).
+ *     (aPublier, publier, pour la tâche du matin ; prendre puis envoyer, pour « Publier maintenant ») ;
+ *   - les candidatures (createCandidatures, pour la page /candidater et la tâche de nuit) et leurs règles, aussi dans le
+ *     navigateur (@parabole/cms/candidatures).
  */
 export { asMember, asPublic, withViewer, type Tx, type Viewer } from "./access.ts";
 export * from "./admin/index.ts";
@@ -49,6 +51,15 @@ export {
   type Envois,
 } from "./envois/index.ts";
 export { rattacherEnvois } from "./envois/rattacher.ts";
+export {
+  createCandidatures,
+  MOIS_GARDES as CANDIDATURES_MOIS_GARDES,
+  type Candidatures,
+  type Depot,
+  type Reglages as ReglagesCandidatures,
+  type StylesDuType,
+} from "./candidatures/index.ts";
+export * from "./candidatures/regles.ts";
 export {
   aPublier,
   authorizeUrl,
@@ -138,6 +149,9 @@ export type {
   Track,
   AudioRole,
   AudioStatus,
+  Application,
+  ApplicationSettings,
+  ApplicationStatus,
 } from "./schema.ts";
 export { isSlug, slugify } from "./slug.ts";
 export { formatTimecode, parseTimecode, parseTracklist, type TrackLine } from "./tracklist.ts";

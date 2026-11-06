@@ -1,0 +1,76 @@
+---
+/**
+ * Une candidature (cms/README.md, 9.17) : tout ce qu'elle dit, et ce que l'équipe en fait, en POST (réponse en JSON) :
+ *   - note : la note de l'équipe ;
+ *   - shortlist, reopen : la mettre de côté, la remettre à écouter (un refus aussi, tant qu'il n'est pas effacé) ;
+ *   - accept : le oui, qui crée la fiche d'invité (ou reprend la fiche du même nom) et son lien d'envoi, au nom de la
+ *     personne connectée ; l'écran prépare ensuite le message à envoyer ;
+ *   - decline : « pas cette fois », effacée six mois après par la tâche de nuit ;
+ *   - delete : l'effacer tout de suite (indésirable, ou demandé par la personne).
+ */
+import type { Accepted, NotSaved } from "@parabole/cms";
+import type { ApplicationResponse, Screen } from "../../../components/admin/types";
+import Admin from "../../../layouts/Admin.astro";
+import { seeOther } from "../../../lib/admin/paths";
+import { applicationSheet, json, wantsJson } from "../../../lib/admin/views";
+
+export const prerender = false;
+
+const admin = Astro.locals.admin!;
+const id = Astro.params.id ?? "";
+const now = new Date();
+const application = await admin.getApplication(id, now);
+const posted = Astro.request.method === "POST";
+if (!application) return posted ? json({ ok: false, errors: { form: "Cette candidature n'existe plus : elle a peut-être été effacée." } }, 404) : seeOther("/admin/candidatures");
+
+if (posted) {
+  const data = await Astro.request.formData();
+  const intent = String(data.get("intent") ?? "");
+  if (intent === "delete") {
+    const name = await admin.deleteApplication(id);
+    return json({ ok: true, redirect: "/admin/candidatures", message: `Candidature de « ${name ?? application.name} » effacée` });
+  }
+  let done: { ok: true } | Accepted | NotSaved;
+  let message: string;
+  switch (intent) {
+    case "note":
+      done = await admin.noteApplication(id, String(data.get("note") ?? ""));
+      message = "Note enregistrée";
+      break;
+    case "shortlist":
+      done = await admin.moveApplication(id, "shortlisted");
+      message = "Mise de côté";
+      break;
+    case "reopen":
+      done = await admin.moveApplication(id, "new");
+      message = "Remise à écouter";
+      break;
+    case "accept": {
+      const accepted = await admin.acceptApplication(id);
+      done = accepted;
+      message = accepted.ok
+        ? accepted.reused
+          ? `Oui ! La fiche « ${accepted.artistName} » est reprise, avec son lien d'envoi`
+          : `Oui ! Fiche d'invité « ${accepted.artistName} » créée, avec son lien d'envoi`
+        : "";
+      break;
+    }
+    case "decline":
+      done = await admin.declineApplication(id);
+      message = "Réponse notée : pas cette fois";
+      break;
+    default:
+      return json({ ok: false, errors: { form: "Action inconnue." } }, 400);
+  }
+  if (!done.ok) return json(done, 422);
+  const [fresh, settings] = await Promise.all([admin.getApplication(id, now), admin.applicationSettings()]);
+  if (!fresh) return json({ ok: false, errors: { form: "Cette candidature n'existe plus : elle a peut-être été effacée." } }, 404);
+  return json({ ok: true, sheet: applicationSheet(fresh, settings.replyDays, now), message } satisfies ApplicationResponse);
+}
+
+const settings = await admin.applicationSettings();
+const screen: Screen = { name: "application", title: application.name, data: { sheet: applicationSheet(application, settings.replyDays, now) } };
+if (wantsJson(Astro.request)) return json(screen);
+---
+
+<Admin screen={screen} />

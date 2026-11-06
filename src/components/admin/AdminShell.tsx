@@ -12,6 +12,7 @@ import {
   CheckIcon,
   DesktopIcon,
   DiscIcon,
+  EnvelopeClosedIcon,
   ExitIcon,
   ExternalLinkIcon,
   HamburgerMenuIcon,
@@ -51,6 +52,7 @@ const GROUPS: { label: string; sections: Section[] }[] = [
     sections: [
       { href: "/admin/shows", label: "Émissions", icon: DiscIcon, active: on("shows", "show") },
       { href: "/admin/artistes", label: "Résidents", icon: PersonIcon, active: on("artists", "artist") },
+      { href: "/admin/candidatures", label: "Candidatures", icon: EnvelopeClosedIcon, active: on("applications", "application") },
       { href: "/admin/evenements", label: "Événements", icon: CalendarIcon, active: on("events", "event") },
       { href: "/admin/a-propos", label: "À propos", icon: InfoCircledIcon, active: on("about") },
     ],

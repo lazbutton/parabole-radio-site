@@ -11,6 +11,7 @@ import type { DocumentChanges,
   AdminChatTerm,
   AdminFacet,
   AdminTagUse,
+  ApplicationStatus,
   ArtistForm,
   ArtistRole,
   AudioStatus,
@@ -71,6 +72,8 @@ export type DashboardData = {
   missing: { tracklist: number; sound: number; cover: number; description: number; untagged: number; photo: number; bio: number; tags: number };
   /** Les envois des résidents qui attendent l'équipe (cms/README.md, 9.12). */
   envois: { review: number; failed: number; assemble: number; slot: number };
+  /** Les candidatures qui attendent l'équipe (cms/README.md, 9.17) : à écouter, mises de côté, sans réponse au-delà du délai annoncé, et les émissions déjà prêtes. */
+  applications: { new: number; shortlisted: number; late: number; ready: number };
   /** Les deadlines des groupes : celle qui vient de passer, tant que son bloc n'a pas commencé, puis la prochaine. */
   deadlines: DeadlineView[];
   /** Le calendrier des groupes, réglable par un admin ; null s'il n'est pas réglé. */
@@ -419,7 +422,9 @@ export type Screen =
   | { name: "clips"; title: string; data: ClipsData }
   | { name: "antenne"; title: string; data: AntenneData }
   | { name: "tags"; title: string; data: TagsData }
-  | { name: "about"; title: string; data: AboutData };
+  | { name: "about"; title: string; data: AboutData }
+  | { name: "applications"; title: string; data: ApplicationsListData }
+  | { name: "application"; title: string; data: ApplicationData };
 
 /** Ce que la page passe à l'application : la personne connectée, l'adresse affichée et son écran. */
 export type AppProps = { viewer: Viewer; href: string; screen: Screen };
@@ -436,3 +441,71 @@ export type SearchResults = {
   artists: { id: string; name: string; role: ArtistRole; status: ContentStatus; shows: number }[];
   events: { id: string; title: string; date: string; venue: string; status: ContentStatus }[];
 };
+
+// ---------------------------------------------------------------------------------------------------------------
+// Les candidatures (cms/README.md, 9.17)
+// ---------------------------------------------------------------------------------------------------------------
+
+/** Les réglages des candidatures : les types ouverts, le délai de réponse annoncé, en jours. */
+export type ApplicationSettingsView = { openTypes: ShowType[]; replyDays: number };
+
+/** Une candidature dans la liste. */
+export type ApplicationRow = {
+  id: string;
+  name: string;
+  type: ShowType;
+  ready: boolean;
+  regular: boolean | null;
+  city: string | null;
+  /** « @lou.velours », ou l'adresse e-mail. */
+  contact: string;
+  status: ApplicationStatus;
+  /** « il y a 3 jours » */
+  received: string;
+  /** « ven. 6 nov. 2026, 11:00 » */
+  receivedAt: string;
+  /** Sans réponse depuis plus que le délai annoncé. */
+  late: boolean;
+};
+export type ApplicationFilters = { q: string; status: string; type: string; ready: string; late: string };
+export type ApplicationsListData = {
+  rows: ApplicationRow[];
+  total: number;
+  filters: ApplicationFilters;
+  counts: Record<ApplicationStatus, number>;
+  settings: ApplicationSettingsView;
+  /** Un admin peut changer les réglages. */
+  canSettle: boolean;
+};
+export type ApplicationSettingsResponse = { ok: true; message: string; settings: ApplicationSettingsView } | { ok: false; errors: FieldErrors };
+
+/** Une candidature ouverte : tout ce qu'elle dit, la réponse de l'équipe, et la fiche née de son oui. */
+export type ApplicationSheet = {
+  id: string;
+  name: string;
+  type: ShowType;
+  ready: boolean;
+  regular: boolean | null;
+  city: string | null;
+  instagram: string | null;
+  email: string | null;
+  status: ApplicationStatus;
+  receivedAt: string;
+  received: string;
+  late: boolean;
+  pitch: string;
+  listenUrl: string | null;
+  note: string;
+  styles: string[];
+  /** La fiche née du oui, et son lien d'envoi (/envoyer/<jeton>). */
+  artist: { id: string; name: string; status: ContentStatus; link: string | null } | null;
+  answeredBy: string | null;
+  answeredAt: string | null;
+  /** Le jour où un refus sera effacé : « 6 mai 2027 ». */
+  erasedAt: string | null;
+  /** Une fiche porte déjà ce nom : le oui la reprendra. */
+  sameName: { id: string; name: string } | null;
+  replyDays: number;
+};
+export type ApplicationData = { sheet: ApplicationSheet };
+export type ApplicationResponse = { ok: true; sheet: ApplicationSheet; message?: string; redirect?: string } | { ok: false; errors: FieldErrors };

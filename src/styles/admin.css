@@ -839,3 +839,10 @@ input.admin-track-start { font-family: var(--code-font-family); font-variant-num
 .admin-events-table .admin-col-date { width: 200px; }
 .admin-events-table .admin-col-images { width: 96px; }
 .admin-events-table .admin-col-status { width: 110px; }
+
+/* ---------- Les candidatures (ApplicationsList, ApplicationScreen, cms/README.md, 9.17) ---------- */
+.admin-application-pitch { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; }
+.admin-application-listen { padding: 12px; border-radius: var(--radius-3); background: var(--gray-a2); }
+.admin-line-icon { display: grid; place-items: center; width: 20px; color: var(--gray-10); flex-shrink: 0; }
+.admin-align-start { align-self: flex-start; }
+.admin-reserve { margin-top: 12px; }

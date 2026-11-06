@@ -9,10 +9,10 @@
 // ⬇️ À CHANGER avant la mise en ligne.
 export const STAFF_PASSWORD = "PARABOLE2026";
 
-// Le lien du formulaire contributeurs, pour TOUS les visiteurs (le staff peut le changer pour son seul navigateur).
-// "" : seulement le lien choisi par le staff.
-export const DEFAULT_SUBTITLE_URL =
-  "https://docs.google.com/forms/d/e/1FAIpQLSdd0G1tn5WbVDM4stWcq4IiSMGGaEQ2Ldpd83fDWgAR0H1TPQ/viewform?usp=dialog";
+// Le lien du bouton contributeurs, pour TOUS les visiteurs : la page Candidater du site (cms/README.md, 9.17), qui
+// remplace le Google Form d'avant. Une page du site s'ouvre ici même, le direct continue ; une adresse d'ailleurs, dans
+// un autre onglet. Le staff peut le changer pour son seul navigateur. "" : seulement le lien choisi par le staff.
+export const DEFAULT_SUBTITLE_URL = "/candidater";
 
 // Les textes qui se relaient sur le bouton jaune des contributeurs (un toutes les 1,5 s).
 export const phrases = [

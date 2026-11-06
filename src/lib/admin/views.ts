@@ -18,6 +18,8 @@ import {
   STUCK_SENDING_MS,
   type AdminAbout,
   type Admin,
+  type AdminApplication,
+  type AdminApplicationRow,
   type AdminAntenne,
   type AdminArtist,
   type AdminUploadLink,
@@ -35,6 +37,8 @@ import {
   UNPLACED,
   type AboutSheet,
   type AntenneData,
+  type ApplicationRow,
+  type ApplicationSheet,
   type ArtistSheet,
   type DashboardData,
   type ChatMessageRow,
@@ -220,7 +224,13 @@ async function importStatusOf(admin: Admin) {
 
 /** L'accueil : les prochaines diffusions, ce qui reste à compléter, les brouillons, les chiffres et l'import Radio Cult. */
 export async function dashboardData(admin: Admin, now = new Date()): Promise<DashboardData> {
-  const [overview, imports, cycle, account] = await Promise.all([admin.overview({ now }), importStatusOf(admin), admin.cycle(), database().then(compteSoundCloud).catch(() => null)]);
+  const [overview, imports, cycle, account, applications] = await Promise.all([
+    admin.overview({ now }),
+    importStatusOf(admin),
+    admin.cycle(),
+    database().then(compteSoundCloud).catch(() => null),
+    admin.applicationCounts(now),
+  ]);
   return {
     today: parisLongDay(now),
     stats: { shows: overview.shows, artists: overview.artists },
@@ -236,6 +246,7 @@ export async function dashboardData(admin: Admin, now = new Date()): Promise<Das
     })),
     missing: overview.missing,
     envois: overview.envois,
+    applications,
     deadlines: overview.deadlines.map((panel) => ({
       group: panel.block.group,
       block: `du ${dayLabel(panel.block.start)} au ${dayLabel(panel.block.end)}`,
@@ -373,3 +384,57 @@ export const wantsJson = (request: Request) => (request.headers.get("accept") ??
 
 /** Une réponse JSON de l'admin. */
 export const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json; charset=utf-8" } });
+
+// ---------------------------------------------------------------------------------------------------------------
+// Les candidatures (cms/README.md, 9.17)
+// ---------------------------------------------------------------------------------------------------------------
+
+/** Le compte Instagram (« @nom ») ou l'adresse e-mail : de quoi répondre. */
+const contactOf = (row: Pick<AdminApplicationRow, "instagram" | "email">) => (row.instagram ? `@${row.instagram}` : (row.email ?? ""));
+
+/** Une candidature dans la liste. */
+export function applicationRow(row: AdminApplicationRow, now = new Date()): ApplicationRow {
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.type,
+    ready: row.ready,
+    regular: row.regular,
+    city: row.city,
+    contact: contactOf(row),
+    status: row.status,
+    received: since(row.createdAt, now),
+    receivedAt: parisDateTime(row.createdAt),
+    late: row.late,
+  };
+}
+
+/** Une candidature ouverte, prête à montrer. */
+export function applicationSheet(application: AdminApplication, replyDays: number, now = new Date()): ApplicationSheet {
+  return {
+    id: application.id,
+    name: application.name,
+    type: application.type,
+    ready: application.ready,
+    regular: application.regular,
+    city: application.city,
+    instagram: application.instagram,
+    email: application.email,
+    status: application.status,
+    receivedAt: parisDateTime(application.createdAt),
+    received: since(application.createdAt, now),
+    late: application.late,
+    pitch: application.pitch,
+    listenUrl: application.listenUrl,
+    note: application.note ?? "",
+    styles: application.styles.map((style) => style.name),
+    artist: application.artist
+      ? { id: application.artist.id, name: application.artist.name, status: application.artist.status, link: application.artist.token ? `/envoyer/${application.artist.token}` : null }
+      : null,
+    answeredBy: application.answeredBy,
+    answeredAt: application.answeredAt ? parisDateTime(application.answeredAt) : null,
+    erasedAt: application.erasedAt ? parisDay(application.erasedAt) : null,
+    sameName: application.sameName,
+    replyDays,
+  };
+}

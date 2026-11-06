@@ -68,12 +68,13 @@ export async function corpsDe(context: APIContext): Promise<Record<string, unkno
 export const ACTION_TURNSTILE = "antenne";
 
 /**
- * La vérification Turnstile d'un nouveau pseudo, si le site en a une (TURNSTILE_SECRET_KEY) : rend la fonction que
- * l'antenne appelle, ou undefined. Le jeton doit venir du widget de l'antenne, sur la page même qui l'envoie : `hote`,
- * celui de la requête (la page et l'API sont sur la même origine, memeOrigine). Un jeton fait sur localhost ne passe
- * donc pas en ligne. Une panne de Cloudflare refuse : seul un nouveau pseudo attend, les autres écrivent.
+ * La vérification Turnstile d'un nouveau pseudo, ou d'une candidature (`action`, celle du widget de la page), si le site
+ * en a une (TURNSTILE_SECRET_KEY) : rend la fonction à appeler, ou undefined. Le jeton doit venir du widget de cette
+ * page, sur la page même qui l'envoie : `hote`, celui de la requête (la page et l'API sont sur la même origine,
+ * memeOrigine). Un jeton fait sur localhost ne passe donc pas en ligne. Une panne de Cloudflare refuse : seul un nouveau
+ * pseudo attend, les autres écrivent ; une candidature attend, ses réponses restent dans la page.
  */
-export function verificationHumaine(jeton: unknown, ip: string | null, hote: string): (() => Promise<boolean>) | undefined {
+export function verificationHumaine(jeton: unknown, ip: string | null, hote: string, action = ACTION_TURNSTILE): (() => Promise<boolean>) | undefined {
   if (!TURNSTILE_SECRET_KEY) return undefined;
   return async () => {
     if (typeof jeton !== "string" || !jeton || jeton.length > 2048) return false;
@@ -83,9 +84,9 @@ export function verificationHumaine(jeton: unknown, ip: string | null, hote: str
       const reponseCloudflare = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", body: corps, signal: AbortSignal.timeout(10_000) });
       if (!reponseCloudflare.ok) throw new Error(`siteverify ${reponseCloudflare.status}`);
       const verdict = (await reponseCloudflare.json()) as { success?: boolean; action?: string; hostname?: string };
-      return verdict.success === true && verdict.action === ACTION_TURNSTILE && verdict.hostname === hote;
+      return verdict.success === true && verdict.action === action && verdict.hostname === hote;
     } catch (panne) {
-      console.error("antenne : Turnstile ne répond pas, le nouveau pseudo attend", panne);
+      console.error(`${action} : Turnstile ne répond pas, la vérification est refusée`, panne);
       return false;
     }
   };

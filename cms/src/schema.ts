@@ -43,11 +43,17 @@ export const importTrigger = pgEnum("import_trigger", ["cron", "manual"]);
 export const audioRole = pgEnum("audio_role", ["main", "part"]);
 /** Où en est un fichier son : en cours d'envoi, reçu, validé par l'équipe, en partance pour SoundCloud, publié, refusé. */
 export const audioStatus = pgEnum("audio_status", ["uploading", "received", "approved", "sending", "sent", "failed"]);
+/**
+ * Où en est une candidature (/candidater) : à écouter, mise de côté par l'équipe, acceptée (sa fiche d'invité et son
+ * lien d'envoi sont nés), ou refusée (« pas cette fois »).
+ */
+export const applicationStatus = pgEnum("application_status", ["new", "shortlisted", "accepted", "declined"]);
 
 export type ContentStatus = (typeof contentStatus.enumValues)[number];
 export type ShowType = (typeof showType.enumValues)[number];
 export type ArtistRole = (typeof artistRole.enumValues)[number];
 export type TeamRole = (typeof teamRole.enumValues)[number];
+export type ApplicationStatus = (typeof applicationStatus.enumValues)[number];
 export type FacetScope = (typeof facetScope.enumValues)[number];
 export type ChatColor = (typeof chatColor.enumValues)[number];
 export type ChatStatus = (typeof chatStatus.enumValues)[number];
@@ -946,6 +952,88 @@ export const broadcastCycle = pgTable(
 ).enableRLS();
 
 // ---------------------------------------------------------------------------------------------------------------
+// Candidatures (cms/README.md, 9.17)
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * Une candidature : quelqu'un qu'on ne connaît pas encore propose une émission depuis /candidater. Le serveur l'écrit
+ * en propriétaire des tables, une fois la saisie vérifiée ; l'équipe la lit, la met de côté, y répond. Un oui crée la
+ * fiche d'invité et son lien d'envoi (artist_id) ; un refus est effacé six mois après la réponse (la tâche de nuit).
+ */
+export const application = pgTable(
+  "application",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    type: showType("type").notNull(),
+    /** L'émission est déjà enregistrée. */
+    ready: boolean("ready").notNull(),
+    /** Passer régulièrement (vrai), une fois (faux), ou rien dit. */
+    regular: boolean("regular"),
+    /** Son nom d'artiste, ou celui de son projet. */
+    name: text("name").notNull(),
+    city: text("city"),
+    /** Son compte Instagram, sans @. Il en faut un, ou une adresse e-mail. */
+    instagram: text("instagram"),
+    email: text("email"),
+    /** Son idée, en texte simple. */
+    pitch: text("pitch").notNull(),
+    /** Un lien pour l'écouter : un mix, une playlist, un épisode. */
+    listenUrl: text("listen_url"),
+    status: applicationStatus("status").notNull().default("new"),
+    /** La note de l'équipe, qu'elle seule lit. */
+    note: text("note"),
+    /** La fiche d'invité née du oui (ou reprise, si elle existait déjà). */
+    artistId: uuid("artist_id").references(() => artist.id, { onDelete: "set null" }),
+    /** Le oui ou le refus : quand, et par qui. */
+    answeredAt: timestamp("answered_at", { withTimezone: true }),
+    answeredBy: uuid("answered_by").references(() => member.userId, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check("application_contact", sql`${t.instagram} is not null or ${t.email} is not null`),
+    check("application_instagram", sql`${t.instagram} is null or ${t.instagram} ~ '^[A-Za-z0-9._]{1,30}$'`),
+    check("application_email", sql`${t.email} is null or (${t.email} ~ '^[^@[:space:]]+@[^@[:space:]]+[.][^@[:space:]]+$' and length(${t.email}) <= 200)`),
+    check("application_listen_url", sql`${t.listenUrl} is null or (${t.listenUrl} ~ '^https?://' and length(${t.listenUrl}) <= 600)`),
+    check("application_name", sql`length(${t.name}) between 1 and 120`),
+    check("application_city", sql`${t.city} is null or length(${t.city}) between 1 and 80`),
+    check("application_pitch", sql`length(${t.pitch}) between 1 and 2000`),
+    check("application_answered", sql`(${t.status} in ('accepted', 'declined')) = (${t.answeredAt} is not null)`),
+    index("application_status").on(t.status, t.createdAt),
+    index("application_artist").on(t.artistId),
+  ],
+).enableRLS();
+
+/** Les styles cochés par une candidature : des groupes des filtres de son type (Genre, Thème…). */
+export const applicationTag = pgTable(
+  "application_tag",
+  {
+    applicationId: uuid("application_id")
+      .notNull()
+      .references(() => application.id, { onDelete: "cascade" }),
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => tag.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.applicationId, t.tagId] }), index("application_tag_tag").on(t.tagId)],
+).enableRLS();
+
+/**
+ * Les réglages des candidatures, sur une seule ligne : les types ouverts (un type fermé est « complet pour le moment »
+ * sur la page), et le délai de réponse annoncé, en jours.
+ */
+export const applicationSettings = pgTable(
+  "application_settings",
+  {
+    id: boolean("id").primaryKey().default(true),
+    openTypes: showType("open_types").array().notNull().default(sql`'{dj_set,podcast,playlist}'`),
+    replyDays: integer("reply_days").notNull().default(21),
+    updatedAt: updatedAt(),
+  },
+  (t) => [check("application_settings_single", sql`${t.id}`), check("application_settings_reply_days", sql`${t.replyDays} between 1 and 90`)],
+).enableRLS();
+
+// ---------------------------------------------------------------------------------------------------------------
 // Relations (requêtes imbriquées de Drizzle : db.query.show.findFirst({ with: { tracks: true } }))
 // ---------------------------------------------------------------------------------------------------------------
 
@@ -1058,3 +1146,5 @@ export type UploadLink = typeof uploadLink.$inferSelect;
 export type Submission = typeof submission.$inferSelect;
 export type AudioFile = typeof audioFile.$inferSelect;
 export type BroadcastCycle = typeof broadcastCycle.$inferSelect;
+export type Application = typeof application.$inferSelect;
+export type ApplicationSettings = typeof applicationSettings.$inferSelect;
