@@ -3,16 +3,19 @@
  * Une candidature (cms/README.md, 9.17) : tout ce qu'elle dit, et ce que l'équipe en fait, en POST (réponse en JSON) :
  *   - note : la note de l'équipe ;
  *   - shortlist, reopen : la mettre de côté, la remettre à écouter (un refus aussi, tant qu'il n'est pas effacé) ;
- *   - accept : le oui, qui crée la fiche d'invité (ou reprend la fiche du même nom) et son lien d'envoi, au nom de la
- *     personne connectée ; l'écran prépare ensuite le message à envoyer ;
- *   - decline : « pas cette fois », effacée six mois après par la tâche de nuit ;
- *   - delete : l'effacer tout de suite (indésirable, ou demandé par la personne).
+ *   - accept : la validation, qui crée l'émission en brouillon avec son son, et la fiche d'invité (ou reprend la fiche
+ *     du même nom), au nom de la personne connectée ; l'écran prépare ensuite le message à envoyer ;
+ *   - decline : « pas cette fois » ; son son (seau R2) et sa photo (Storage) sont effacés tout de suite, la candidature
+ *     six mois après, par la tâche de nuit ;
+ *   - delete : l'effacer tout de suite (indésirable, ou demandé par la personne), avec son son et sa photo.
  */
 import type { Accepted, NotSaved } from "@parabole/cms";
 import type { ApplicationResponse, Screen } from "../../../components/admin/types";
 import Admin from "../../../layouts/Admin.astro";
 import { seeOther } from "../../../lib/admin/paths";
+import { removeImages } from "../../../lib/admin/storage";
 import { applicationSheet, json, wantsJson } from "../../../lib/admin/views";
+import { removeFiles } from "../../../lib/r2";
 
 export const prerender = false;
 
@@ -27,8 +30,9 @@ if (posted) {
   const data = await Astro.request.formData();
   const intent = String(data.get("intent") ?? "");
   if (intent === "delete") {
-    const name = await admin.deleteApplication(id);
-    return json({ ok: true, redirect: "/admin/candidatures", message: `Candidature de « ${name ?? application.name} » effacée` });
+    const deleted = await admin.deleteApplication(id);
+    if (deleted) await Promise.all([removeFiles(deleted.keys), removeImages(deleted.images)]);
+    return json({ ok: true, redirect: "/admin/candidatures", message: `Candidature de « ${deleted?.name ?? application.name} » effacée` });
   }
   let done: { ok: true } | Accepted | NotSaved;
   let message: string;
@@ -50,15 +54,18 @@ if (posted) {
       done = accepted;
       message = accepted.ok
         ? accepted.reused
-          ? `Oui ! La fiche « ${accepted.artistName} » est reprise, avec son lien d'envoi`
-          : `Oui ! Fiche d'invité « ${accepted.artistName} » créée, avec son lien d'envoi`
+          ? `Validée ! « ${accepted.showTitle} » est créée en brouillon, avec la fiche « ${accepted.artistName} », qui existait déjà`
+          : `Validée ! « ${accepted.showTitle} » et la fiche « ${accepted.artistName} » sont créées en brouillon`
         : "";
       break;
     }
-    case "decline":
-      done = await admin.declineApplication(id);
-      message = "Réponse notée : pas cette fois";
+    case "decline": {
+      const declined = await admin.declineApplication(id);
+      done = declined;
+      if (declined.ok) await Promise.all([removeFiles(declined.keys), removeImages(declined.images)]);
+      message = "Réponse notée : pas cette fois. Son son et sa photo sont effacés";
       break;
+    }
     default:
       return json({ ok: false, errors: { form: "Action inconnue." } }, 400);
   }
@@ -69,7 +76,7 @@ if (posted) {
 }
 
 const settings = await admin.applicationSettings();
-const screen: Screen = { name: "application", title: application.name, data: { sheet: applicationSheet(application, settings.replyDays, now) } };
+const screen: Screen = { name: "application", title: application.title ?? application.name, data: { sheet: applicationSheet(application, settings.replyDays, now) } };
 if (wantsJson(Astro.request)) return json(screen);
 ---
 

@@ -896,8 +896,10 @@ export const audioFile = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     /** Vide tant que l'envoi n'est pas confirmé. */
     showId: uuid("show_id").references(() => show.id, { onDelete: "cascade" }),
-    /** L'artiste qui l'a envoyé ; vide pour un fichier de l'équipe (une playlist assemblée). */
+    /** L'artiste qui l'a envoyé ; vide pour un fichier de l'équipe (une playlist assemblée), ou d'une candidature. */
     artistId: uuid("artist_id").references(() => artist.id, { onDelete: "set null" }),
+    /** La candidature qui l'a envoyé, tant qu'elle n'est pas validée (le fichier passe alors à son show). */
+    applicationId: uuid("application_id").references((): AnyPgColumn => application.id, { onDelete: "cascade" }),
     role: audioRole("role").notNull(),
     /** L'ordre d'un morceau dans sa playlist : 1, 2, 3… */
     position: integer("position"),
@@ -919,7 +921,7 @@ export const audioFile = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    check("audio_file_show", sql`${t.status} = 'uploading' or ${t.showId} is not null`),
+    check("audio_file_show", sql`${t.status} = 'uploading' or ${t.showId} is not null or ${t.applicationId} is not null`),
     check("audio_file_part_status", sql`${t.role} = 'main' or ${t.status} in ('uploading', 'received')`),
     check("audio_file_part_position", sql`${t.role} = 'main' or ${t.status} = 'uploading' or ${t.position} >= 1`),
     check("audio_file_key", sql`${t.key} ~ '^audio/[0-9]{4}/[0-9]{2}/[0-9a-f-]{36}\\.(mp3|m4a|wav|aiff|flac)$'`),
@@ -927,6 +929,7 @@ export const audioFile = pgTable(
     check("audio_file_duration", sql`${t.durationSeconds} is null or ${t.durationSeconds} > 0`),
     index("audio_file_show").on(t.showId),
     index("audio_file_status").on(t.status),
+    index("audio_file_application").on(t.applicationId),
   ],
 ).enableRLS();
 
@@ -956,17 +959,22 @@ export const broadcastCycle = pgTable(
 // ---------------------------------------------------------------------------------------------------------------
 
 /**
- * Une candidature : quelqu'un qu'on ne connaît pas encore propose une émission depuis /candidater. Le serveur l'écrit
- * en propriétaire des tables, une fois la saisie vérifiée ; l'équipe la lit, la met de côté, y répond. Un oui crée la
- * fiche d'invité et son lien d'envoi (artist_id) ; un refus est effacé six mois après la réponse (la tâche de nuit).
+ * Une candidature : quelqu'un qu'on ne connaît pas encore envoie son émission depuis /candidater, toute prête (le
+ * son, son titre, sa description, ses styles, sa tracklist) avec sa bio et sa photo. Le serveur l'écrit en propriétaire
+ * des tables, une fois la saisie vérifiée. Le temps de l'envoi du son, c'est un dossier (`dossier_hash`, l'empreinte du
+ * jeton que garde la page ; `submitted_at` vide) ; envoyée, l'équipe la lit, l'écoute, la met de côté, y répond. La
+ * valider crée la fiche d'invité et l'émission, en brouillon, avec son son validé (artist_id, show_id) ; un refus efface
+ * le son et la photo, puis la candidature six mois après la réponse (la tâche de nuit).
  */
 export const application = pgTable(
   "application",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     type: showType("type").notNull(),
-    /** L'émission est déjà enregistrée. */
-    ready: boolean("ready").notNull(),
+    /** L'émission est déjà enregistrée : toujours, depuis que le son arrive avec la candidature. */
+    ready: boolean("ready").notNull().default(true),
+    /** Le titre de l'émission. */
+    title: text("title"),
     /** Passer régulièrement (vrai), une fois (faux), ou rien dit. */
     regular: boolean("regular"),
     /** Son nom d'artiste, ou celui de son projet. */
@@ -975,15 +983,32 @@ export const application = pgTable(
     /** Son compte Instagram, sans @. Il en faut un, ou une adresse e-mail. */
     instagram: text("instagram"),
     email: text("email"),
-    /** Son idée, en texte simple. */
+    /** La description de l'émission, en texte simple. */
     pitch: text("pitch").notNull(),
-    /** Un lien pour l'écouter : un mix, une playlist, un épisode. */
+    /** Le lien d'une playlist envoyée sans fichier (Spotify, Deezer…) ; avant, un lien pour l'écouter. */
     listenUrl: text("listen_url"),
+    /** Sa bio, en texte simple. */
+    bio: text("bio"),
+    /** Sa photo, carrée, inscrite par la page. */
+    photoId: uuid("photo_id").references(() => media.id, { onDelete: "set null" }),
+    /** La tracklist collée, une ligne par morceau ; lue (parseTracklist) quand l'émission est validée. */
+    tracklist: text("tracklist"),
+    /** Son mot pour l'équipe. */
+    message: text("message"),
     status: applicationStatus("status").notNull().default("new"),
     /** La note de l'équipe, qu'elle seule lit. */
     note: text("note"),
-    /** La fiche d'invité née du oui (ou reprise, si elle existait déjà). */
+    /** La fiche d'invité née de la validation (ou reprise, si elle existait déjà). */
     artistId: uuid("artist_id").references(() => artist.id, { onDelete: "set null" }),
+    /** L'émission née de la validation. */
+    showId: uuid("show_id").references(() => show.id, { onDelete: "set null" }),
+    /** Le dossier en cours d'envoi : l'empreinte (SHA-256) du jeton que garde la page ; vide une fois envoyée. */
+    dossierHash: text("dossier_hash").unique(),
+    /**
+     * Envoyée : vide tant que le dossier attend son son. Par défaut, l'heure de l'écriture : une candidature écrite d'un
+     * coup (la première version de la page) est envoyée ; un dossier le vide en s'ouvrant.
+     */
+    submittedAt: timestamp("submitted_at", { withTimezone: true }).defaultNow(),
     /** Le oui ou le refus : quand, et par qui. */
     answeredAt: timestamp("answered_at", { withTimezone: true }),
     answeredBy: uuid("answered_by").references(() => member.userId, { onDelete: "set null" }),
@@ -999,8 +1024,14 @@ export const application = pgTable(
     check("application_city", sql`${t.city} is null or length(${t.city}) between 1 and 80`),
     check("application_pitch", sql`length(${t.pitch}) between 1 and 2000`),
     check("application_answered", sql`(${t.status} in ('accepted', 'declined')) = (${t.answeredAt} is not null)`),
+    check("application_title", sql`${t.title} is null or length(${t.title}) between 1 and 200`),
+    check("application_bio", sql`${t.bio} is null or length(${t.bio}) between 1 and 2000`),
+    check("application_tracklist", sql`${t.tracklist} is null or length(${t.tracklist}) between 1 and 20000`),
+    check("application_message", sql`${t.message} is null or length(${t.message}) between 1 and 2000`),
+    check("application_dossier", sql`(${t.submittedAt} is null) = (${t.dossierHash} is not null)`),
     index("application_status").on(t.status, t.createdAt),
     index("application_artist").on(t.artistId),
+    index("application_show").on(t.showId),
   ],
 ).enableRLS();
 

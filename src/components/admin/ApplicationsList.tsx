@@ -1,12 +1,12 @@
 /**
  * Les candidatures (cms/README.md, 9.17) : celles qui attendent une réponse d'abord (à écouter, mises de côté), les plus
- * récentes en haut. Les filtres en pastilles (statut, type, émission prête, en retard) et la recherche s'appliquent sans
- * recharger la page et vivent dans l'adresse, comme dans les autres listes. Chaque ligne dit d'un coup d'œil qui, quoi,
- * depuis quand, et si l'émission est déjà prête (de quoi boucher un trou de la grille). Un admin règle ici les types
- * ouverts sur la page et le délai de réponse qu'elle annonce.
+ * récentes en haut. Les filtres en pastilles (statut, type, en retard) et la recherche s'appliquent sans recharger la
+ * page et vivent dans l'adresse, comme dans les autres listes. Chaque ligne dit d'un coup d'œil quelle émission, de
+ * qui, depuis quand, et si elle est venue en MP3 ou par un lien : chacune arrive prête, de quoi boucher un trou de la
+ * grille. Un admin règle ici les types ouverts sur la page et le délai de réponse qu'elle annonce.
  */
 import { LABELS } from "@parabole/cms/labels";
-import { EnvelopeClosedIcon, ExternalLinkIcon, GearIcon } from "@radix-ui/react-icons";
+import { EnvelopeClosedIcon, ExternalLinkIcon, GearIcon, Link2Icon, SpeakerLoudIcon } from "@radix-ui/react-icons";
 import { Badge, Button, Card, Checkbox, Dialog, Flex, Link, Select, Table, Text, TextField } from "@radix-ui/themes";
 import { useState } from "react";
 import type { ShowType } from "@parabole/cms";
@@ -25,14 +25,14 @@ const hrefOf = (filters: ApplicationFilters) => listHref("/admin/candidatures", 
 export const APPLICATION_STATUS = {
   new: { label: "À écouter", color: "amber" },
   shortlisted: { label: "Mise de côté", color: "blue" },
-  accepted: { label: "Acceptée", color: "green" },
+  accepted: { label: "Validée", color: "green" },
   declined: { label: "Refusée", color: "gray" },
 } as const;
 
 const STATUS_FILTERS: Record<string, string> = {
   new: "À écouter",
   shortlisted: "Mises de côté",
-  accepted: "Acceptées",
+  accepted: "Validées",
   declined: "Refusées",
   all: "Toutes",
 };
@@ -42,7 +42,7 @@ const TYPES: ShowType[] = ["dj_set", "podcast", "playlist"];
 export function ApplicationsList({ rows, total, filters, counts, settings, canSettle }: ApplicationsListData) {
   const { loading } = useRouter();
   const { shown, set, query } = useListFilters(filters, hrefOf);
-  const filtered = Boolean(filters.q || filters.status || filters.type || filters.ready || filters.late);
+  const filtered = Boolean(filters.q || filters.status || filters.type || filters.late);
   const [settling, setSettling] = useState(false);
   const todo = counts.new + counts.shortlisted;
   const closed = settings.openTypes.length === 0;
@@ -84,12 +84,12 @@ export function ApplicationsList({ rows, total, filters, counts, settings, canSe
       )}
 
       <div className="admin-toolbar">
-        <SearchField query={query} placeholder="Rechercher un nom, un compte, une adresse, une ville…" />
+        <SearchField query={query} placeholder="Rechercher une émission, un nom, un compte, une adresse, une ville…" />
         <div className="admin-pills">
           <FilterPill label="Statut" allLabel={`À traiter (${todo})`} value={shown.status} valueLabel={STATUS_FILTERS[shown.status]} onChange={(status) => set({ status })}>
             <Select.Item value="new">À écouter ({counts.new})</Select.Item>
             <Select.Item value="shortlisted">Mises de côté ({counts.shortlisted})</Select.Item>
-            <Select.Item value="accepted">Acceptées ({counts.accepted})</Select.Item>
+            <Select.Item value="accepted">Validées ({counts.accepted})</Select.Item>
             <Select.Item value="declined">Refusées ({counts.declined})</Select.Item>
             <Select.Item value="all">Toutes</Select.Item>
           </FilterPill>
@@ -99,9 +99,6 @@ export function ApplicationsList({ rows, total, filters, counts, settings, canSe
                 {LABELS.showType[type]}
               </Select.Item>
             ))}
-          </FilterPill>
-          <FilterPill label="Émission" allLabel="Prête ou non" value={shown.ready} valueLabel="Déjà prête" onChange={(ready) => set({ ready })}>
-            <Select.Item value="1">Déjà prête</Select.Item>
           </FilterPill>
           <FilterPill label="Réponse" allLabel="Dans les temps ou non" value={shown.late} valueLabel="En retard" onChange={(late) => set({ late })}>
             <Select.Item value="1">En retard</Select.Item>
@@ -165,15 +162,18 @@ function ApplicationLine({ row }: { row: ApplicationRow }) {
           <Flex direction="column" minWidth="0" gap="1">
             <Flex align="center" gap="2" wrap="wrap">
               <Link href={href} weight="medium" highContrast underline="hover" data-astro-prefetch="false" className="admin-break">
-                {row.name}
+                {row.title}
               </Link>
-              {row.ready && (
-                <Badge color="green" variant="soft" radius="full">
-                  Déjà prête
-                </Badge>
-              )}
+              <Text size="2" color="gray" className="admin-break">
+                par {row.name}
+              </Text>
             </Flex>
             <Text size="1" color="gray" className="admin-break">
+              <span className="admin-application-source" title={row.hasSound ? "Son MP3 est là" : "Pas de MP3 : un lien, ou son son effacé"}>
+                {row.hasSound ? <SpeakerLoudIcon aria-hidden /> : <Link2Icon aria-hidden />}
+                {row.hasSound ? "MP3" : "lien"}
+              </span>
+              {" · "}
               {[LABELS.showType[row.type], row.regular ? "régulièrement" : null, row.contact, row.city].filter(Boolean).join(" · ")}
               <span className="admin-show-mobile">
                 {" · "}

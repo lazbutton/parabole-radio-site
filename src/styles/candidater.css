@@ -3,8 +3,9 @@
    reste en place (le titre comme la chaîne au zapping, le chapeau en sous-titres de télé, puis la page de télétexte
    « Comment ça se passe ») ; à droite, le formulaire sur une feuille au cadre jaune qui bave. Sur un téléphone : le
    titre, le formulaire, puis « Comment ça se passe » ; la touche SUIVANT reste au bas de l'écran.
-   Les choix se cliquent : les chaînes (le type), les paires (oui, pas encore…), les pastilles (les styles). Un choix
-   allumé passe en jaune, le texte en bleu, avec une coche : pas seulement la couleur. Les champs ont 16 px de texte, pour
+   Les choix se cliquent : les chaînes (le type), les paires (une fois, régulièrement), les pastilles (les styles). Un
+   choix allumé passe en jaune, le texte en bleu, avec une coche : pas seulement la couleur. Les fichiers (la photo, le
+   MP3) se cliquent ou se lâchent sur leur cadre. Les champs ont 16 px de texte, pour
    que le téléphone ne zoome pas. Pas de flou d'arrière-plan sur la vidéo (reference-perf : Chrome saccadait). */
 
 html[data-page="candidater"] .logo-overlay { display: none; }
@@ -23,8 +24,9 @@ html[data-page="candidater"] .logo-overlay { display: none; }
   color: #ffffff;
 }
 .candidater [hidden] { display: none !important; }
-/* sans script, les trois écrans sont l'un sous l'autre : seule la touche ENVOYER reste */
-.candidater:not(.pret) :is([data-suivant], [data-retour]) { display: none; }
+/* sans script, les trois écrans sont l'un sous l'autre, sans touches : le MP3 part du navigateur, la page le dit */
+.candidater:not(.pret) .cand-pied { display: none; }
+.cand-sans-script { margin: 20px 24px 0; padding: 12px 14px; border: 2px dashed var(--erreur); font-size: 14px; line-height: 1.45; }
 /* Téléphone : le titre, le formulaire, puis « Comment ça se passe » */
 .cand-gauche { display: contents; }
 .cand-entete { order: 1; }
@@ -260,6 +262,78 @@ legend.cand-label { margin-bottom: 10px; }
 .cand-puce:has(input:disabled) { opacity: 0.32; cursor: not-allowed; }
 .cand-puce:has(input:disabled) input { cursor: not-allowed; }
 
+/* ---------- LES FICHIERS : LA PHOTO, LE MP3 ----------
+   Le champ de fichier, invisible, couvre tout son cadre : un clic l'ouvre, un fichier lâché dessus y entre. */
+.cand-photo-cadre input, .cand-depot input { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.cand-lien-bouton {
+  min-height: 40px; padding: 4px 0; background: none; border: 0; color: #fff039;
+  font: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-decoration: underline; text-underline-offset: 4px; text-transform: uppercase;
+  cursor: pointer; transition: color 0.15s;
+}
+.cand-lien-bouton:hover { color: #ffffff; }
+.cand-lien-bouton:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+
+/* La photo : un carré, recadré comme il le sera sur le site (au centre) */
+.cand-photo { display: flex; align-items: center; gap: 16px; }
+.cand-photo-cadre {
+  position: relative; flex-shrink: 0; display: grid; place-items: center; width: 112px; height: 112px; overflow: hidden;
+  border: 2px dashed rgba(255,240,57,0.7);
+  background: repeating-linear-gradient(0deg, rgba(255,255,255,0.04) 0 1px, transparent 1px 3px), rgba(0,0,0,0.55);
+  color: #fff039; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.cand-photo-cadre img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cand-photo-vide { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; line-height: 1.6; text-align: center; text-transform: uppercase; }
+.cand-photo-cadre:hover, .cand-photo-cadre[data-survol] { border-color: #fff039; box-shadow: var(--bave); }
+.cand-photo-cadre:has(input:focus-visible) { outline: 2px solid #ffffff; outline-offset: 3px; }
+.cand-photo-cadre:not([data-etat="vide"]):not([data-etat="erreur"]) { border-style: solid; border-color: #fff039; box-shadow: var(--bave); }
+.cand-question[data-faux] .cand-photo-cadre { border-color: var(--erreur); }
+/* son état : « ENVOI » qui clignote sur l'image, puis une coche ; « ! » si elle est refusée */
+.cand-photo-etat {
+  position: absolute; z-index: 1; right: 0; bottom: 0; padding: 5px 7px 4px;
+  background: #fff039; color: #000dff; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; line-height: 1; text-transform: uppercase;
+}
+.cand-photo-cadre[data-etat="envoi"] .cand-photo-etat { inset: auto 0 0 0; text-align: center; animation: playerBlink 0.8s steps(2) infinite; }
+.cand-photo-cadre[data-etat="erreur"] .cand-photo-etat { background: var(--erreur); color: #000000; }
+.cand-photo-cote { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.cand-photo-actions { display: flex; gap: 18px; }
+
+/* Le MP3 : une grande zone où le lâcher (« Choisis ton MP3 » au doigt), puis sa fiche et sa barre d'envoi */
+.cand-depot {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  min-height: 148px; padding: 24px 16px;
+  border: 2px dashed rgba(255,240,57,0.7);
+  background: repeating-linear-gradient(-45deg, rgba(255,240,57,0.06) 0 10px, transparent 10px 20px), rgba(0,0,0,0.55);
+  text-align: center; cursor: pointer; transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.cand-depot-titre {
+  color: #fff039; font-size: 20px; font-weight: 700; letter-spacing: 0.06em; line-height: 1.1; text-transform: uppercase;
+  text-shadow: -2px 0 rgba(255,0,72,0.5), 2px 0 rgba(0,200,255,0.45);
+}
+.cand-depot-ou { color: rgba(255,255,255,0.7); font-size: 13px; line-height: 1.4; }
+.cand-depot:hover { border-color: #fff039; box-shadow: var(--bave); }
+.cand-depot[data-survol] { background: #fff039; border-style: solid; border-color: #fff039; box-shadow: var(--bave-fort); }
+.cand-depot[data-survol] :is(.cand-depot-titre, .cand-depot-ou) { color: #000dff; text-shadow: none; }
+.cand-depot:has(input:focus-visible) { outline: 2px solid #ffffff; outline-offset: 3px; }
+.cand-question[data-faux] .cand-depot { border-color: var(--erreur); }
+.cand-depot-doigt { display: none; }
+@media (hover: none), (pointer: coarse) {
+  .cand-depot { min-height: 112px; }
+  .cand-depot-souris { display: none; }
+  .cand-depot-doigt { display: inline; }
+}
+.cand-fichier { display: flex; flex-direction: column; gap: 10px; padding: 14px 14px 8px; border: 2px solid #fff039; background: rgba(0,0,0,0.6); box-shadow: var(--bave); }
+.cand-fichier-tete { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.cand-fichier-nom { min-width: 0; overflow: hidden; font-size: 15px; font-weight: 700; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.cand-fichier-poids { flex-shrink: 0; color: rgba(255,255,255,0.6); font-size: 12px; font-variant-numeric: tabular-nums; }
+/* la barre d'envoi : des pavés de télétexte qui se remplissent de jaune */
+.cand-barre { height: 16px; overflow: hidden; border: 2px solid #fff039; background: repeating-linear-gradient(90deg, rgba(255,240,57,0.16) 0 7px, transparent 7px 10px); }
+.cand-barre > span { display: block; height: 100%; background: #fff039; transform: scaleX(0); transform-origin: left; transition: transform 0.3s linear; }
+.cand-fichier-pied { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 16px; }
+.cand-fichier-etat { color: #fff039; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
+.cand-fichier[data-etat="envoi"] .cand-fichier-etat::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 8px; background: currentColor; animation: playerBlink 0.8s steps(2) infinite; }
+.cand-fichier-actions { display: flex; gap: 18px; }
+.cand-fichier-note { margin-bottom: 6px; color: rgba(255,255,255,0.75); font-size: 13px; line-height: 1.45; }
+
 .cand-vie-privee { color: rgba(255,255,255,0.6); font-size: 12px; line-height: 1.55; }
 .cand-vie-privee a { color: #fff039; text-decoration: underline; text-underline-offset: 3px; }
 .cand-vie-privee a:hover { color: #ffffff; }
@@ -323,6 +397,8 @@ legend.cand-label { margin-bottom: 10px; }
   .cand-suivant { flex: 1 1 auto; padding: 0 18px; }
   .cand-long { display: none; }
   .cand-puce { min-height: 44px; }
+  .cand-photo-cadre { width: 96px; height: 96px; }
+  .cand-depot-titre { font-size: 18px; }
   .cand-erreur-envoi { margin: 0 16px 14px; }
   .cand-brouillon { margin: 0 16px 16px; text-align: left; }
   .cand-recu > .cand-page, .cand-recu-titre, .cand-recu-texte { margin-left: 16px; margin-right: 16px; }
@@ -330,7 +406,8 @@ legend.cand-label { margin-bottom: 10px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cand-titre, .cand-zap, .cand-suivant[aria-busy="true"]::after { animation: none; }
+  .cand-titre, .cand-zap, .cand-suivant[aria-busy="true"]::after, .cand-fichier-etat::after, .cand-photo-etat { animation: none; }
+  .cand-barre > span { transition: none; }
 }
 
 /* ---------- LES CANDIDATURES OUVERTES OU NON (les réglages de l'admin) ---------- */

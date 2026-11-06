@@ -73,7 +73,7 @@ export type DashboardData = {
   /** Les envois des résidents qui attendent l'équipe (cms/README.md, 9.12). */
   envois: { review: number; failed: number; assemble: number; slot: number };
   /** Les candidatures qui attendent l'équipe (cms/README.md, 9.17) : à écouter, mises de côté, sans réponse au-delà du délai annoncé, et les émissions déjà prêtes. */
-  applications: { new: number; shortlisted: number; late: number; ready: number };
+  applications: { new: number; shortlisted: number; late: number };
   /** Les deadlines des groupes : celle qui vient de passer, tant que son bloc n'a pas commencé, puis la prochaine. */
   deadlines: DeadlineView[];
   /** Le calendrier des groupes, réglable par un admin ; null s'il n'est pas réglé. */
@@ -454,9 +454,12 @@ export type ApplicationSettingsView = { openTypes: ShowType[]; replyDays: number
 /** Une candidature dans la liste. */
 export type ApplicationRow = {
   id: string;
+  /** Le titre de l'émission proposée. */
+  title: string;
   name: string;
   type: ShowType;
-  ready: boolean;
+  /** Son MP3 est là (sinon, une playlist envoyée par son lien ; ou, refusée, son son est effacé). */
+  hasSound: boolean;
   regular: boolean | null;
   city: string | null;
   /** « @lou.velours », ou l'adresse e-mail. */
@@ -469,7 +472,7 @@ export type ApplicationRow = {
   /** Sans réponse depuis plus que le délai annoncé. */
   late: boolean;
 };
-export type ApplicationFilters = { q: string; status: string; type: string; ready: string; late: string };
+export type ApplicationFilters = { q: string; status: string; type: string; late: string };
 export type ApplicationsListData = {
   rows: ApplicationRow[];
   total: number;
@@ -481,12 +484,12 @@ export type ApplicationsListData = {
 };
 export type ApplicationSettingsResponse = { ok: true; message: string; settings: ApplicationSettingsView } | { ok: false; errors: FieldErrors };
 
-/** Une candidature ouverte : tout ce qu'elle dit, la réponse de l'équipe, et la fiche née de son oui. */
+/** Une candidature ouverte : l'émission proposée, son son, l'artiste, la réponse de l'équipe, et ce que sa validation a créé. */
 export type ApplicationSheet = {
   id: string;
+  title: string;
   name: string;
   type: ShowType;
-  ready: boolean;
   regular: boolean | null;
   city: string | null;
   instagram: string | null;
@@ -496,16 +499,25 @@ export type ApplicationSheet = {
   received: string;
   late: boolean;
   pitch: string;
+  bio: string | null;
+  photo: MediaView | null;
+  /** Le MP3 envoyé (puis celui de l'émission, une fois validée) : à écouter par /admin/api/son/<id>. */
+  sound: { id: string; fileName: string; size: string | null } | null;
+  /** Le lien d'une playlist envoyée sans MP3. */
   listenUrl: string | null;
+  tracklist: string | null;
+  /** Son mot pour l'équipe. */
+  message: string | null;
   note: string;
   styles: string[];
-  /** La fiche née du oui, et son lien d'envoi (/envoyer/<jeton>). */
-  artist: { id: string; name: string; status: ContentStatus; link: string | null } | null;
+  /** Ce que la validation a créé : l'émission, et la fiche d'artiste (créée ou reprise). */
+  show: { id: string; title: string; status: ContentStatus } | null;
+  artist: { id: string; name: string; status: ContentStatus } | null;
   answeredBy: string | null;
   answeredAt: string | null;
   /** Le jour où un refus sera effacé : « 6 mai 2027 ». */
   erasedAt: string | null;
-  /** Une fiche porte déjà ce nom : le oui la reprendra. */
+  /** Une fiche porte déjà ce nom : la validation la reprendra. */
   sameName: { id: string; name: string } | null;
   replyDays: number;
 };
