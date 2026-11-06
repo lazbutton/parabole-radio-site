@@ -332,3 +332,20 @@ legend.cand-label { margin-bottom: 10px; }
 @media (prefers-reduced-motion: reduce) {
   .cand-titre, .cand-zap, .cand-suivant[aria-busy="true"]::after { animation: none; }
 }
+
+/* ---------- LES CANDIDATURES OUVERTES OU NON (les réglages de l'admin) ---------- */
+/* un type complet pour le moment : éteint, en pointillé, il ne se choisit pas */
+.cand-chaine[data-complet] { border-style: dashed; opacity: 0.55; cursor: not-allowed; }
+.cand-chaine[data-complet] input { cursor: not-allowed; }
+.cand-chaine[data-complet]:hover { border-color: rgba(255,240,57,0.7); box-shadow: none; }
+.cand-chaine-complet {
+  margin-top: 8px; padding: 4px 6px 3px; background: #fff039; color: #000dff;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.12em; line-height: 1; text-transform: uppercase;
+}
+/* tout est complet : le carton remplace le formulaire */
+.cand-ferme { padding-bottom: 26px; }
+
+/* le champ piège : invisible et hors du parcours au clavier, mais présent pour un robot */
+.cand-piege { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; opacity: 0; pointer-events: none; }
+/* la case de la vérification Turnstile, quand elle a besoin de quelqu'un (le plus souvent, elle ne demande rien) */
+.cand-verification { display: flex; justify-content: center; padding: 4px 24px 0; }

@@ -49,9 +49,11 @@ const socials = about?.socials ?? [];
 const team = about?.team ?? [];
 const credits = about?.credits ?? [];
 const contact = about?.contactEmail ?? null;
-// le formulaire s'ouvre dans un autre onglet ; une adresse e-mail, dans la messagerie
+// une page du site (/candidater) s'ouvre ici, le direct continue ; une adresse e-mail, dans la messagerie ; un
+// formulaire d'ailleurs, dans un autre onglet
+const interne = (url: string) => url.startsWith("mailto:") || (url.startsWith("/") && !url.startsWith("//"));
 const bouton = about?.apply.url
-  ? { href: about.apply.url, texte: about.apply.label, ...(about.apply.url.startsWith("mailto:") ? {} : { target: "_blank", rel: "noopener noreferrer" }) }
+  ? { href: about.apply.url, texte: about.apply.label, ...(interne(about.apply.url) ? {} : { target: "_blank", rel: "noopener noreferrer" }) }
   : null;
 
 /** Un lien d'une ligne du générique : une page du site s'ouvre ici, une adresse d'ailleurs dans un autre onglet. */

@@ -14,6 +14,7 @@
     "./tracklist": "./src/tracklist.ts",
     "./antenne": "./src/chat/forme.ts",
     "./envois": "./src/envois/navigateur.ts",
+    "./candidatures": "./src/candidatures/regles.ts",
     "./assemblage": "./src/assemblage.ts"
   },
   "scripts": {

@@ -134,6 +134,20 @@
       "when": 1793830242480,
       "tag": "0018_soundcloud",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793960543478,
+      "tag": "0019_candidatures",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793960563406,
+      "tag": "0020_candidatures_acces",
+      "breakpoints": true
     }
   ]
 }

@@ -60,6 +60,19 @@ import {
 import { getMember, overview } from "./team.ts";
 import { approveAudio, assemblyKey, audioFileById, audioFilesOf, audioKeysOf, deleteAudioFile, deleteUploadLink, getCycle, prepareAssembly, registerAssembly, renewUploadLink, saveCycle, submissionOf, uploadLinkOf } from "./envois.ts";
 import { attachCandidates, attachSubmission, rattacherSeul } from "../envois/rattacher.ts";
+import {
+  acceptApplication,
+  applicationCounts,
+  declineApplication,
+  deleteApplication,
+  getApplication,
+  getApplicationSettings,
+  listApplications,
+  moveApplication,
+  noteApplication,
+  saveApplicationSettings,
+  type AdminApplicationFilters,
+} from "./candidatures.ts";
 
 /** Un refus de la base qui tient à la saisie devient des erreurs par champ ; le reste remonte tel quel. */
 async function saving<T extends { ok: true }>(run: () => Promise<T | NotSaved>): Promise<T | NotSaved> {
@@ -260,6 +273,26 @@ export function createAdmin(db: Db, userId: string) {
     cycle: () => as((tx) => getCycle(tx)),
     /** Règle le calendrier des groupes (un admin). */
     saveCycle: (values: { group1Start: string; blockDays: number; deadlineDays: number }) => saving(() => as((tx) => saveCycle(tx, values))),
+    /** Les candidatures (9.17), les plus récentes d'abord ; par défaut, celles qui attendent une réponse. */
+    listApplications: (filters: AdminApplicationFilters = {}, now?: Date) => as((tx) => listApplications(tx, filters, now)),
+    /** Une candidature, avec ses styles et la fiche née de son oui, ou null. */
+    getApplication: (id: string, now?: Date) => as((tx) => getApplication(tx, id, now)),
+    /** La note de l'équipe sur une candidature. */
+    noteApplication: (id: string, note: string) => as((tx) => noteApplication(tx, id, note)),
+    /** Remet une candidature à écouter, ou la met de côté (un refus aussi, tant qu'il n'est pas effacé). */
+    moveApplication: (id: string, to: "new" | "shortlisted") => as((tx) => moveApplication(tx, id, to)),
+    /** Le oui : la fiche d'invité (ou celle qui porte déjà ce nom) et son lien d'envoi, au nom de la personne connectée. */
+    acceptApplication: (id: string) => saving(() => as((tx) => acceptApplication(tx, id, userId))),
+    /** « Pas cette fois », au nom de la personne connectée. */
+    declineApplication: (id: string) => as((tx) => declineApplication(tx, id, userId)),
+    /** Efface une candidature tout de suite. Rend son nom, ou null. */
+    deleteApplication: (id: string) => as((tx) => deleteApplication(tx, id)),
+    /** Les réglages des candidatures : les types ouverts, le délai annoncé. */
+    applicationSettings: () => as((tx) => getApplicationSettings(tx)),
+    /** Règle les candidatures (un admin). */
+    saveApplicationSettings: (settings: { openTypes: string[]; replyDays: number }) => saving(() => as((tx) => saveApplicationSettings(tx, settings))),
+    /** Les candidatures qui attendent, pour l'accueil. */
+    applicationCounts: (now?: Date) => as((tx) => applicationCounts(tx, now)),
   };
 }
 
@@ -318,3 +351,4 @@ export {
 export type { AdminShow, AdminShowArtist, AdminShowFilters, AdminShowRow, AdminTag, ShowSave } from "./shows.ts";
 export type { Overview, TeamMember } from "./team.ts";
 export type { AdminAudioFile, AdminSubmission, AdminUploadLink, DeadlinePanel } from "./envois.ts";
+export type { Accepted, AdminApplication, AdminApplicationFilters, AdminApplicationRow, ApplicationCounts } from "./candidatures.ts";

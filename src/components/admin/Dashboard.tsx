@@ -12,9 +12,11 @@ import {
   BookmarkIcon,
   CalendarIcon,
   CheckCircledIcon,
+  ClockIcon,
   CopyIcon,
   DiscIcon,
   DownloadIcon,
+  EnvelopeClosedIcon,
   ExclamationTriangleIcon,
   FileTextIcon,
   ImageIcon,
@@ -50,7 +52,7 @@ const SOUNDCLOUD_RETURNS: Record<string, Flash> = {
   reglages: { kind: "error", title: "SoundCloud n'est pas branché", description: "Il manque SOUNDCLOUD_CLIENT_ID et SOUNDCLOUD_CLIENT_SECRET dans Vercel." },
 };
 
-export function Dashboard({ viewer, today, stats, upcoming, missing, envois, deadlines, cycle, drafts, radiocult, soundcloud }: DashboardData & { viewer: Viewer }) {
+export function Dashboard({ viewer, today, stats, upcoming, missing, envois, applications, deadlines, cycle, drafts, radiocult, soundcloud }: DashboardData & { viewer: Viewer }) {
   const firstName = viewer.name.split(" ")[0];
   const openCommand = useCommand();
   const mod = useModKey();
@@ -70,6 +72,8 @@ export function Dashboard({ viewer, today, stats, upcoming, missing, envois, dea
     { count: envois.failed, label: `${envois.failed > 1 ? "Publications" : "Publication"} SoundCloud en échec`, href: "/admin/shows?missing=failed", icon: <ExclamationTriangleIcon /> },
     { count: envois.assemble, label: `${envois.assemble > 1 ? "Playlists" : "Playlist"} à assembler`, href: "/admin/shows?missing=assemble", icon: <LayersIcon /> },
     { count: envois.slot, label: `${envois.slot > 1 ? "Envois" : "Envoi"} sans créneau`, href: "/admin/shows?missing=slot", icon: <CalendarIcon /> },
+    { count: applications.new, label: `${applications.new > 1 ? "Candidatures" : "Candidature"} à écouter`, href: "/admin/candidatures?status=new", icon: <EnvelopeClosedIcon /> },
+    { count: applications.late, label: `${applications.late > 1 ? "Candidatures" : "Candidature"} sans réponse au-delà du délai annoncé`, href: "/admin/candidatures?late=1", icon: <ClockIcon /> },
     { count: stats.shows.draft, label: `${stats.shows.draft > 1 ? "Émissions" : "Émission"} en brouillon`, href: "/admin/shows?status=draft", icon: <FileTextIcon /> },
     { count: missing.tracklist, label: `${aired(missing.tracklist)} sans tracklist`, href: "/admin/shows?missing=tracklist", icon: <ListBulletIcon /> },
     { count: missing.sound, label: `${aired(missing.sound)} sans son`, href: "/admin/shows?missing=sound", icon: <SpeakerLoudIcon /> },
@@ -125,7 +129,7 @@ export function Dashboard({ viewer, today, stats, upcoming, missing, envois, dea
             )}
           </Panel>
 
-          <Deadlines deadlines={deadlines} cycle={cycle} admin={viewer.role === "admin"} />
+          <Deadlines deadlines={deadlines} cycle={cycle} admin={viewer.role === "admin"} ready={applications.ready} />
 
           <Panel title="À compléter">
             {todo.length ? (
@@ -202,7 +206,7 @@ export function Dashboard({ viewer, today, stats, upcoming, missing, envois, dea
  * commencé) puis pour la prochaine, qui a envoyé, et qui relancer, avec son lien d'envoi à copier. Un admin y règle le
  * calendrier des groupes.
  */
-function Deadlines({ deadlines, cycle, admin }: { deadlines: DeadlineView[]; cycle: DashboardData["cycle"]; admin: boolean }) {
+function Deadlines({ deadlines, cycle, admin, ready }: { deadlines: DeadlineView[]; cycle: DashboardData["cycle"]; admin: boolean; ready: number }) {
   const notify = useNotify();
   const [setting, setSetting] = useState(false);
 
@@ -294,6 +298,18 @@ function Deadlines({ deadlines, cycle, admin }: { deadlines: DeadlineView[]; cyc
             );
           })}
         </Flex>
+      )}
+      {/* La réserve : des émissions déjà prêtes chez les candidats, de quoi boucher un trou de la grille. */}
+      {ready > 0 && deadlines.some((panel) => panel.residents.some((resident) => !resident.sent)) && (
+        <a className="admin-row-link admin-todo admin-reserve" href="/admin/candidatures?ready=1" data-astro-prefetch="false">
+          <span className="admin-row-icon" aria-hidden>
+            <EnvelopeClosedIcon />
+          </span>
+          <Text as="span" size="2" className="admin-row-main">
+            Pour boucher un trou : {ready > 1 ? `${ready} candidatures ont une émission déjà prête` : "une candidature a une émission déjà prête"}
+          </Text>
+          <ArrowRightIcon className="admin-row-arrow" aria-hidden />
+        </a>
       )}
       {admin && <CycleDialog open={setting} cycle={cycle} onClose={() => setSetting(false)} />}
     </Panel>
