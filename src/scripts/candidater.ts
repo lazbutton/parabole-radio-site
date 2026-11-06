@@ -7,7 +7,7 @@
 // animations ». Branché sur astro:page-load : à chaque arrivée sur la page.
 //
 // Prototype : /api/candidature n'existe pas encore. En développement, « C'est reçu » s'affiche quand même (rien n'est
-// envoyé) ; ailleurs, l'envoi échoue et le dit, sans perdre les réponses.
+// envoyé) ; en ligne, la page dit que les candidatures ouvrent bientôt, et les réponses restent dans le brouillon.
 
 type ParType = { idee: string; lien: string; lienRequis: boolean };
 type Config = { delai: string; stylesMax: number; types: Record<string, ParType> };
@@ -286,8 +286,19 @@ function brancher(page: HTMLElement): () => void {
     erreurEnvoi.hidden = true;
     try {
       const reponse = await fetch(form.action, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(corps), signal });
-      if (!reponse.ok && !(import.meta.env.DEV && reponse.status === 404)) throw new Error(`réponse ${reponse.status}`);
-      if (!reponse.ok) console.info("candidater : prototype, rien n'est envoyé (/api/candidature n'existe pas encore)", corps);
+      if (reponse.status === 404 && import.meta.env.DEV) {
+        console.info("candidater : prototype, rien n'est envoyé (/api/candidature n'existe pas encore)", corps);
+        fini(valeur("nom"));
+        return;
+      }
+      // en ligne, tant que l'envoi n'existe pas : le dire, sans faire croire qu'un nouvel essai passera
+      if (reponse.status === 404) {
+        erreurEnvoi.textContent = "Les candidatures ne sont pas encore ouvertes : ça arrive très bientôt. Tes réponses restent gardées sur cet appareil.";
+        erreurEnvoi.hidden = false;
+        annonce.textContent = erreurEnvoi.textContent;
+        return;
+      }
+      if (!reponse.ok) throw new Error(`réponse ${reponse.status}`);
       fini(valeur("nom"));
     } catch (erreur) {
       if (signal.aborted) return;
