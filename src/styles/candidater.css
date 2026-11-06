@@ -333,7 +333,6 @@ legend.cand-label { margin-bottom: 10px; }
 .cand-fichier[data-etat="envoi"] .cand-fichier-etat::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 8px; background: currentColor; animation: playerBlink 0.8s steps(2) infinite; }
 .cand-fichier-actions { display: flex; gap: 18px; }
 .cand-fichier-note { margin-bottom: 6px; color: rgba(255,255,255,0.75); font-size: 13px; line-height: 1.45; }
-.cand-champ textarea[name="tracklist"] { font-variant-numeric: tabular-nums; }
 
 .cand-vie-privee { color: rgba(255,255,255,0.6); font-size: 12px; line-height: 1.55; }
 .cand-vie-privee a { color: #fff039; text-decoration: underline; text-underline-offset: 3px; }
