@@ -396,9 +396,10 @@ const contactOf = (row: Pick<AdminApplicationRow, "instagram" | "email">) => (ro
 export function applicationRow(row: AdminApplicationRow, now = new Date()): ApplicationRow {
   return {
     id: row.id,
+    title: row.title ?? row.name,
     name: row.name,
     type: row.type,
-    ready: row.ready,
+    hasSound: row.hasSound,
     regular: row.regular,
     city: row.city,
     contact: contactOf(row),
@@ -413,9 +414,9 @@ export function applicationRow(row: AdminApplicationRow, now = new Date()): Appl
 export function applicationSheet(application: AdminApplication, replyDays: number, now = new Date()): ApplicationSheet {
   return {
     id: application.id,
+    title: application.title ?? application.name,
     name: application.name,
     type: application.type,
-    ready: application.ready,
     regular: application.regular,
     city: application.city,
     instagram: application.instagram,
@@ -425,12 +426,16 @@ export function applicationSheet(application: AdminApplication, replyDays: numbe
     received: since(application.createdAt, now),
     late: application.late,
     pitch: application.pitch,
+    bio: application.bio,
+    photo: mediaView(application.photo),
+    sound: application.sound ? { id: application.sound.id, fileName: application.sound.fileName, size: application.sound.sizeBytes ? megabytes(application.sound.sizeBytes) : null } : null,
     listenUrl: application.listenUrl,
+    tracklist: application.tracklist,
+    message: application.message,
     note: application.note ?? "",
     styles: application.styles.map((style) => style.name),
-    artist: application.artist
-      ? { id: application.artist.id, name: application.artist.name, status: application.artist.status, link: application.artist.token ? `/envoyer/${application.artist.token}` : null }
-      : null,
+    show: application.show,
+    artist: application.artist,
     answeredBy: application.answeredBy,
     answeredAt: application.answeredAt ? parisDateTime(application.answeredAt) : null,
     erasedAt: application.erasedAt ? parisDay(application.erasedAt) : null,

@@ -421,7 +421,12 @@ describe("les candidatures", () => {
     const base = { type: "dj_set" as const, name: "X", pitch: "Une idée assez longue." };
     expect((await pgError(db.insert(application).values({ ...base, submittedAt: NOW }))).message).toMatch(/application_contact/);
     expect((await pgError(db.insert(application).values({ ...base, email: "x@exemple.test", submittedAt: NOW, status: "accepted" }))).message).toMatch(/application_answered/);
-    expect((await pgError(db.insert(application).values({ ...base, email: "x@exemple.test" }))).message).toMatch(/application_dossier/);
-    expect((await pgError(db.insert(application).values({ ...base, email: "x@exemple.test", submittedAt: NOW, dossierHash: "abc" }))).message).toMatch(/application_dossier/);
+    // Écrite d'un coup, comme par la première version de la page : envoyée, à l'heure de l'écriture.
+    const [ecrite] = await db.insert(application).values({ ...base, email: "x@exemple.test" }).returning({ submittedAt: application.submittedAt });
+    expect(ecrite!.submittedAt).toBeInstanceOf(Date);
+    // Un dossier n'est pas encore envoyé ; une candidature envoyée n'a plus de dossier.
+    expect((await pgError(db.insert(application).values({ ...base, email: "y@exemple.test", dossierHash: "abc" }))).message).toMatch(/application_dossier/);
+    expect((await pgError(db.insert(application).values({ ...base, email: "y@exemple.test", submittedAt: null }))).message).toMatch(/application_dossier/);
+    expect((await pgError(db.insert(application).values({ ...base, email: "y@exemple.test", submittedAt: NOW, dossierHash: "abc" }))).message).toMatch(/application_dossier/);
   });
 });

@@ -10,7 +10,8 @@
  *   - un envoi qui attendait son créneau s'y rattache, s'il n'en a qu'un possible ;
  *   - le ménage : les fichiers jamais arrivés dans le seau (en route depuis plus d'un jour) sont oubliés et effacés, un
  *     envoi vers SoundCloud bloqué passe en échec.
- * Enfin, les candidatures (9.17) : un refus est effacé six mois après la réponse.
+ * Enfin, les candidatures (9.17) : un dossier jamais envoyé est oublié au bout d'un jour, avec ses fichiers ; un refus
+ * est effacé six mois après la réponse.
  */
 import { createCandidatures, createEnvois, importRadioCult, rattacherEnvois } from "@parabole/cms";
 import type { APIRoute } from "astro";
@@ -40,12 +41,16 @@ async function envoisDeNuit(db: Awaited<ReturnType<typeof database>>) {
   }
 }
 
-/** Les candidatures refusées depuis plus de six mois sont effacées. */
+/**
+ * Les candidatures : les dossiers jamais envoyés (ouverts depuis plus d'un jour) sont oubliés, avec leur son dans le
+ * seau et leur photo dans le Storage ; les refus de plus de six mois sont effacés.
+ */
 async function candidaturesDeNuit(db: Awaited<ReturnType<typeof database>>) {
   try {
-    const effacees = await createCandidatures(db).menage();
-    console.log(`Candidatures, tâche de nuit : ${effacees} refus de plus de six mois effacé(s).`);
-    return { erased: effacees };
+    const { abandoned, erased, keys, images } = await createCandidatures(db).menage();
+    await Promise.all([removeFiles(keys), removeImages(images)]);
+    console.log(`Candidatures, tâche de nuit : ${abandoned} dossier(s) abandonné(s) oublié(s), ${erased} refus de plus de six mois effacé(s), ${keys.length} son(s) retiré(s) du seau.`);
+    return { abandoned, erased };
   } catch (failure) {
     console.error("Candidatures, tâche de nuit : échec", failure);
     return { error: "candidatures failed" };

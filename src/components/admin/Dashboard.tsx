@@ -129,7 +129,7 @@ export function Dashboard({ viewer, today, stats, upcoming, missing, envois, app
             )}
           </Panel>
 
-          <Deadlines deadlines={deadlines} cycle={cycle} admin={viewer.role === "admin"} ready={applications.ready} />
+          <Deadlines deadlines={deadlines} cycle={cycle} admin={viewer.role === "admin"} reserve={applications.new + applications.shortlisted} />
 
           <Panel title="À compléter">
             {todo.length ? (
@@ -206,7 +206,7 @@ export function Dashboard({ viewer, today, stats, upcoming, missing, envois, app
  * commencé) puis pour la prochaine, qui a envoyé, et qui relancer, avec son lien d'envoi à copier. Un admin y règle le
  * calendrier des groupes.
  */
-function Deadlines({ deadlines, cycle, admin, ready }: { deadlines: DeadlineView[]; cycle: DashboardData["cycle"]; admin: boolean; ready: number }) {
+function Deadlines({ deadlines, cycle, admin, reserve }: { deadlines: DeadlineView[]; cycle: DashboardData["cycle"]; admin: boolean; reserve: number }) {
   const notify = useNotify();
   const [setting, setSetting] = useState(false);
 
@@ -299,14 +299,14 @@ function Deadlines({ deadlines, cycle, admin, ready }: { deadlines: DeadlineView
           })}
         </Flex>
       )}
-      {/* La réserve : des émissions déjà prêtes chez les candidats, de quoi boucher un trou de la grille. */}
-      {ready > 0 && deadlines.some((panel) => panel.residents.some((resident) => !resident.sent)) && (
-        <a className="admin-row-link admin-todo admin-reserve" href="/admin/candidatures?ready=1" data-astro-prefetch="false">
+      {/* La réserve : les candidatures à traiter, chacune avec son émission prête, de quoi boucher un trou de la grille. */}
+      {reserve > 0 && deadlines.some((panel) => panel.residents.some((resident) => !resident.sent)) && (
+        <a className="admin-row-link admin-todo admin-reserve" href="/admin/candidatures" data-astro-prefetch="false">
           <span className="admin-row-icon" aria-hidden>
             <EnvelopeClosedIcon />
           </span>
           <Text as="span" size="2" className="admin-row-main">
-            Pour boucher un trou : {ready > 1 ? `${ready} candidatures ont une émission déjà prête` : "une candidature a une émission déjà prête"}
+            Pour boucher un trou : {reserve > 1 ? `${reserve} candidatures attendent, avec leur émission prête` : "une candidature attend, avec son émission prête"}
           </Text>
           <ArrowRightIcon className="admin-row-arrow" aria-hidden />
         </a>

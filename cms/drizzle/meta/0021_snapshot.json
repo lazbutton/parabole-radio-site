@@ -1,5 +1,5 @@
 {
-  "id": "6e55b6eb-8e77-412b-a230-6b5959f2725c",
+  "id": "b56a63e9-a2f0-4b68-8b24-a45118d66e19",
   "prevId": "26424043-d865-4734-b043-d857a642e92c",
   "version": "7",
   "dialect": "postgresql",
@@ -308,7 +308,8 @@
           "name": "submitted_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "default": "now()"
         },
         "answered_at": {
           "name": "answered_at",

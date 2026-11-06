@@ -7,9 +7,9 @@ ALTER TABLE "application" ADD COLUMN "tracklist" text;--> statement-breakpoint
 ALTER TABLE "application" ADD COLUMN "message" text;--> statement-breakpoint
 ALTER TABLE "application" ADD COLUMN "show_id" uuid;--> statement-breakpoint
 ALTER TABLE "application" ADD COLUMN "dossier_hash" text;--> statement-breakpoint
-ALTER TABLE "application" ADD COLUMN "submitted_at" timestamp with time zone;--> statement-breakpoint
--- Ajouté à la main : les candidatures déjà reçues (sans son) sont envoyées, avant la règle du dossier.
-UPDATE "application" SET "submitted_at" = "created_at" WHERE "submitted_at" IS NULL;--> statement-breakpoint
+ALTER TABLE "application" ADD COLUMN "submitted_at" timestamp with time zone DEFAULT now();--> statement-breakpoint
+-- Ajouté à la main : les candidatures déjà reçues sont envoyées à leur date de réception (la colonne vient de prendre l'heure de la migration).
+UPDATE "application" SET "submitted_at" = "created_at";--> statement-breakpoint
 ALTER TABLE "audio_file" ADD COLUMN "application_id" uuid;--> statement-breakpoint
 ALTER TABLE "application" ADD CONSTRAINT "application_photo_id_media_id_fk" FOREIGN KEY ("photo_id") REFERENCES "public"."media"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "application" ADD CONSTRAINT "application_show_id_show_id_fk" FOREIGN KEY ("show_id") REFERENCES "public"."show"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint

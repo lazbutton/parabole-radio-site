@@ -180,7 +180,7 @@ export function createCandidatures(db: Db, { now: clock = () => new Date() }: { 
         const nouveau = randomBytes(32).toString("base64url");
         const [cree] = await tx
           .insert(application)
-          .values({ ...champsDuDossier(values), dossierHash: empreinte(nouveau) })
+          .values({ ...champsDuDossier(values), dossierHash: empreinte(nouveau), submittedAt: null })
           .returning({ id: application.id });
         await poserStyles(tx, cree!.id, values.type, values.styles);
         return { ok: true, jeton: nouveau };

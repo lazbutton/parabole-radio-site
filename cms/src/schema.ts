@@ -1004,8 +1004,11 @@ export const application = pgTable(
     showId: uuid("show_id").references(() => show.id, { onDelete: "set null" }),
     /** Le dossier en cours d'envoi : l'empreinte (SHA-256) du jeton que garde la page ; vide une fois envoyée. */
     dossierHash: text("dossier_hash").unique(),
-    /** Envoyée : vide tant que le dossier attend son son. */
-    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    /**
+     * Envoyée : vide tant que le dossier attend son son. Par défaut, l'heure de l'écriture : une candidature écrite d'un
+     * coup (la première version de la page) est envoyée ; un dossier le vide en s'ouvrant.
+     */
+    submittedAt: timestamp("submitted_at", { withTimezone: true }).defaultNow(),
     /** Le oui ou le refus : quand, et par qui. */
     answeredAt: timestamp("answered_at", { withTimezone: true }),
     answeredBy: uuid("answered_by").references(() => member.userId, { onDelete: "set null" }),

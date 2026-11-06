@@ -1,8 +1,8 @@
 ---
 /**
  * Les candidatures dans l'admin (cms/README.md, 9.17) : la liste, les plus récentes d'abord ; par défaut, celles qui
- * attendent une réponse (à écouter, mises de côté). Les filtres : statut, type, émission déjà prête, sans réponse
- * au-delà du délai annoncé, et la recherche (nom, compte Instagram, adresse e-mail, ville). Un admin y règle les
+ * attendent une réponse (à écouter, mises de côté). Les filtres : statut, type, sans réponse au-delà du délai annoncé,
+ * et la recherche (titre de l'émission, nom, compte Instagram, adresse e-mail, ville). Un admin y règle les
  * candidatures (POST, intent=settings) : les types ouverts sur la page, et le délai de réponse qu'elle annonce. Servie
  * en HTML ou en JSON, comme chaque écran.
  */
@@ -35,7 +35,6 @@ const filters = {
   q: params.get("q")?.trim() ?? "",
   status: params.get("status") ?? "",
   type: params.get("type") ?? "",
-  ready: params.get("ready") ?? "",
   late: params.get("late") ?? "",
 };
 const now = new Date();
