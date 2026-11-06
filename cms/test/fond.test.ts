@@ -1,7 +1,8 @@
 /**
  * Les vidéos de fond (drizzle/0004_fond.sql, 0005_fond_acces.sql) : les clips d'origine posés par la migration, la
  * liste que lit le site, les règles d'accès, et les écritures de l'admin (ajout, titre, rotation, ordre, remplacement
- * du fichier, suppression).
+ * du fichier, suppression) ; puis le filtre cathodique posé sur tout le site (drizzle/0021_reglages_du_site.sql,
+ * 0022_reglages_du_site_acces.sql), allumé ou non, et sa force.
  */
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -9,7 +10,7 @@ import { withViewer } from "../src/access.ts";
 import { createAdmin, readClipFile, readClipTitle, type Admin, type ClipFileForm } from "../src/admin/index.ts";
 import type { Connection } from "../src/db.ts";
 import { createReader } from "../src/read/index.ts";
-import { backgroundClip } from "../src/schema.ts";
+import { backgroundClip, siteSettings } from "../src/schema.ts";
 import { createAccount, exampleDb, MEDIA_BASE, pgError } from "./helpers.ts";
 
 const ORIGIN = "/PARABOLE RADIO/VIDEO/BACKGROUND";
@@ -179,5 +180,40 @@ describe("les clips dans l'admin", () => {
     expect(await editor.deleteClip(id)).toEqual({ title: "Adieu", videoUrl: `${BLOB}/adieu.mp4`, posterUrl: `${BLOB}/adieu.jpg` });
     expect(await editor.getClip(id)).toBeNull();
     expect(await editor.deleteClip(id)).toBeNull();
+  });
+});
+
+describe("le filtre cathodique", () => {
+  it("est allumé d'origine, à sa force d'origine, et le site le lit", async () => {
+    expect(await site().getSiteLook()).toEqual({ crtFilter: true, crtStrength: 100 });
+    expect(await editor.siteLook()).toEqual({ crtFilter: true, crtStrength: 100 });
+  });
+
+  it("s'éteint, se rallume et change de force depuis l'admin ; le site suit", async () => {
+    expect(await editor.saveSiteLook({ crtFilter: false })).toEqual({ ok: true, look: { crtFilter: false, crtStrength: 100 } });
+    expect(await site().getSiteLook()).toEqual({ crtFilter: false, crtStrength: 100 });
+    expect(await editor.saveSiteLook({ crtStrength: 152.6 })).toEqual({ ok: true, look: { crtFilter: false, crtStrength: 153 } });
+    expect(await editor.saveSiteLook({ crtFilter: true })).toEqual({ ok: true, look: { crtFilter: true, crtStrength: 153 } });
+    expect(await site().getSiteLook()).toEqual({ crtFilter: true, crtStrength: 153 });
+    expect(await editor.saveSiteLook({})).toEqual({ ok: true, look: { crtFilter: true, crtStrength: 153 } });
+    await editor.saveSiteLook({ crtStrength: 100 });
+  });
+
+  it("refuse une force hors de 10 à 200 %, à l'écran comme dans la base", async () => {
+    for (const crtStrength of [0, 9, 201, Number.NaN]) expect(await editor.saveSiteLook({ crtStrength })).toMatchObject({ ok: false, errors: { crtStrength: expect.any(String) } });
+    const tooStrong = await pgError(connection.db.update(siteSettings).set({ crtStrength: 250 }));
+    expect(tooStrong.code).toBe("23514");
+    const second = await pgError(connection.db.insert(siteSettings).values({ id: false }));
+    expect(second.code).toBe("23514");
+    expect(await site().getSiteLook()).toEqual({ crtFilter: true, crtStrength: 100 });
+  });
+
+  it("ne change ni pour le public ni pour un compte hors de l'équipe", async () => {
+    expect(await stranger.saveSiteLook({ crtFilter: false })).toMatchObject({ ok: false, errors: { form: expect.any(String) } });
+    const update = await pgError(withViewer(connection.db, { role: "anon" }, (tx) => tx.update(siteSettings).set({ crtFilter: false })));
+    expect(update.code).toBe("42501");
+    const remove = await pgError(withViewer(connection.db, { role: "anon" }, (tx) => tx.delete(siteSettings)));
+    expect(remove.code).toBe("42501");
+    expect(await site().getSiteLook()).toEqual({ crtFilter: true, crtStrength: 100 });
   });
 });

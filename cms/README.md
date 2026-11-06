@@ -230,6 +230,11 @@ erDiagram
         int position "1, 2, 3…"
         enum status "draft, published"
     }
+    site_settings {
+        bool id PK "une seule ligne"
+        bool crt_filter "filtre cathodique"
+        smallint crt_strength "10 à 200 %"
+    }
     member {
         uuid user_id PK "compte Supabase Auth"
         text email UK
@@ -275,6 +280,7 @@ erDiagram
 | `page` | Une page de texte | Les mentions légales (`mentions-legales`, posée par la migration, écrite dans l'écran À propos)… |
 | `about_page` | La page À propos (section 9.10) | Une seule ligne, posée par la migration, toujours en ligne : la description, les réseaux sociaux, l'équipe et les crédits (`[{ "role", "name", "url" }]`, le lien facultatif), l'adresse de contact, CANDIDATER (le texte, l'adresse du formulaire, le mot du bouton), et le film qu'on y lance (la vidéo, son image fixe, son titre, ce que le navigateur en a lu) |
 | `background_clip` | Une vidéo du fond du site | Publiée : dans la rotation ; brouillon : mise de côté. `position` donne l'ordre de la liste, et le numéro de chaîne. Le fichier est dans le site (`public/`, les 15 clips d'origine, inscrits par la migration) ou sur Vercel Blob (envoyé depuis l'admin, section 9.7) |
+| `site_settings` | Les réglages du site public | Une seule ligne, posée par la migration : le filtre cathodique posé sur tout le site, allumé ou non (`crt_filter`), et son intensité en pour cent (`crt_strength`, de 10 à 200 ; 100 : l'effet d'origine). Réglé dans l'écran Vidéos de fond (section 9.7) |
 | `media` | Un fichier envoyé sur Supabase Storage | Sa clé dans le seau (la plus grande version), son type, ses dimensions, son texte alternatif (vide : une image décorative), son crédit, ses versions réduites (`[{ "width": 800, "key": "…" }]`) |
 | `upload_link` | Le lien d'envoi d'un artiste (section 9.12) | Un par artiste : son jeton (43 caractères, l'adresse `/envoyer/<jeton>`), qui l'a créé, sa dernière ouverture, la dernière mise à jour de sa fiche par le résident |
 | `submission` | L'envoi d'un show par un résident | Un par show : qui, le lien de sa playlist, son mot pour l'équipe, le lundi du bloc visé (`block_start`) et la semaine (1, 2 ou vide) |
@@ -329,6 +335,8 @@ Hors de l'API, dans le schéma `private` : `chat_trace`, l'adresse IP de chaque 
 | `0018_soundcloud.sql` | à la main | Le compte SoundCloud de Parabole et ses jetons (section 9.14) : `private.soundcloud_account`, une seule ligne, hors de l'API, aucun droit pour ses rôles |
 | `0019_candidatures.sql` | drizzle-kit | Les candidatures (section 9.17) : `application`, `application_tag`, `application_settings` et le type `application_status` |
 | `0020_candidatures_acces.sql` | à la main | Leurs règles d'accès (l'équipe lit, répond et efface ; un admin règle ; personne ne les crée par l'API), leurs déclencheurs, et la ligne des réglages (tout ouvert, réponse sous 21 jours) |
+| `0021_reglages_du_site.sql` | drizzle-kit | La table `site_settings` des réglages du site public (le filtre cathodique, section 9.7) |
+| `0022_reglages_du_site_acces.sql` | à la main | Ses règles d'accès (le public lit, l'équipe change), son déclencheur, et sa ligne : filtre allumé, à 100 % |
 
 ---
 
@@ -353,6 +361,7 @@ Le détail des règles :
 - **Les images elles-mêmes**, dans Supabase Storage : aucune règle sur `storage.objects`. Seul le serveur y écrit, avec la clé secrète ; ni le navigateur ni la clé publiable ne peuvent y écrire ni y lister quoi que ce soit. Le public lit le seau `media` par son adresse publique (section 9.3).
 - **Les étiquettes**, les filtres et leurs groupes sont publics. Les étiquettes d'un artiste ou d'un événement suivent leur contenu.
 - **Les vidéos de fond** (`background_clip`) : le public ne voit que celles de la rotation (publiées) ; l'équipe voit et modifie tout.
+- **Les réglages du site** (`site_settings`) : le public les lit ; l'équipe, admin et éditeur, les change. Ni ajout ni suppression : la ligne est unique.
 - **La page À propos** (`about_page`) : tout le monde la lit, elle est toujours en ligne ; l'équipe la modifie. Personne n'y ajoute ni n'en retire de ligne : il n'y en a qu'une, et la base en refuse une seconde.
 - **L'équipe** (`member`) : le public n'y a aucun accès. Les membres se voient entre eux ; seul l'admin ajoute, modifie ou retire un membre. La base refuse de laisser l'équipe sans admin : un admin doit en nommer un autre avant de céder sa place. Cela vaut aussi pour la suppression de son compte dans Supabase Auth. Pour une vraie remise à zéro, l'éditeur SQL peut suspendre le déclencheur le temps de l'opération (`alter table member disable trigger keep_an_admin`, puis `enable`).
 - **Le journal de l'import Radio Cult** (`radiocult_import`) : l'équipe le lit ; le public n'y a aucun droit. La tâche de nuit y écrit avec la connexion du serveur ; un membre n'y écrit que l'import qu'il lance depuis l'accueil, en son nom (`trigger = 'manual'`, `member_id` = son compte). Personne ne le modifie.
@@ -572,6 +581,7 @@ Toutes les lectures se font sous le rôle `anon`, en lecture seule. Elles ne voi
 | `getAbout()` | | La page À propos : `{ description, socials, team, credits, contactEmail, apply: { text, url, label }, film, updatedAt }`, la description et le texte de CANDIDATER en Markdown, `film` : `{ src, type, poster, title, width, height, durationSeconds }` ou `null`. `null` si sa ligne manque (migration pas appliquée) |
 | `search(texte, { limit })` | `limit` par type (10 par défaut) | `{ query, shows, artists, events }`, les plus pertinents d'abord |
 | `listBackgroundClips()` | | Les vidéos de fond de la rotation, dans l'ordre de la liste : `[{ src, title, poster }]` |
+| `getSiteLook()` | | Le filtre cathodique : `{ crtFilter, crtStrength }` (allumé ou non, intensité en pour cent). Sans sa ligne, le filtre d'origine (`true`, `100`) |
 
 Une vignette de show (`ShowCard`) porte de quoi remplir les grilles des croquis : titre, type, date, durée, mood, pochette, artistes et étiquettes. Les images arrivent prêtes pour `<img>` :
 
@@ -607,7 +617,7 @@ npm run typecheck
 - **les lectures** : filtres, pagination, tracklist, index A–Z, événements à venir et passés, pages ;
 - **la recherche** : français, accents, débuts de mots, brouillons jamais visibles, saisies piégées ;
 - **les règles d'accès**, sous des rôles simulés comme ceux de Supabase : le public, un compte sans fiche, un éditeur, un admin, le dernier admin, et l'ancienne version de `auth.uid()`.
-- **les vidéos de fond** : les clips d'origine inscrits par la migration, la liste que lit le site, les règles d'accès, puis l'ajout, le titre, la mise de côté, l'ordre, le remplacement du fichier et la suppression ;
+- **les vidéos de fond** : les clips d'origine inscrits par la migration, la liste que lit le site, les règles d'accès, puis l'ajout, le titre, la mise de côté, l'ordre, le remplacement du fichier et la suppression ; le filtre cathodique (allumé d'origine à 100 %, éteint, rallumé, son intensité arrondie et bornée de 10 à 200 % à l'écran comme dans la base, une seule ligne, rien pour le public ni pour un compte hors de l'équipe) ;
 - **les étiquettes et les filtres** : ce que la migration inscrit (filtres, groupes dans l'ordre du document, étiquettes à deux places, noms en minuscules), la reprise d'une base d'avant (rejouée sur une copie arrêtée à `0006`), la saisie des noms (liste collée en capitales), les menus du site et des listes de l'admin, puis l'ajout, le renommage, les places, l'ordre, la fusion et la suppression des étiquettes et des filtres, et leurs règles d'accès ;
 - **l'admin** : la saisie vérifiée champ par champ, la tracklist collée, les minutages, l'heure de Paris aux changements d'heure ; puis, sous le rôle d'un éditeur, la création d'un show avec un artiste et une étiquette nés à la volée, la publication, la tracklist remplacée, l'enregistrement concurrent, la suppression ; et le refus d'un compte hors de l'équipe.
 - **les événements dans l'admin** : la saisie vérifiée (titre et début obligatoires, fin après le début, adresse d'inscription complétée, catégorie exigée pour publier, légende d'une photo) ; puis, sous le rôle d'un éditeur, la liste dans l'ordre (à venir du plus proche, puis passés du plus récent) avec ses filtres et sa recherche, la création avec un artiste né à la volée, la publication refusée sans catégorie, l'adresse prise, l'enregistrement concurrent, le visuel, la galerie (ajout sans doublon, ordre, légende, retrait, images rendues puis effacées), la suppression qui rend ses images, et le refus d'un compte hors de l'équipe ;
@@ -787,6 +797,8 @@ Les écrans masquent ce qu'un rôle ne peut pas faire, mais c'est la base qui d�
 ### 9.7 Les vidéos de fond
 
 Les clips qui passent au hasard derrière toutes les pages du site. Leur liste est la table `background_clip` : l'ordre (`position`, qui donne aussi le numéro de chaîne), le titre (que le site peut afficher à l'arrivée du clip, avec son numéro), la rotation (publié) ou la mise de côté (brouillon), et les adresses de la vidéo et de son image d'attente. L'écran est `/admin/videos`.
+
+**Le filtre cathodique.** Au-dessus de la liste, une carte règle le filtre posé par-dessus tout le site (lignes de balayage, phosphore, vignettage, bord du verre : `.crt-filter`, `src/styles/socle.css`) : une case l'allume ou l'éteint, un curseur règle son intensité de 10 à 200 % (100 % : l'effet d'origine), enregistrée quand on le lâche (`intent=look`). Le réglage est dans `site_settings` ; `/api/fond` le rend avec la liste des vidéos (`crt: { on, strength }`), et `src/scripts/background.ts` le pose sur le calque, qui ne quitte jamais la page : `hidden` pour l'éteindre, `--crt-force` (0,1 à 2) qui multiplie chaque teinte du dégradé, l'opacité d'un calque ne pouvant dépasser 1. Le site le prend en une minute environ, comme les vidéos. Réglage illisible (table pas encore migrée) ou route muette : le filtre reste allumé à 100 %.
 
 **Où sont les fichiers.**
 

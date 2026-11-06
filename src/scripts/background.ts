@@ -8,6 +8,8 @@
 // clip joue. Un clip illisible (retiré entre-temps, réseau) cède sa place au suivant. Au chargement de l'onglet, le
 // premier clip arrive ainsi, après l'allumage du téléviseur (html.allumage, tele.css). Avec « réduire les
 // animations », ni neige ni roulis : le clip change. La vidéo est dans la coque : elle continue pendant la navigation.
+// La même réponse règle le filtre cathodique (admin, Vidéos de fond) : éteint, ou plus ou moins marqué ; sans
+// réponse, il reste tel quel, allumé à 100 %.
 import { neige } from "./neige";
 import { bgPlaylist, CHAINE_AU_ZAPPING, CLIPS_URL } from "./settings";
 
@@ -16,17 +18,29 @@ type Clip = { src: string; titre?: string; poster?: string };
 /** Ce qu'on attend la liste de l'admin avant de démarrer sur celle de secours : l'écran reste en neige jusque-là. */
 const PATIENCE_MS = 1500;
 
-/** La liste de l'admin, ou null si elle ne répond pas. */
+/** La liste de l'admin, ou null si elle ne répond pas. Au passage, le filtre cathodique prend son réglage. */
 async function fetchClips(): Promise<Clip[] | null> {
   if (!CLIPS_URL) return null;
   try {
     const response = await fetch(CLIPS_URL, { signal: AbortSignal.timeout(15000) });
     if (!response.ok) return null;
-    const { clips } = (await response.json()) as { clips?: unknown };
+    const { clips, crt } = (await response.json()) as { clips?: unknown; crt?: { on?: unknown; strength?: unknown } };
+    if (crt) tuneCrt(crt.on !== false, typeof crt.strength === "number" ? crt.strength : 100);
     return Array.isArray(clips) ? clips.filter((clip): clip is Clip => typeof clip?.src === "string" && Boolean(clip.src)) : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * Le filtre cathodique (Background.astro, socle.css) : éteint, ou son intensité (100 : l'effet d'origine). Réglé sur
+ * le calque lui-même, qui est dans la coque : la navigation ne le remplace pas.
+ */
+function tuneCrt(on: boolean, strength: number) {
+  const filter = document.querySelector<HTMLElement>(".crt-filter");
+  if (!filter) return;
+  filter.hidden = !on;
+  filter.style.setProperty("--crt-force", String(Math.min(Math.max(strength, 0), 200) / 100));
 }
 
 /** L'image d'attente : celle que donne la liste, sinon le .jpg posé à côté d'un clip d'origine. */

@@ -8,6 +8,9 @@
  * qui devient l'image d'attente), la dépose lui-même sur Vercel Blob avec un jeton signé par le serveur, puis le serveur
  * l'inscrit. Un envoi continue quand on change d'écran : sa progression est gardée hors de l'écran (uploads), une
  * notification annonce la fin, et la liste se met à jour si on la regarde.
+ *
+ * Au-dessus de la liste, le filtre cathodique posé sur tout le site : une case l'allume ou l'éteint, un curseur règle son
+ * intensité (100 % : l'effet d'origine). Le site le prend avec la liste des vidéos, en une minute environ.
  */
 import {
   ArrowDownIcon,
@@ -22,7 +25,7 @@ import {
   TrashIcon,
   VideoIcon,
 } from "@radix-ui/react-icons";
-import { AlertDialog, Button, Callout, Dialog, DropdownMenu, Flex, IconButton, Progress, Spinner, Switch, Text, TextField, Tooltip } from "@radix-ui/themes";
+import { AlertDialog, Button, Callout, Card, Checkbox, Dialog, DropdownMenu, Flex, IconButton, Progress, Slider, Spinner, Switch, Text, TextField, Tooltip } from "@radix-ui/themes";
 import { put } from "@vercel/blob/client";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { FieldErrors } from "@parabole/cms";
@@ -31,7 +34,7 @@ import { useRouter } from "./router";
 import { postForm } from "./sheet";
 import { counted } from "./text";
 import { useNotify } from "./toast";
-import type { ClipRow, ClipsData, ClipsResponse, Flash } from "./types";
+import type { ClipRow, ClipsData, ClipsResponse, CrtView, Flash } from "./types";
 
 const HREF = "/admin/videos";
 const TITLE = "Vidéos de fond";
@@ -214,6 +217,88 @@ function showList(router: Router, data: ClipsData) {
   if (location.pathname.replace(/\/+$/, "") === HREF) router.replace(HREF, { name: "clips", title: TITLE, data });
 }
 
+/** L'intensité d'origine du filtre cathodique, en pour cent. */
+const CRT_DEFAULT = 100;
+
+/**
+ * Le filtre cathodique posé sur tout le site (lignes de balayage, phosphore, vignettage) : la case l'allume ou
+ * l'éteint, le curseur règle son intensité, enregistrée quand on le lâche. La case change tout de suite à l'écran, et
+ * revient en arrière si le serveur refuse.
+ */
+function CrtFilter({ crt, router, notify }: { crt: CrtView; router: Router; notify: Notify }) {
+  const [on, setOn] = useState(crt.on);
+  const [strength, setStrength] = useState(crt.strength);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setOn(crt.on), [crt.on]);
+  useEffect(() => setStrength(crt.strength), [crt.strength]);
+
+  const save = async (values: Record<string, string>) => {
+    setBusy(true);
+    const result = await postForm<ClipsResponse>(HREF, fields({ intent: "look", ...values }));
+    setBusy(false);
+    if (result.ok) {
+      showList(router, result.data);
+      if (result.message) notify({ kind: "success", title: result.message });
+      return;
+    }
+    setOn(crt.on);
+    setStrength(crt.strength);
+    notify({ kind: "error", title: "Rien n'a changé", description: result.errors.crtStrength ?? firstError(result.errors) });
+  };
+  const saveStrength = (value: number) => {
+    setStrength(value);
+    if (value !== crt.strength) void save({ crtStrength: String(value) });
+  };
+
+  return (
+    <Card size="2" mb="5">
+      <Flex direction="column" gap="3">
+        <Text as="label" size="2" weight="medium">
+          <Flex gap="2" align="center">
+            <Checkbox
+              checked={on}
+              disabled={busy}
+              onCheckedChange={(checked) => {
+                setOn(checked === true);
+                void save({ crtFilter: checked === true ? "on" : "off" });
+              }}
+            />
+            Filtre cathodique sur tout le site
+          </Flex>
+        </Text>
+        <Text size="1" color="gray">
+          Les lignes de balayage, le phosphore et le coin sombre d'un vieux téléviseur, posés par-dessus tout le site (vidéo, en-tête, panneaux, rubriques).
+          L'intensité les rend plus discrets ou plus marqués ; 100 % est l'effet d'origine.
+        </Text>
+        <Flex align="center" gap="3" wrap="wrap">
+          <Text size="2" color={on ? undefined : "gray"}>
+            Intensité
+          </Text>
+          <Slider
+            value={[strength]}
+            min={crt.min}
+            max={crt.max}
+            step={5}
+            disabled={!on || busy}
+            onValueChange={([value]) => setStrength(value ?? crt.strength)}
+            onValueCommit={([value]) => value !== undefined && saveStrength(value)}
+            aria-label="Intensité du filtre cathodique, en pour cent"
+            style={{ flex: "1 1 200px", maxWidth: 360 }}
+          />
+          <Text size="2" color={on ? undefined : "gray"} className="admin-nowrap admin-tabular" style={{ minWidth: "4.5ch" }}>
+            {strength} %
+          </Text>
+          {strength !== CRT_DEFAULT && (
+            <Button variant="soft" color="gray" size="1" disabled={!on || busy} onClick={() => saveStrength(CRT_DEFAULT)}>
+              <ReloadIcon /> Revenir à {CRT_DEFAULT} %
+            </Button>
+          )}
+        </Flex>
+      </Flex>
+    </Card>
+  );
+}
+
 /** Lance l'envoi d'une vidéo choisie : il continue même si l'on quitte l'écran. */
 function startUpload(file: File, replacing: ClipRow | null, maxBytes: number, router: Router, notify: Notify) {
   const type = typeOf(file);
@@ -238,7 +323,7 @@ function startUpload(file: File, replacing: ClipRow | null, maxBytes: number, ro
 // L'écran
 // ---------------------------------------------------------------------------------------------------------------
 
-export function ClipsScreen({ clips, uploads: canUpload, maxBytes }: ClipsData) {
+export function ClipsScreen({ clips, uploads: canUpload, maxBytes, crt }: ClipsData) {
   const router = useRouter();
   const notify = useNotify();
   const running = useUploads();
@@ -323,6 +408,8 @@ export function ClipsScreen({ clips, uploads: canUpload, maxBytes }: ClipsData) 
           </Callout.Root>
         )}
       </Flex>
+
+      <CrtFilter crt={crt} router={router} notify={notify} />
 
       {running.length > 0 && (
         <div className="admin-clips admin-clips-uploads" aria-live="polite">

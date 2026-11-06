@@ -116,16 +116,20 @@ html:not([data-page="accueil"]) #page { scroll-timeline: --page block; }
 
 /* Le filtre cathodique, par-dessus tout le site : la vidéo, l'en-tête, les panneaux, les rubriques (crédit dans
    Background.astro). Il ne se clique pas. Valeurs du SVG en 1920x1080 ; les lignes restent en pixels CSS pour être
-   nettes sur tous les écrans, et seule l'opacité bouge : le navigateur ne le repeint jamais */
+   nettes sur tous les écrans, et seule l'opacité bouge : le navigateur ne le repeint jamais. Réglé dans l'admin (Vidéos
+   de fond), par src/scripts/background.ts : éteint (hidden), ou son intensité, --crt-force, qui multiplie chaque
+   teinte (1 : l'effet d'origine ; 0,1 à 2). L'opacité d'un calque ne dépasse pas 1, d'où les teintes. */
 .crt-filter {
+  --crt-force: 1;
   position: fixed; inset: 0; z-index: 9999; pointer-events: none;
   animation: crtFlicker 0.18s linear infinite;
   background:
-    radial-gradient(75% 75% at 50% 50%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.10) 82%, rgba(0,0,0,0.33)),                          /* vignettage */
-    linear-gradient(rgba(0,0,0,0) 2px, rgba(0,0,0,0.16) 2px 3px, rgba(0,0,0,0.26) 3px) 0 0 / 100% 4px,                         /* lignes de balayage */
-    linear-gradient(to right, rgba(255,74,74,0.0126) 2px, rgba(108,255,108,0.0126) 2px 4px, rgba(94,163,255,0.0126) 4px) 0 0 / 6px 100%,   /* phosphore */
-    radial-gradient(85% 85% at 50% 45%, rgba(255,255,255,0) 70%, rgba(159,214,255,0.0144));                                   /* bord du verre */
+    radial-gradient(75% 75% at 50% 50%, rgba(0,0,0,0) 55%, rgba(0,0,0,calc(0.10 * var(--crt-force))) 82%, rgba(0,0,0,calc(0.33 * var(--crt-force)))),   /* vignettage */
+    linear-gradient(rgba(0,0,0,0) 2px, rgba(0,0,0,calc(0.16 * var(--crt-force))) 2px 3px, rgba(0,0,0,calc(0.26 * var(--crt-force))) 3px) 0 0 / 100% 4px,  /* lignes de balayage */
+    linear-gradient(to right, rgba(255,74,74,calc(0.0126 * var(--crt-force))) 2px, rgba(108,255,108,calc(0.0126 * var(--crt-force))) 2px 4px, rgba(94,163,255,calc(0.0126 * var(--crt-force))) 4px) 0 0 / 6px 100%,   /* phosphore */
+    radial-gradient(85% 85% at 50% 45%, rgba(255,255,255,0) 70%, rgba(159,214,255,calc(0.0144 * var(--crt-force))));                                    /* bord du verre */
 }
+.crt-filter[hidden] { display: none; }
 @keyframes crtFlicker { 0%, 33.33%, 66.67%, 100% { opacity: 1; } 16.67% { opacity: 0.985; } 50% { opacity: 0.992; } 83.33% { opacity: 0.988; } }
 @media (prefers-reduced-motion: reduce) { .crt-filter { animation: none; } }
 

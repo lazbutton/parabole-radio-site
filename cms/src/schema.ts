@@ -1033,6 +1033,22 @@ export const applicationSettings = pgTable(
   (t) => [check("application_settings_single", sql`${t.id}`), check("application_settings_reply_days", sql`${t.replyDays} between 1 and 90`)],
 ).enableRLS();
 
+/**
+ * Les réglages du site public, sur une seule ligne (écran Vidéos de fond de l'admin) : le filtre cathodique posé
+ * par-dessus tout le site (lignes de balayage, phosphore, vignettage), allumé ou éteint, et sa force en pour cent
+ * (100 : l'effet d'origine ; 200 : deux fois plus marqué). Le public les lit ; l'équipe les change.
+ */
+export const siteSettings = pgTable(
+  "site_settings",
+  {
+    id: boolean("id").primaryKey().default(true),
+    crtFilter: boolean("crt_filter").notNull().default(true),
+    crtStrength: smallint("crt_strength").notNull().default(100),
+    updatedAt: updatedAt(),
+  },
+  (t) => [check("site_settings_single", sql`${t.id}`), check("site_settings_crt_strength", sql`${t.crtStrength} between 10 and 200`)],
+).enableRLS();
+
 // ---------------------------------------------------------------------------------------------------------------
 // Relations (requêtes imbriquées de Drizzle : db.query.show.findFirst({ with: { tracks: true } }))
 // ---------------------------------------------------------------------------------------------------------------
@@ -1148,3 +1164,4 @@ export type AudioFile = typeof audioFile.$inferSelect;
 export type BroadcastCycle = typeof broadcastCycle.$inferSelect;
 export type Application = typeof application.$inferSelect;
 export type ApplicationSettings = typeof applicationSettings.$inferSelect;
+export type SiteSettings = typeof siteSettings.$inferSelect;
