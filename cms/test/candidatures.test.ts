@@ -169,19 +169,22 @@ describe("les candidatures", () => {
     expect(await candidatures().ouvrirDossier(form({ titre: "Disco du lundi", styles: [genre!.slug] }), ouvert.jeton)).toEqual({ ok: true, jeton: ouvert.jeton });
     expect(await db.select({ title: application.title }).from(application)).toEqual([{ title: "Disco du lundi" }]);
 
-    // Le son : un MP3 seulement, et pas plus de quatre par dossier.
+    // Le son : un MP3 seulement ; un nouveau remplace le précédent (sa clé est rendue pour le seau).
     expect(await candidatures().preparerSon(ouvert.jeton, { fileName: "set.wav", size: 1000 })).toMatchObject({ ok: false, errors: { son: expect.stringMatching(/MP3/) } });
     expect(await candidatures().preparerSon(ouvert.jeton, { fileName: "set.mp3", size: 800_000_000 })).toMatchObject({ ok: false, errors: { son: "Ce fichier dépasse 750 Mo." } });
     const premier = await candidatures().preparerSon(ouvert.jeton, { fileName: "premier.mp3", size: 1000 });
     const second = await candidatures().preparerSon(ouvert.jeton, { fileName: "Mon set.mp3", size: 140_000_000 });
     if (!premier.ok || !second.ok) throw new Error("son refusé");
+    expect(premier.removedKeys).toEqual([]);
+    expect(second.removedKeys).toEqual([premier.key]);
+    expect(await candidatures().cleSon(ouvert.jeton, premier.id)).toBeNull();
     expect(second.key).toMatch(/^audio\/2026\/11\/[0-9a-f-]{36}\.mp3$/);
     expect(await candidatures().cleSon(ouvert.jeton, second.id)).toBe(second.key);
     expect(await candidatures().cleSon("x".repeat(43), second.id)).toBeNull();
 
-    // L'envoi : le second son, arrivé ; le premier, remplacé, est oublié (sa clé est rendue pour le seau).
+    // L'envoi : le second son, arrivé.
     const depot = await candidatures().deposer(ouvert.jeton, form({ titre: "Disco du lundi", styles: [genre!.slug], tracklist: "00:00 A – B" }), { id: second.id, size: 140_000_000 });
-    expect(depot).toMatchObject({ ok: true, removedKeys: [premier.key] });
+    expect(depot).toMatchObject({ ok: true, removedKeys: [] });
     const [envoyee] = await db.select().from(application);
     expect(envoyee).toMatchObject({ dossierHash: null, tracklist: "00:00 A – B", status: "new" });
     expect(envoyee!.submittedAt).toBeInstanceOf(Date);

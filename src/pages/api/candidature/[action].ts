@@ -6,7 +6,8 @@
  *   - dossier : les écrans 1 et 2 (l'émission, l'artiste). Ouvrir un dossier passe par la vérification Turnstile (là où
  *     le site a ses clés) ; avec le jeton d'un dossier encore ouvert, il est mis à jour. « site », un champ piège caché
  *     que seul un robot remplit, reçoit un faux jeton : rien n'est écrit ;
- *   - son : un MP3 annoncé (nom, poids) ; le serveur inscrit sa ligne et signe son dépôt dans le seau R2 ;
+ *   - son : un MP3 annoncé (nom, poids) ; le serveur inscrit sa ligne et signe son dépôt dans le seau R2. Un nouveau
+ *     son remplace le précédent, effacé du seau ;
  *   - photo : upload (le dépôt signé de l'original dans le Storage), finalize (la photo recadrée en carré, ses versions,
  *     inscrite au dossier), retirer ;
  *   - deposer : l'écran 3 et l'envoi, une fois le son arrivé en entier dans le seau (le serveur le vérifie).
@@ -111,6 +112,8 @@ async function traiter(context: APIContext): Promise<Response> {
       if (!r2Ready()) return reponse({ ok: false, errors: { son: "L'envoi des fichiers n'est pas encore branché : réessaie plus tard." } }, 503);
       const prepare = await candidatures.preparerSon(jeton, { fileName: texte(corps.fileName, 300), size: Number(corps.size) });
       if (!prepare.ok) return reponse({ ok: false, errors: prepare.errors }, prepare.status);
+      // le son qu'il remplace (un autre fichier choisi entre-temps) quitte le seau
+      await removeFiles(prepare.removedKeys);
       return reponse({ ok: true, id: prepare.id, mime: prepare.mime, url: await uploadUrl(prepare.key, prepare.mime) });
     }
 

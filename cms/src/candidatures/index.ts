@@ -28,8 +28,6 @@ export const PAR_HEURE = 30;
 export const MOIS_GARDES = 6;
 /** Un dossier jamais envoyé est oublié au bout d'un jour (le dépôt signé du son vaut 6 heures). */
 export const DOSSIER_MS = 24 * 3600 * 1000;
-/** Au plus, tant de sons en route pour un dossier : de quoi remplacer un mauvais fichier, pas de quoi remplir le seau. */
-const SONS_PAR_DOSSIER = 4;
 /** Les réglages d'une base qui n'aurait pas encore sa ligne. */
 const REGLAGES_PAR_DEFAUT: Reglages = { openTypes: ["dj_set", "podcast", "playlist"], replyDays: 21 };
 
@@ -40,7 +38,7 @@ export type StylesDuType = { type: TypeCandidature; filtre: string; groupes: { s
 
 type Refus = { ok: false; errors: CandidatureErrors; status: 404 | 409 | 422 | 429 };
 export type Dossier = { ok: true; jeton: string } | Refus;
-export type SonPrepare = { ok: true; id: string; key: string; mime: string } | Refus;
+export type SonPrepare = { ok: true; id: string; key: string; mime: string; removedKeys: string[] } | Refus;
 export type Depot = { ok: true; id: string; removedKeys: string[] } | Refus;
 
 /** Le jeton d'un dossier : 32 octets aléatoires, en base64url (43 caractères). La base n'en garde que l'empreinte. */
@@ -188,21 +186,23 @@ export function createCandidatures(db: Db, { now: clock = () => new Date() }: { 
         return { ok: true, jeton: nouveau };
       }),
 
-    /** Prépare le dépôt du MP3 d'un dossier : sa ligne (en route) et sa clé dans le seau. La route signe l'adresse. */
+    /**
+     * Prépare le dépôt du MP3 d'un dossier : sa ligne (en route) et sa clé dans le seau ; la route signe l'adresse. Un
+     * dossier n'a qu'un son : un nouveau remplace le précédent, dont la clé est rendue, à effacer du seau.
+     */
     preparerSon: (jeton: string, ask: { fileName: string; size: number }): Promise<SonPrepare> =>
       db.transaction(async (tx): Promise<SonPrepare> => {
         const dossier = await dossierDe(tx, jeton);
         if (!dossier) return PERDU;
         const refused = audioRefusal(ask.fileName, ask.size, "main");
         if (refused) return { ok: false, status: 422, errors: { son: refused } };
-        const [enRoute] = await tx.select({ n: count() }).from(audioFile).where(eq(audioFile.applicationId, dossier.id));
-        if ((enRoute?.n ?? 0) >= SONS_PAR_DOSSIER) return { ok: false, status: 429, errors: { son: "Trop d'envois pour cette candidature : recharge la page pour recommencer." } };
+        const remplaces = await tx.delete(audioFile).where(eq(audioFile.applicationId, dossier.id)).returning({ key: audioFile.key });
         const type = audioTypeOf(ask.fileName, "main")!;
         const id = randomUUID();
         const key = audioKey(id, type.ext, clock());
         const nom = ask.fileName.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 200) || `son.${type.ext}`;
         await tx.insert(audioFile).values({ id, applicationId: dossier.id, role: "main", key, fileName: nom, mimeType: type.mime, status: "uploading" });
-        return { ok: true, id, key, mime: type.mime };
+        return { ok: true, id, key, mime: type.mime, removedKeys: remplaces.map((one) => one.key) };
       }),
 
     /** La clé d'un son en route de ce dossier, pour vérifier dans le seau qu'il est arrivé ; null sinon. */
