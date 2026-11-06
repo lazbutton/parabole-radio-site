@@ -13,6 +13,7 @@ import { and, asc, count, desc, eq, ilike, inArray, isNotNull, or, sql, type SQL
 import type { Tx } from "../access.ts";
 import { MOIS_GARDES, type Reglages } from "../candidatures/index.ts";
 import { TYPES_CANDIDATURE } from "../candidatures/regles.ts";
+import { outer } from "../read/common.ts";
 import { escapeLike } from "../read/search.ts";
 import {
   application,
@@ -103,7 +104,7 @@ export type ApplicationCounts = { new: number; shortlisted: number; late: number
 const enRetard = (now: Date, replyDays: number) =>
   sql<boolean>`(${application.status} in ('new', 'shortlisted') and ${application.submittedAt} < ${new Date(now.getTime() - replyDays * 86_400_000).toISOString()}::timestamptz)`;
 const envoyee = isNotNull(application.submittedAt);
-const aUnSon = sql<boolean>`exists (select 1 from ${audioFile} af where af.application_id = ${application.id} and af.status <> 'uploading')`;
+const aUnSon = sql<boolean>`exists (select 1 from ${audioFile} af where af.application_id = ${outer(application.id)} and af.status <> 'uploading')`;
 
 async function replyDaysOf(tx: Tx): Promise<number> {
   const [row] = await tx.select({ replyDays: applicationSettings.replyDays }).from(applicationSettings).limit(1);
