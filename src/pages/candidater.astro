@@ -1,0 +1,285 @@
+---
+/**
+ * Candidater (/candidater) : un DJ, un podcasteur ou un curateur qu'on ne connaît pas encore propose une émission à
+ * Parabole. Une rubrique du site, dans la coque : le direct continue dans l'en-tête pendant qu'on remplit. Hors du menu :
+ * on y arrive par le bouton jaune de l'accueil, le bloc CANDIDATER d'À propos, ou le lien que l'équipe colle sur Insta.
+ *
+ * Sur un grand écran, deux colonnes : à gauche, l'écran d'accueil (PASSE À L'ANTENNE, puis la page de télétexte
+ * « Comment ça se passe »), qui reste en place ; à droite, le formulaire, sur une feuille au cadre jaune. Sur un
+ * téléphone, le titre, puis le formulaire tout de suite, puis « Comment ça se passe ». Le formulaire tient en trois
+ * écrans (Ton émission, Toi, Fais-nous écouter), puis « C'est reçu ». Tout est écrit ici ; le script
+ * (src/scripts/candidater.ts) passe d'un écran à l'autre, vérifie chaque écran, adapte le dernier au type choisi, garde
+ * le brouillon dans le navigateur et envoie. Sans script, les trois écrans s'affichent l'un sous l'autre. Les styles
+ * proposés sont les groupes du premier filtre de l'admin pour chaque type (Genre, Thème…).
+ *
+ * Prototype du 6 nov. 2026 : l'envoi (/api/candidature), la table et la rubrique de l'admin ne sont pas encore faits
+ * (plan : CANDIDATURES.pdf). En développement, « C'est reçu » s'affiche quand même, pour voir le parcours en entier ;
+ * ailleurs, l'envoi échoue et le dit.
+ */
+import type { ShowType } from "@parabole/cms";
+import Base from "../layouts/Base.astro";
+import { reader } from "../lib/cms";
+
+export const prerender = false;
+
+/** Ce qu'on annonce, en attendant la décision de l'équipe (CANDIDATURES.pdf, « À décider ensemble »). */
+const DELAI = "3 semaines";
+const CONSERVATION = "6 mois";
+/** Au plus, dans Ton style. */
+const STYLES_MAX = 3;
+
+const TYPES: { type: ShowType; nom: string; mot: string; idee: string; lien: string; lienRequis: boolean }[] = [
+  {
+    type: "dj_set",
+    nom: "DJ set",
+    mot: "Un mix enregistré : ta sélection, ton style.",
+    idee: "Ton style, ce que tu aimes jouer, l'ambiance de ton set…",
+    lien: "Un de tes mixes : SoundCloud, Mixcloud, YouTube, Drive…",
+    lienRequis: true,
+  },
+  {
+    type: "podcast",
+    nom: "Podcast",
+    mot: "Une émission parlée : un sujet, des voix, des invités.",
+    idee: "Le sujet, le format, qui parle, pourquoi ça te tient à cœur…",
+    lien: "Un épisode, un pilote, même brut. Pas encore ? Laisse vide.",
+    lienRequis: false,
+  },
+  {
+    type: "playlist",
+    nom: "Playlist",
+    mot: "Des morceaux choisis et enchaînés, sans mixer.",
+    idee: "Le fil de ta sélection, l'ambiance, le moment de la journée…",
+    lien: "Ta playlist : Spotify, Deezer, YouTube, SoundCloud…",
+    lienRequis: true,
+  },
+];
+
+/** Les styles à cocher, par type : les groupes du premier filtre de l'admin qui vaut pour ce type. */
+type Styles = { type: ShowType; filtre: string; groupes: { slug: string; name: string }[] };
+let styles: Styles[] = [];
+try {
+  const cms = await reader();
+  styles = await Promise.all(
+    TYPES.map(async ({ type }) => {
+      const [premier] = await cms.listFacets({ scope: "show", type, all: true });
+      return { type, filtre: premier?.name ?? "", groupes: (premier?.groups ?? []).map(({ slug, name }) => ({ slug, name })) };
+    }),
+  );
+} catch (erreur) {
+  // sans la base, la page marche quand même, sans les styles à cocher
+  console.error("candidater : les filtres ne se lisent pas", erreur);
+}
+Astro.response.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
+Astro.response.headers.set("Vercel-CDN-Cache-Control", "max-age=60, stale-while-revalidate=600");
+
+const config = {
+  delai: DELAI,
+  stylesMax: STYLES_MAX,
+  types: Object.fromEntries(TYPES.map(({ type, idee, lien, lienRequis }) => [type, { idee, lien, lienRequis }])),
+};
+
+const ETAPES = ["Ton émission", "Toi", "Fais-nous écouter"];
+---
+
+<Base page="candidater" title="Candidater" description="DJ set, podcast ou playlist : propose ton émission à Parabole Radio. On écoute tout, et tout le monde a une réponse.">
+  <div class="candidater" data-candidater data-config={JSON.stringify(config)}>
+    <div class="cand-gauche">
+      <header class="cand-entete">
+        <p class="cand-page"><span class="teletexte-numero">P600</span> Candidatures</p>
+        <h1 class="cand-titre">Passe à l'antenne</h1>
+        <div class="cand-chapeau">
+          <p><span>DJ set, podcast ou playlist : propose ton émission à Parabole Radio.</span></p>
+          <p><span>On écoute tout, et tout le monde a une réponse.</span></p>
+        </div>
+        <ul class="cand-reperes" aria-label="En bref">
+          <li>2 minutes</li>
+          <li>3 écrans</li>
+          <li>Réponse sous {DELAI}</li>
+        </ul>
+      </header>
+
+      <section class="cand-comment" aria-labelledby="candComment">
+        <div class="teletexte-tete">
+          <span class="teletexte-numero">P601</span>
+          <h2 id="candComment" class="teletexte-titre">Comment ça se passe</h2>
+          <span class="teletexte-horloge" data-horloge aria-hidden="true"></span>
+        </div>
+        <ol class="cand-suite">
+          <li><b>Tu candidates</b><span>Trois écrans et un lien pour t'écouter.</span></li>
+          <li><b>On écoute</b><span>Réponse sous {DELAI}, par Insta ou par e-mail.</span></li>
+          <li><b>C'est oui ?</b><span>Ton lien perso pour envoyer ton émission.</span></li>
+          <li><b>À l'antenne</b><span>Sur Parabole, puis sur SoundCloud et le site.</span></li>
+        </ol>
+        <div class="cand-mire" aria-hidden="true"></div>
+      </section>
+    </div>
+
+    <section class="cand-panneau" aria-label="Le formulaire de candidature">
+      <form class="cand-form" data-form action="/api/candidature" method="post" novalidate>
+        <ol class="cand-progres" data-progres aria-label="Les étapes">
+          {
+            ETAPES.map((nom, rang) => (
+              <li data-pas={rang + 1}>
+                <button type="button" class="cand-pas" data-aller={rang + 1} disabled={rang > 0}>
+                  <span class="cand-pas-num">{rang + 1}</span>
+                  <span class="cand-pas-nom">{nom}</span>
+                </button>
+              </li>
+            ))
+          }
+        </ol>
+        <p class="sr-only" aria-live="polite" data-annonce></p>
+
+        <!-- 1. Ton émission -->
+        <section class="cand-etape" data-etape="1" aria-labelledby="candEtape1">
+          <h2 id="candEtape1" class="cand-etape-titre" tabindex="-1"><span class="cand-etape-num">1/3</span> Ton émission</h2>
+
+          <fieldset class="cand-question" data-champ="type">
+            <legend class="cand-label">Tu proposes…</legend>
+            <div class="cand-chaines">
+              {
+                TYPES.map(({ type, nom, mot }, rang) => (
+                  <label class="cand-chaine">
+                    <input type="radio" name="type" value={type} required aria-describedby="candErreurType" />
+                    <span class="cand-chaine-num">CH {String(rang + 1).padStart(2, "0")}</span>
+                    <span class="cand-chaine-nom">{nom}</span>
+                    <span class="cand-chaine-mot">{mot}</span>
+                  </label>
+                ))
+              }
+            </div>
+            <p class="cand-erreur" id="candErreurType" data-erreur="type" hidden></p>
+          </fieldset>
+
+          <fieldset class="cand-question" data-champ="prete">
+            <legend class="cand-label">Elle est déjà enregistrée ?</legend>
+            <div class="cand-duo">
+              <label class="cand-option"><input type="radio" name="prete" value="oui" required aria-describedby="candAidePrete candErreurPrete" /><span>Oui, elle est prête</span></label>
+              <label class="cand-option"><input type="radio" name="prete" value="non" aria-describedby="candAidePrete candErreurPrete" /><span>Pas encore</span></label>
+            </div>
+            <p class="cand-aide" id="candAidePrete">Une émission prête peut passer plus vite à l'antenne.</p>
+            <p class="cand-erreur" id="candErreurPrete" data-erreur="prete" hidden></p>
+          </fieldset>
+
+          <fieldset class="cand-question" data-champ="frequence">
+            <legend class="cand-label">Tu aimerais passer… <span class="cand-facultatif">(facultatif)</span></legend>
+            <div class="cand-duo">
+              <label class="cand-option"><input type="radio" name="frequence" value="une-fois" /><span>Une fois</span></label>
+              <label class="cand-option"><input type="radio" name="frequence" value="reguliere" /><span>Régulièrement</span></label>
+            </div>
+          </fieldset>
+        </section>
+
+        <!-- 2. Toi -->
+        <section class="cand-etape" data-etape="2" aria-labelledby="candEtape2">
+          <h2 id="candEtape2" class="cand-etape-titre" tabindex="-1"><span class="cand-etape-num">2/3</span> Toi</h2>
+
+          <div class="cand-question cand-champ" data-champ="nom">
+            <label class="cand-label" for="candNom">Ton nom d'artiste</label>
+            <input id="candNom" name="nom" type="text" required maxlength="120" autocomplete="nickname" aria-describedby="candAideNom candErreurNom" />
+            <p class="cand-aide" id="candAideNom">Ou le nom de ton projet, de ton collectif.</p>
+            <p class="cand-erreur" id="candErreurNom" data-erreur="nom" hidden></p>
+          </div>
+
+          <div class="cand-question cand-champ" data-champ="ville">
+            <label class="cand-label" for="candVille">Ta ville <span class="cand-facultatif">(facultatif)</span></label>
+            <input id="candVille" name="ville" type="text" maxlength="80" autocomplete="address-level2" />
+          </div>
+
+          <fieldset class="cand-question" data-champ="contact">
+            <legend class="cand-label">Où te répondre ?</legend>
+            <p class="cand-aide" id="candAideContact">Au moins l'un des deux. On ne s'en sert que pour te répondre.</p>
+            <div class="cand-champ cand-champ-insta" data-champ="instagram">
+              <label class="cand-sous-label" for="candInsta">Instagram</label>
+              <div class="cand-prefixe">
+                <span aria-hidden="true">@</span>
+                <input id="candInsta" name="instagram" type="text" maxlength="80" autocapitalize="none" autocomplete="off" spellcheck="false" aria-describedby="candAideContact candErreurInsta" />
+              </div>
+              <p class="cand-erreur" id="candErreurInsta" data-erreur="instagram" hidden></p>
+            </div>
+            <div class="cand-champ" data-champ="email">
+              <label class="cand-sous-label" for="candEmail">E-mail</label>
+              <input id="candEmail" name="email" type="email" maxlength="200" autocomplete="email" inputmode="email" aria-describedby="candAideContact candErreurEmail" />
+              <p class="cand-erreur" id="candErreurEmail" data-erreur="email" hidden></p>
+            </div>
+            <p class="cand-erreur" data-erreur="contact" hidden></p>
+          </fieldset>
+        </section>
+
+        <!-- 3. Fais-nous écouter -->
+        <section class="cand-etape" data-etape="3" aria-labelledby="candEtape3">
+          <h2 id="candEtape3" class="cand-etape-titre" tabindex="-1"><span class="cand-etape-num">3/3</span> Fais-nous écouter</h2>
+
+          <div class="cand-question cand-champ" data-champ="idee">
+            <div class="cand-label-ligne">
+              <label class="cand-label" for="candIdee">Ton idée</label>
+              <span class="cand-compteur" data-compteur aria-hidden="true">0 / 800</span>
+            </div>
+            <textarea id="candIdee" name="idee" rows="5" required maxlength="800" placeholder={TYPES[0]!.idee} data-placeholder aria-describedby="candErreurIdee"></textarea>
+            <p class="cand-erreur" id="candErreurIdee" data-erreur="idee" hidden></p>
+          </div>
+
+          <div class="cand-question cand-champ" data-champ="lien">
+            <label class="cand-label" for="candLien">Un lien pour t'écouter <span class="cand-facultatif" data-lien-facultatif hidden>(facultatif)</span></label>
+            <input id="candLien" name="lien" type="url" maxlength="600" inputmode="url" autocapitalize="none" spellcheck="false" placeholder="https://" aria-describedby="candAideLien candErreurLien" />
+            <p class="cand-aide" id="candAideLien" data-aide-lien>{TYPES[0]!.lien}</p>
+            <p class="cand-erreur" id="candErreurLien" data-erreur="lien" hidden></p>
+          </div>
+
+          {
+            styles.some(({ groupes }) => groupes.length > 0) && (
+              <fieldset class="cand-question" data-champ="styles">
+                <legend class="cand-label">
+                  Ton style <span class="cand-facultatif">(facultatif, {STYLES_MAX} au plus)</span>
+                </legend>
+                {styles.map(({ type, filtre, groupes }) => (
+                  <div class="cand-puces" data-styles={type} hidden={type !== "dj_set"} aria-label={filtre || undefined}>
+                    {groupes.map(({ slug, name }) => (
+                      <label class="cand-puce">
+                        <input type="checkbox" name="styles" value={slug} />
+                        <span>{name}</span>
+                      </label>
+                    ))}
+                  </div>
+                ))}
+                <p class="cand-aide" data-styles-compte aria-live="polite"></p>
+              </fieldset>
+            )
+          }
+
+          <p class="cand-vie-privee">
+            Tes infos ne servent qu'à te répondre. Une candidature refusée est effacée au bout de {CONSERVATION}.{" "}
+            <a href="/mentions-legales">Mentions légales</a>
+          </p>
+        </section>
+
+        <div class="cand-pied">
+          <button type="button" class="cand-retour" data-retour hidden>← Retour</button>
+          <button type="submit" class="cand-suivant" data-suivant>Suivant <span aria-hidden="true">→</span></button>
+          <button type="submit" class="cand-suivant cand-envoyer" data-envoyer><span>Envoyer<span class="cand-long"> ma candidature</span></span></button>
+        </div>
+        <p class="cand-erreur cand-erreur-envoi" data-erreur="envoi" role="alert" hidden></p>
+        <p class="cand-brouillon" data-brouillon hidden>Tes réponses restent sur cet appareil si tu quittes la page.</p>
+      </form>
+
+      <div class="cand-recu" data-recu hidden tabindex="-1">
+        <div class="cand-mire" aria-hidden="true"></div>
+        <p class="cand-page"><span class="teletexte-numero">P602</span> Message reçu</p>
+        <h2 class="cand-recu-titre">C'est reçu !</h2>
+        <p class="cand-recu-texte">
+          Merci<span data-recu-nom></span>. On écoute tout, et on te répond sous {DELAI}, par Insta ou par e-mail.
+        </p>
+        <ol class="cand-suite cand-suite-recu">
+          <li><b>On écoute</b><span>Toute l'équipe passe ta candidature en revue.</span></li>
+          <li><b>C'est oui ?</b><span>Tu reçois ton lien perso pour envoyer ton émission.</span></li>
+          <li><b>À l'antenne</b><span>On te dit quand elle passe.</span></li>
+        </ol>
+        <div class="cand-recu-liens">
+          <a class="cand-suivant" href="/">Écouter le direct</a>
+          <a class="cand-retour" href="/emissions">Réécouter les émissions</a>
+        </div>
+      </div>
+    </section>
+  </div>
+</Base>

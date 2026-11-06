@@ -1,0 +1,334 @@
+/* ---------- CANDIDATER (src/pages/candidater.astro, src/scripts/candidater.ts) ----------
+   Une rubrique posée sur la vidéo, comme À propos. Sur un grand écran, deux colonnes : à gauche l'écran d'accueil, qui
+   reste en place (le titre comme la chaîne au zapping, le chapeau en sous-titres de télé, puis la page de télétexte
+   « Comment ça se passe ») ; à droite, le formulaire sur une feuille au cadre jaune qui bave. Sur un téléphone : le
+   titre, le formulaire, puis « Comment ça se passe » ; la touche SUIVANT reste au bas de l'écran.
+   Les choix se cliquent : les chaînes (le type), les paires (oui, pas encore…), les pastilles (les styles). Un choix
+   allumé passe en jaune, le texte en bleu, avec une coche : pas seulement la couleur. Les champs ont 16 px de texte, pour
+   que le téléphone ne zoome pas. Pas de flou d'arrière-plan sur la vidéo (reference-perf : Chrome saccadait). */
+
+html[data-page="candidater"] .logo-overlay { display: none; }
+
+.candidater {
+  --cote: clamp(16px, 6vw, 96px);
+  --large: 1120px;
+  --haut-cand: clamp(20px, 5vh, 56px);
+  --erreur: #ff5c7a;
+  --bave: -2px 0 rgba(255,0,72,0.5), 2px 0 rgba(0,200,255,0.45);
+  --bave-fort: -3px 0 rgba(255,0,72,0.6), 3px 0 rgba(0,200,255,0.55);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 20px;
+  padding: var(--haut-cand) max(var(--cote), calc((100% - var(--large)) / 2)) calc(4 * var(--ecart));
+  color: #ffffff;
+}
+.candidater [hidden] { display: none !important; }
+/* sans script, les trois écrans sont l'un sous l'autre : seule la touche ENVOYER reste */
+.candidater:not(.pret) :is([data-suivant], [data-retour]) { display: none; }
+/* Téléphone : le titre, le formulaire, puis « Comment ça se passe » */
+.cand-gauche { display: contents; }
+.cand-entete { order: 1; }
+.cand-panneau { order: 2; }
+.cand-comment { order: 3; }
+/* ---------- L'ÉCRAN D'ACCUEIL ---------- */
+.cand-page {
+  display: flex; align-items: center; gap: 10px;
+  color: #fff039; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; line-height: 1; text-transform: uppercase;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.8);
+}
+.cand-titre {
+  margin-top: 16px;
+  color: #fff039; font-size: clamp(42px, 5.4vw, 74px); font-weight: 700; letter-spacing: 0.02em; line-height: 0.94; text-transform: uppercase;
+  text-shadow: -3px 0 rgba(255,0,72,0.6), 3px 0 rgba(0,200,255,0.55), 0 0 18px rgba(255,240,57,0.35), 0 3px 12px rgba(0,0,0,0.6);
+  filter: blur(0.3px);
+  text-wrap: balance;
+  animation: candGresille 0.6s linear 0.15s;
+}
+/* le titre grésille à l'arrivée, comme une image qui accroche ; il reste lisible même si l'animation ne part pas
+   (un onglet caché) */
+@keyframes candGresille {
+  0%, 46%, 100% { opacity: 1; }
+  12% { opacity: 0.3; }
+  22% { opacity: 1; }
+  34% { opacity: 0.55; }
+}
+/* le chapeau, en sous-titres de télé : une plaque noire sous chaque ligne */
+.cand-chapeau { margin-top: 18px; font-size: 16px; line-height: 1.95; }
+/* une phrase par sous-titre, ses lignes équilibrées : jamais un mot tout seul en bout de phrase */
+.cand-chapeau p { text-wrap: balance; }
+.cand-chapeau span {
+  padding: 4px 8px; background: rgba(0,0,0,0.8); color: #ffffff;
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
+.cand-reperes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; list-style: none; }
+.cand-reperes li {
+  padding: 7px 10px 6px; border: 2px solid #fff039; background: rgba(0,0,0,0.6); box-shadow: var(--bave);
+  color: #fff039; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; line-height: 1; text-transform: uppercase;
+}
+
+/* « Comment ça se passe » : une page de télétexte (tete.css), sans flou */
+.cand-comment {
+  border: 2px solid #fff039;
+  background: repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 3px), rgba(0,0,0,0.88);
+  box-shadow: var(--bave);
+}
+.cand-comment .teletexte-titre { font-size: 15px; }
+.cand-suite { list-style: none; counter-reset: pas; display: flex; flex-direction: column; gap: 14px; padding: 18px 16px 18px; }
+.cand-suite li { counter-increment: pas; display: grid; grid-template-columns: 30px minmax(0, 1fr); column-gap: 12px; row-gap: 3px; }
+.cand-suite li::before {
+  content: counter(pas); grid-row: 1 / 3; display: grid; place-items: center; width: 30px; height: 30px;
+  background: #fff039; color: #000dff; box-shadow: var(--bave);
+  font-size: 14px; font-weight: 700; line-height: 1;
+}
+.cand-suite b { color: #fff039; font-size: 13px; font-weight: 700; letter-spacing: 0.1em; line-height: 1.2; text-transform: uppercase; }
+.cand-suite span { color: rgba(255,255,255,0.86); font-size: 14px; line-height: 1.45; }
+.cand-mire { height: 10px; background: linear-gradient(90deg, #fff039 0 14.3%, #ffffff 0 28.6%, #000dff 0 42.9%, #000000 0 57.1%, #fff039 0 71.4%, #000dff 0 85.7%, #ffffff 0); }
+
+/* Ordinateur : deux colonnes. L'écran d'accueil, à gauche, ne bouge pas pendant qu'on remplit : il prend toute la
+   hauteur de la fenêtre sous l'en-tête (--ecran-cand), moins la même marge en haut et en bas que la feuille ; le
+   titre en haut, « Comment ça se passe » posé en bas. Ses tailles suivent la hauteur de la fenêtre, pour qu'il tienne
+   en entier ; sur un écran très bas, il défile dans sa colonne. La marge du bas de la page vaut celle du haut : arrivé
+   au bout du formulaire, il ne remonte pas. Les deux colonnes grandissent ensemble (300 à 460 px, 440 à 580 px) ; le
+   titre suit la largeur de sa colonne (cqi) et la hauteur de la fenêtre. */
+@media (min-width: 1024px) {
+  .candidater {
+    --ecran-cand: calc(100vh - var(--barre-h) - var(--band-h, 0px));
+    --marge-cand: clamp(16px, 4vh, 48px);
+    grid-template-columns: minmax(300px, 460px) minmax(440px, 580px);
+    justify-content: space-between; align-items: start;
+    column-gap: clamp(32px, 5vw, 96px);
+    padding-top: var(--marge-cand); padding-bottom: var(--marge-cand);
+  }
+  .cand-gauche {
+    container-type: inline-size;
+    position: sticky; top: var(--marge-cand);
+    display: flex; flex-direction: column; gap: clamp(16px, 3vh, 28px);
+    height: calc(var(--ecran-cand) - 2 * var(--marge-cand));
+    /* la place des couleurs qui bavent, que la colonne couperait sinon */
+    margin-inline: -6px; padding-inline: 6px;
+    overflow-y: auto; overscroll-behavior: contain;
+    scrollbar-width: thin; scrollbar-color: #fff039 transparent;
+  }
+  .cand-comment { flex-shrink: 0; margin-top: auto; }
+  .cand-panneau { order: 0; }
+  /* « L'ANTENNE » fait 5,3 fois la taille du texte : 18 % de la colonne le fait tenir */
+  .cand-titre { font-size: clamp(40px, min(18cqi, 7.6vh), 76px); }
+  .cand-chapeau { margin-top: clamp(12px, 2.2vh, 18px); font-size: clamp(14px, 1.9vh, 16px); }
+  .cand-reperes { margin-top: clamp(12px, 1.8vh, 18px); }
+  .cand-suite { gap: clamp(8px, 1.4vh, 14px); padding-block: clamp(12px, 1.9vh, 18px); }
+}
+@supports (height: 100dvh) {
+  @media (min-width: 1024px) { .candidater { --ecran-cand: calc(100dvh - var(--barre-h) - var(--band-h, 0px)); } }
+}
+/* une fenêtre basse : les repères s'effacent (« Comment ça se passe » dit déjà les trois écrans et le délai) */
+@media (min-width: 1024px) and (max-height: 760px) {
+  .cand-reperes { display: none; }
+  .cand-suite span { font-size: 13px; }
+}
+
+/* ---------- LA FEUILLE DU FORMULAIRE ---------- */
+.cand-panneau {
+  container-type: inline-size;   /* les chaînes se rangent selon sa largeur, pas celle de l'écran */
+  border: 2px solid #fff039;
+  background: repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 3px), rgba(0,0,0,0.92);
+  box-shadow: var(--bave);
+  scroll-margin-top: var(--ecart);
+}
+.cand-form { display: flex; flex-direction: column; }
+
+/* Les étapes, en haut : ce qui est fait en jaune, l'écran en cours souligné ; on revient d'un clic à un écran déjà vu.
+   Sans script, les trois écrans sont l'un sous l'autre : pas de barre. */
+.cand-progres { display: none; list-style: none; border-bottom: 2px solid #fff039; }
+.candidater.pret .cand-progres { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.cand-progres li { min-width: 0; }
+.cand-progres li + li .cand-pas { border-left: 1px dashed rgba(255,240,57,0.35); }
+.cand-pas {
+  position: relative; display: flex; align-items: center; gap: 8px; width: 100%; min-height: 50px; padding: 10px 12px 12px;
+  background: none; border: 0; color: rgba(255,255,255,0.45);
+  font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; line-height: 1.1; text-align: left; text-transform: uppercase;
+  cursor: pointer; transition: color 0.15s;
+}
+.cand-pas::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(255,255,255,0.12); }
+.cand-pas:disabled { cursor: default; }
+.cand-pas:not(:disabled):hover { color: #fff039; }
+.cand-pas:focus-visible { outline: 2px solid #ffffff; outline-offset: -4px; }
+.cand-pas-num { flex-shrink: 0; display: grid; place-items: center; width: 24px; height: 24px; border: 2px solid currentColor; font-size: 11px; letter-spacing: 0; }
+.cand-pas-nom { min-width: 0; overflow-wrap: anywhere; }
+.cand-progres li[data-etat="fait"] .cand-pas { color: #fff039; }
+.cand-progres li[data-etat="fait"] .cand-pas::after, .cand-progres li[data-etat="ici"] .cand-pas::after { background: #fff039; }
+.cand-progres li[data-etat="fait"] .cand-pas-num { background: #fff039; border-color: #fff039; color: #000dff; }
+.cand-progres li[data-etat="ici"] .cand-pas { color: #ffffff; }
+.cand-progres li[data-etat="ici"] .cand-pas-num { border-color: #fff039; color: #fff039; }
+
+/* Un écran ; avec le script, seul celui en cours se voit, et il s'allume en clignant quand on y arrive (zapper) */
+.cand-etape { display: flex; flex-direction: column; gap: 24px; padding: 24px 24px 8px; }
+.candidater.pret .cand-etape:not([data-ici]) { display: none; }
+.cand-zap { animation: allumageCligne 0.42s linear both; }
+.cand-etape-titre {
+  display: flex; align-items: baseline; gap: 12px;
+  color: #fff039; font-size: 28px; font-weight: 700; letter-spacing: 0.03em; line-height: 1; text-transform: uppercase;
+  text-shadow: -2px 0 rgba(255,0,72,0.6), 2px 0 rgba(0,200,255,0.55), 0 0 12px rgba(255,240,57,0.3);
+  outline: none;
+}
+.cand-etape-num { color: rgba(255,255,255,0.55); font-size: 12px; letter-spacing: 0.12em; text-shadow: none; }
+.candidater.pret .cand-etape-num { display: none; }   /* les étapes, en haut, le disent déjà */
+
+/* Une question : son intitulé en jaune, ses choix, son aide, son erreur */
+.cand-question { min-width: 0; display: flex; flex-direction: column; gap: 10px; border: 0; }
+legend.cand-label { margin-bottom: 10px; }
+.cand-label { padding: 0; color: #fff039; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; line-height: 1.3; text-transform: uppercase; }
+.cand-facultatif { color: rgba(255,255,255,0.55); font-weight: 400; letter-spacing: 0.04em; text-transform: none; }
+.cand-label-ligne { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.cand-aide { color: rgba(255,255,255,0.68); font-size: 13px; line-height: 1.45; }
+.cand-erreur { display: flex; align-items: flex-start; gap: 8px; color: var(--erreur); font-size: 13px; font-weight: 700; line-height: 1.4; }
+.cand-erreur::before {
+  content: '!'; flex-shrink: 0; display: grid; place-items: center; width: 17px; height: 17px; margin-top: 1px;
+  background: var(--erreur); color: #000000; font-size: 11px; line-height: 1;
+}
+
+/* Les chaînes : le type de l'émission, trois grandes touches */
+.cand-chaines { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.cand-chaine {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 14px 14px 16px;
+  border: 2px solid rgba(255,240,57,0.7); background: rgba(0,0,0,0.55); color: #ffffff;
+  cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.cand-chaine input, .cand-option input, .cand-puce input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.cand-chaine-num { color: #fff039; font-size: 10px; font-weight: 700; letter-spacing: 0.14em; line-height: 1.2; }
+.cand-chaine-nom { font-size: 22px; font-weight: 700; letter-spacing: 0.03em; line-height: 1; text-transform: uppercase; }
+.cand-chaine-mot { margin-top: 8px; color: rgba(255,255,255,0.78); font-size: 13px; line-height: 1.4; }
+.cand-chaine:hover { border-color: #fff039; box-shadow: var(--bave); }
+.cand-chaine:has(input:checked) { background: #fff039; border-color: #fff039; color: #000dff; box-shadow: var(--bave-fort); }
+.cand-chaine:has(input:checked) :is(.cand-chaine-num, .cand-chaine-mot) { color: #000dff; }
+.cand-chaine:has(input:checked) .cand-chaine-num::after { content: '  ✓'; white-space: pre; }
+/* côte à côte dès que la feuille a la place, le nom un peu plus petit si elle est étroite */
+@container (min-width: 460px) {
+  .cand-chaines { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cand-chaine-nom { font-size: clamp(17px, 4cqi, 22px); }
+}
+
+/* Les paires : oui ou pas encore, une fois ou régulièrement */
+.cand-duo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.cand-option {
+  position: relative; display: flex; align-items: center; justify-content: center; min-height: 50px; padding: 10px 12px;
+  border: 2px solid rgba(255,240,57,0.7); background: rgba(0,0,0,0.55); color: #fff039;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.1em; line-height: 1.2; text-align: center; text-transform: uppercase;
+  cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.cand-option:hover { border-color: #fff039; box-shadow: var(--bave); }
+.cand-option:has(input:checked) { background: #fff039; border-color: #fff039; color: #000dff; box-shadow: var(--bave-fort); }
+.cand-option:has(input:checked) span::before, .cand-puce:has(input:checked) span::before { content: '✓ '; }
+:is(.cand-chaine, .cand-option, .cand-puce):has(input:focus-visible) { outline: 2px solid #ffffff; outline-offset: 3px; }
+.cand-question[data-faux] :is(.cand-chaine, .cand-option) { border-color: var(--erreur); }
+
+/* Les champs à remplir */
+.cand-champ { display: flex; flex-direction: column; gap: 8px; }
+.cand-sous-label { color: rgba(255,255,255,0.82); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.cand-champ :is(input, textarea) {
+  width: 100%; min-height: 50px; padding: 12px 14px;
+  background: #050505; color: #ffffff; border: 2px solid rgba(255,255,255,0.3); border-radius: 0;
+  font: inherit; font-size: 16px; line-height: 1.4;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.cand-champ textarea { min-height: 136px; resize: vertical; }
+.cand-champ :is(input, textarea)::placeholder { color: rgba(255,255,255,0.38); }
+.cand-champ :is(input, textarea):hover { border-color: rgba(255,240,57,0.6); }
+.cand-champ :is(input, textarea):focus { outline: none; border-color: #fff039; box-shadow: var(--bave); }
+.cand-champ :is(input, textarea)[aria-invalid="true"] { border-color: var(--erreur); }
+.cand-champ input:-webkit-autofill { -webkit-text-fill-color: #ffffff; caret-color: #ffffff; box-shadow: 0 0 0 1000px #050505 inset; }
+.cand-prefixe { display: flex; }
+.cand-prefixe > span {
+  flex-shrink: 0; display: grid; place-items: center; padding: 0 12px;
+  border: 2px solid rgba(255,255,255,0.3); border-right: 0; background: #000000; color: #fff039; font-size: 16px; font-weight: 700;
+}
+.cand-prefixe:focus-within > span { border-color: #fff039; }
+.cand-prefixe:has(input[aria-invalid="true"]) > span { border-color: var(--erreur); }
+.cand-champ-insta + .cand-champ { margin-top: 6px; }
+.cand-compteur { color: rgba(255,255,255,0.5); font-size: 11px; font-weight: 700; letter-spacing: 0.06em; font-variant-numeric: tabular-nums; }
+.cand-compteur[data-plein] { color: #fff039; }
+
+/* Les styles : des pastilles, comme les filtres des émissions */
+.cand-puces { display: flex; flex-wrap: wrap; gap: 8px; }
+.cand-puce {
+  position: relative; display: inline-flex; align-items: center; min-height: 40px; padding: 8px 12px 7px;
+  border: 2px solid rgba(255,240,57,0.7); background: rgba(0,0,0,0.5); color: #ffffff;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.1em; line-height: 1.15; text-transform: uppercase;
+  cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.cand-puce:hover { border-color: #fff039; color: #fff039; }
+.cand-puce:has(input:checked) { background: #fff039; border-color: #fff039; color: #000dff; box-shadow: var(--bave); }
+.cand-puce:has(input:disabled) { opacity: 0.32; cursor: not-allowed; }
+.cand-puce:has(input:disabled) input { cursor: not-allowed; }
+
+.cand-vie-privee { color: rgba(255,255,255,0.6); font-size: 12px; line-height: 1.55; }
+.cand-vie-privee a { color: #fff039; text-decoration: underline; text-underline-offset: 3px; }
+.cand-vie-privee a:hover { color: #ffffff; }
+.cand-vie-privee a:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+
+/* ---------- LES TOUCHES : SUIVANT, en jaune, et RETOUR ---------- */
+.cand-pied { display: flex; align-items: center; gap: 12px; padding: 20px 24px 22px; }
+.cand-suivant {
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: 52px; margin-left: auto; padding: 0 26px;
+  background: #fff039; color: #000dff; border: 0; border-radius: 0; box-shadow: var(--bave-fort);
+  font: inherit; font-size: 15px; font-weight: 700; letter-spacing: 0.12em; line-height: 1.1; text-align: center; text-decoration: none; text-transform: uppercase;
+  cursor: pointer; transition: background 0.15s, color 0.15s, transform 0.15s;
+}
+.cand-suivant:hover { background: #000dff; color: #fff039; }
+.cand-suivant:active { transform: scale(0.98); }
+.cand-suivant:focus-visible { outline: 2px solid #ffffff; outline-offset: 3px; }
+.cand-suivant[aria-busy="true"] { cursor: progress; }
+.cand-suivant[aria-busy="true"]::after { content: ''; width: 8px; height: 8px; background: currentColor; animation: playerBlink 0.8s steps(2) infinite; }
+.cand-retour {
+  display: inline-flex; align-items: center; min-height: 48px; padding: 0 4px;
+  background: none; border: 0; color: rgba(255,255,255,0.75);
+  font: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-decoration: none; text-transform: uppercase;
+  cursor: pointer; transition: color 0.15s;
+}
+.cand-retour:hover { color: #fff039; }
+.cand-retour:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+.cand-erreur-envoi { margin: -6px 24px 18px; }
+.cand-brouillon { margin: -8px 24px 20px; color: rgba(255,255,255,0.45); font-size: 11px; line-height: 1.4; text-align: right; }
+
+/* ---------- C'EST REÇU ---------- */
+.cand-recu { padding-bottom: 26px; outline: none; }
+.cand-recu > .cand-mire { height: 14px; }
+.cand-recu > .cand-page { margin: 24px 24px 0; }
+.cand-recu-titre {
+  margin: 14px 24px 0;
+  color: #fff039; font-size: clamp(42px, 6vw, 66px); font-weight: 700; letter-spacing: 0.02em; line-height: 0.95; text-transform: uppercase;
+  text-shadow: -3px 0 rgba(255,0,72,0.6), 3px 0 rgba(0,200,255,0.55), 0 0 18px rgba(255,240,57,0.35);
+  filter: blur(0.3px);
+}
+.cand-recu-texte { margin: 16px 24px 0; font-size: 17px; line-height: 1.5; }
+.cand-suite-recu { margin-top: 8px; padding-left: 24px; padding-right: 24px; }
+.cand-recu-liens { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; padding: 10px 24px 0; }
+.cand-recu-liens .cand-suivant { margin-left: 0; }
+
+/* ---------- TÉLÉPHONE ---------- */
+@media (max-width: 559px) {
+  .cand-chapeau { font-size: 15px; }
+  .cand-etape { gap: 22px; padding: 20px 16px 6px; }
+  .cand-etape-titre { font-size: 24px; }
+  /* les étapes : leur numéro, et le nom de l'écran en cours seulement */
+  .candidater.pret .cand-progres { display: flex; }
+  .cand-progres li { flex: 0 0 auto; }
+  .cand-progres li[data-etat="ici"] { flex: 1 1 auto; }
+  .cand-progres li:not([data-etat="ici"]) .cand-pas-nom { display: none; }
+  /* la touche reste au bas de l'écran pendant qu'on remplit */
+  .cand-pied {
+    position: sticky; bottom: 0; z-index: 1; padding: 22px 16px 14px;
+    background: linear-gradient(rgba(0,0,0,0), #000000 34%);
+  }
+  .cand-suivant { flex: 1 1 auto; padding: 0 18px; }
+  .cand-long { display: none; }
+  .cand-puce { min-height: 44px; }
+  .cand-erreur-envoi { margin: 0 16px 14px; }
+  .cand-brouillon { margin: 0 16px 16px; text-align: left; }
+  .cand-recu > .cand-page, .cand-recu-titre, .cand-recu-texte { margin-left: 16px; margin-right: 16px; }
+  .cand-suite-recu, .cand-recu-liens { padding-left: 16px; padding-right: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cand-titre, .cand-zap, .cand-suivant[aria-busy="true"]::after { animation: none; }
+}

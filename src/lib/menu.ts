@@ -1,5 +1,5 @@
 /** Les rubriques du site. `page` se retrouve dans <html data-page>, que lisent les styles et les scripts. */
-export type Page = "accueil" | "show" | "residents" | "event" | "about" | "introuvable";
+export type Page = "accueil" | "show" | "residents" | "event" | "about" | "candidater" | "introuvable";
 
 /**
  * Le menu de l'en-tête, comme sur la maquette du 2 novembre : ÉMISSIONS · RÉSIDENTS · ÉVÉNEMENTS · À PROPOS. L'accueil,
