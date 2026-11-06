@@ -2,6 +2,10 @@
  * Les règles d'une candidature (cms/README.md, 9.17), partagées par la page /candidater, qui vérifie chaque écran avant
  * le suivant, et par le serveur, qui revérifie tout avant d'écrire : les mêmes règles et les mêmes messages des deux
  * côtés. Rien que du calcul, sans base : le navigateur l'importe par @parabole/cms/candidatures.
+ *
+ * Une candidature, c'est l'émission entière, prête à valider : son type, son titre, sa description, ses styles (écran
+ * 1) ; l'artiste, sa bio, sa photo, de quoi lui répondre (écran 2) ; le son, sa tracklist, un mot pour l'équipe
+ * (écran 3). Le son est un MP3 ; une playlist peut venir à la place par son lien.
  */
 
 /** Les types d'émission qu'on propose, dans l'ordre de la page. */
@@ -11,13 +15,18 @@ export type TypeCandidature = (typeof TYPES_CANDIDATURE)[number];
 /** Le nom de chaque type, au pluriel, pour dire qu'il est complet. */
 export const TYPES_AU_PLURIEL: Record<TypeCandidature, string> = { dj_set: "DJ sets", podcast: "podcasts", playlist: "playlists" };
 
+export const TITRE_MAX = 120;
 export const NOM_MAX = 120;
 export const VILLE_MAX = 80;
 export const EMAIL_MAX = 200;
-export const IDEE_MIN = 20;
-export const IDEE_MAX = 800;
+export const DESCRIPTION_MIN = 20;
+export const DESCRIPTION_MAX = 800;
+export const BIO_MIN = 20;
+export const BIO_MAX = 1000;
+export const TRACKLIST_MAX = 20000;
+export const MESSAGE_MAX = 2000;
 export const LIEN_MAX = 600;
-/** Au plus, dans Ton style. */
+/** Au plus, dans Ses styles. */
 export const STYLES_MAX = 3;
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -45,65 +54,91 @@ export function adresseWeb(saisie: string): string | null {
   }
 }
 
-/** Le lien d'écoute est-il demandé ? Pour un set ou une playlist, oui ; pour un podcast, une idée peut suffire. */
-export const lienRequis = (type: string) => type !== "podcast";
+/** Une playlist peut venir par son lien, à la place du MP3. */
+export const lienPossible = (type: string) => type === "playlist";
 
 /** Ce que la page envoie : les champs tels quels. */
 export type CandidatureForm = {
   type: string;
-  prete: string;
   frequence: string;
+  titre: string;
+  description: string;
+  styles: string[];
   nom: string;
+  bio: string;
   ville: string;
   instagram: string;
   email: string;
-  idee: string;
+  /** Le lien d'une playlist envoyée sans MP3. */
   lien: string;
-  styles: string[];
+  tracklist: string;
+  message: string;
 };
 
-/** Une candidature vérifiée, prête à écrire. */
-export type CandidatureValues = {
+/** Les écrans 1 et 2, vérifiés : de quoi ouvrir le dossier de l'envoi. */
+export type DossierValues = {
   type: TypeCandidature;
-  ready: boolean;
   /** Vrai : régulièrement ; faux : une fois ; null : rien dit. */
   regular: boolean | null;
+  title: string;
+  pitch: string;
+  /** Les adresses des styles cochés (des groupes des filtres), trois au plus. */
+  styles: string[];
   name: string;
+  bio: string;
   city: string | null;
   instagram: string | null;
   email: string | null;
-  pitch: string;
-  listenUrl: string | null;
-  /** Les adresses des styles cochés (des groupes des filtres), trois au plus. */
-  styles: string[];
 };
 
-/** Les erreurs, par champ : type, prete, nom, instagram, email, contact, idee, lien. */
+/** L'écran 3, vérifié. */
+export type EnvoiValues = {
+  /** Le lien d'une playlist envoyée sans MP3 ; null sinon. */
+  listenUrl: string | null;
+  tracklist: string | null;
+  message: string | null;
+};
+
+/** Les erreurs, par champ : type, titre, description, nom, bio, instagram, email, contact, son, lien, tracklist, message. */
 export type CandidatureErrors = Record<string, string>;
 
 /** Les champs de chaque écran de la page, pour y ramener l'erreur. */
 export const CHAMPS_PAR_ECRAN: Record<1 | 2 | 3, string[]> = {
-  1: ["type", "prete", "frequence"],
-  2: ["nom", "ville", "instagram", "email", "contact"],
-  3: ["idee", "lien", "styles"],
+  1: ["type", "titre", "description", "styles", "frequence"],
+  2: ["nom", "bio", "photo", "ville", "instagram", "email", "contact"],
+  3: ["son", "lien", "tracklist", "message"],
 };
 
-const texte = (valeur: unknown) => (typeof valeur === "string" ? valeur.trim() : "");
+const texte = (valeur: unknown) => (typeof valeur === "string" ? valeur.replace(/\r\n?/g, "\n").trim() : "");
+const ligne = (valeur: unknown) => texte(valeur).replace(/\s+/g, " ");
 
-/** Vérifie une candidature, champ par champ : ses valeurs, ou ses erreurs. */
-export function lireCandidature(form: CandidatureForm): { values: CandidatureValues | null; errors: CandidatureErrors } {
+/** Les écrans 1 et 2 : l'émission et l'artiste. */
+export function lireDossier(form: CandidatureForm): { values: DossierValues | null; errors: CandidatureErrors } {
   const errors: CandidatureErrors = {};
   const type = texte(form.type);
   if (!(TYPES_CANDIDATURE as readonly string[]).includes(type)) errors.type = "Choisis ce que tu proposes.";
-  const prete = texte(form.prete);
-  if (prete !== "oui" && prete !== "non") errors.prete = "Dis-nous si ton émission est déjà enregistrée.";
   const frequence = texte(form.frequence);
 
-  const nom = texte(form.nom).replace(/\s+/g, " ");
+  const titre = ligne(form.titre);
+  if (titre.length < 2) errors.titre = titre ? "Ce titre est un peu court." : "Donne un titre à ton émission.";
+  else if (titre.length > TITRE_MAX) errors.titre = `Ce titre est trop long (${TITRE_MAX} caractères au plus).`;
+
+  const description = texte(form.description);
+  if (description.length < DESCRIPTION_MIN)
+    errors.description = description ? `Dis-nous-en un peu plus (${DESCRIPTION_MIN} caractères au moins).` : "Décris ton émission en quelques lignes.";
+  else if (description.length > DESCRIPTION_MAX) errors.description = `C'est un peu long : ${DESCRIPTION_MAX} caractères au plus.`;
+
+  const styles = [...new Set((Array.isArray(form.styles) ? form.styles : []).map(texte).filter((slug) => slug && slug.length <= 80))].slice(0, STYLES_MAX);
+
+  const nom = ligne(form.nom);
   if (nom.length < 2) errors.nom = nom ? "Ton nom d'artiste est un peu court." : "Indique ton nom d'artiste, ou celui de ton projet.";
   else if (nom.length > NOM_MAX) errors.nom = `Ton nom d'artiste est trop long (${NOM_MAX} caractères au plus).`;
-  const ville = texte(form.ville).replace(/\s+/g, " ").slice(0, VILLE_MAX);
 
+  const bio = texte(form.bio);
+  if (bio.length < BIO_MIN) errors.bio = bio ? `Ta bio est un peu courte (${BIO_MIN} caractères au moins).` : "Présente-toi en quelques lignes : ce sera ta bio sur le site.";
+  else if (bio.length > BIO_MAX) errors.bio = `Ta bio est un peu longue : ${BIO_MAX} caractères au plus.`;
+
+  const ville = ligne(form.ville).slice(0, VILLE_MAX);
   const instaSaisi = texte(form.instagram);
   const insta = compteInsta(instaSaisi);
   if (instaSaisi && !insta) errors.instagram = "Ce compte n'a pas l'air juste : des lettres, des chiffres, des points et des _ seulement.";
@@ -111,32 +146,48 @@ export function lireCandidature(form: CandidatureForm): { values: CandidatureVal
   if (email && (!EMAIL.test(email) || email.length > EMAIL_MAX)) errors.email = "Cette adresse e-mail n'a pas l'air complète.";
   if (!instaSaisi && !email) errors.contact = "Laisse ton Instagram ou ton e-mail, pour qu'on puisse te répondre.";
 
-  const idee = texte(form.idee);
-  if (idee.length < IDEE_MIN) errors.idee = idee ? `Dis-nous-en un peu plus (${IDEE_MIN} caractères au moins).` : "Raconte-nous ton idée en quelques lignes.";
-  else if (idee.length > IDEE_MAX) errors.idee = `Ton idée est un peu longue : ${IDEE_MAX} caractères au plus.`;
-
-  const lienSaisi = texte(form.lien);
-  const lien = adresseWeb(lienSaisi);
-  if (lienSaisi && !lien) errors.lien = "Ce lien n'a pas l'air d'une adresse web.";
-  else if (!lienSaisi && lienRequis(type))
-    errors.lien = type === "playlist" ? "Ajoute le lien de ta playlist, pour qu'on l'écoute." : "Ajoute un lien vers un de tes mixes, pour qu'on t'écoute.";
-
-  const styles = [...new Set((Array.isArray(form.styles) ? form.styles : []).map(texte).filter((slug) => slug && slug.length <= 80))].slice(0, STYLES_MAX);
-
   if (Object.keys(errors).length) return { values: null, errors };
   return {
     values: {
       type: type as TypeCandidature,
-      ready: prete === "oui",
       regular: frequence === "reguliere" ? true : frequence === "une-fois" ? false : null,
+      title: titre,
+      pitch: description,
+      styles,
       name: nom,
+      bio,
       city: ville || null,
       instagram: insta || null,
       email: email || null,
-      pitch: idee,
-      listenUrl: lien,
-      styles,
     },
     errors,
   };
+}
+
+/**
+ * L'écran 3 : le son (`aSon` : un MP3 est arrivé, ou en route), ou, pour une playlist, son lien ; la tracklist et le
+ * mot pour l'équipe, facultatifs.
+ */
+export function lireEnvoi(form: CandidatureForm, { aSon }: { aSon: boolean }): { values: EnvoiValues | null; errors: CandidatureErrors } {
+  const errors: CandidatureErrors = {};
+  const type = texte(form.type);
+  const lienSaisi = lienPossible(type) && !aSon ? texte(form.lien) : "";
+  const lien = lienSaisi ? adresseWeb(lienSaisi) : null;
+  if (lienSaisi && !lien) errors.lien = "Ce lien n'a pas l'air d'une adresse web.";
+  else if (!aSon && !lien) errors.son = lienPossible(type) ? "Ajoute le MP3 de ta playlist, ou son lien." : "Ajoute le MP3 de ton émission.";
+  const tracklist = texte(form.tracklist);
+  if (tracklist.length > TRACKLIST_MAX) errors.tracklist = `Cette tracklist est trop longue (${TRACKLIST_MAX} caractères au plus).`;
+  const message = texte(form.message);
+  if (message.length > MESSAGE_MAX) errors.message = `C'est un peu long : ${MESSAGE_MAX} caractères au plus.`;
+  if (Object.keys(errors).length) return { values: null, errors };
+  return { values: { listenUrl: lien, tracklist: tracklist || null, message: message || null }, errors };
+}
+
+/** Toute la candidature : les trois écrans. */
+export function lireCandidature(form: CandidatureForm, { aSon }: { aSon: boolean }): { values: (DossierValues & EnvoiValues) | null; errors: CandidatureErrors } {
+  const dossier = lireDossier(form);
+  const envoi = lireEnvoi(form, { aSon });
+  const errors = { ...dossier.errors, ...envoi.errors };
+  if (!dossier.values || !envoi.values) return { values: null, errors };
+  return { values: { ...dossier.values, ...envoi.values }, errors };
 }

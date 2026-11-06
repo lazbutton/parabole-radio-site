@@ -7,7 +7,7 @@
 import { and, eq, inArray, like, sql } from "drizzle-orm";
 import type { Tx } from "../access.ts";
 import { outer } from "../read/common.ts";
-import { artist, event, eventPhoto, media, show, type MediaVariant } from "../schema.ts";
+import { application, artist, event, eventPhoto, media, show, type MediaVariant } from "../schema.ts";
 import { versionOf, type NotSaved } from "./common.ts";
 import { isUuid, type MediaText } from "./input.ts";
 
@@ -120,6 +120,7 @@ export async function releaseMedia(tx: Tx, ids: (string | null | undefined)[]): 
         sql`not exists (select 1 from ${show} s where s.cover_id = ${id})`,
         sql`not exists (select 1 from ${event} e where e.visual_id = ${id})`,
         sql`not exists (select 1 from ${eventPhoto} p where p.media_id = ${id})`,
+        sql`not exists (select 1 from ${application} c where c.photo_id = ${id})`,
       ),
     )
     .returning({ key: media.key, variants: media.variants });
