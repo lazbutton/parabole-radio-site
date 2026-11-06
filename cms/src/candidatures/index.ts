@@ -72,6 +72,23 @@ async function poserStyles(tx: Tx, applicationId: string, type: ShowType, styles
   if (coches.length) await tx.insert(applicationTag).values(coches.map(({ id }) => ({ applicationId, tagId: id })));
 }
 
+const DEJA: Refus = { ok: false, status: 409, errors: { form: "Tu as déjà une candidature en cours : on l'écoute, et on te répond bientôt." } };
+
+/** La même personne (son Instagram ou son e-mail) a-t-elle déjà une candidature envoyée, pas encore répondue ? */
+async function dejaEnCours(tx: Tx, values: DossierValues): Promise<boolean> {
+  const memes = [
+    values.instagram ? sql`lower(${application.instagram}) = lower(${values.instagram})` : undefined,
+    values.email ? sql`lower(${application.email}) = lower(${values.email})` : undefined,
+  ].filter(Boolean);
+  if (!memes.length) return false;
+  const [deja] = await tx
+    .select({ id: application.id })
+    .from(application)
+    .where(and(isNotNull(application.submittedAt), inArray(application.status, ["new", "shortlisted"]), or(...memes)))
+    .limit(1);
+  return Boolean(deja);
+}
+
 /** Les champs des écrans 1 et 2, tels qu'ils s'écrivent. */
 const champsDuDossier = (values: DossierValues) => ({
   type: values.type,
@@ -87,10 +104,10 @@ const champsDuDossier = (values: DossierValues) => ({
 
 export function createCandidatures(db: Db, { now: clock = () => new Date() }: { now?: () => Date } = {}) {
   /** Le dossier en cours de ce jeton, s'il n'a pas expiré. */
-  async function dossierDe(tx: Tx, jeton: string): Promise<{ id: string; type: ShowType; photoId: string | null } | null> {
+  async function dossierDe(tx: Tx, jeton: string): Promise<{ id: string; type: ShowType; name: string; photoId: string | null } | null> {
     if (!JETON_DOSSIER.test(jeton)) return null;
     const [ligne] = await tx
-      .select({ id: application.id, type: application.type, photoId: application.photoId })
+      .select({ id: application.id, type: application.type, name: application.name, photoId: application.photoId })
       .from(application)
       .where(and(eq(application.dossierHash, empreinte(jeton)), isNull(application.submittedAt), gte(application.createdAt, new Date(clock().getTime() - DOSSIER_MS))))
       .for("update")
@@ -99,6 +116,9 @@ export function createCandidatures(db: Db, { now: clock = () => new Date() }: { 
   }
 
   return {
+    /** Ce jeton ouvre-t-il un dossier en cours ? Avant de signer quoi que ce soit pour lui (une photo à déposer). */
+    dossierOuvert: (jeton: string): Promise<boolean> => db.transaction(async (tx) => Boolean(await dossierDe(tx, jeton))),
+
     /** Les réglages : les types ouverts, le délai de réponse annoncé. */
     reglages: async (): Promise<Reglages> => {
       const [ligne] = await db.select({ openTypes: applicationSettings.openTypes, replyDays: applicationSettings.replyDays }).from(applicationSettings).limit(1);
@@ -144,16 +164,7 @@ export function createCandidatures(db: Db, { now: clock = () => new Date() }: { 
           };
 
         const ouvert = jeton ? await dossierDe(tx, jeton) : null;
-        const memes = [
-          values.instagram ? sql`lower(${application.instagram}) = lower(${values.instagram})` : undefined,
-          values.email ? sql`lower(${application.email}) = lower(${values.email})` : undefined,
-        ].filter(Boolean);
-        const [deja] = await tx
-          .select({ id: application.id })
-          .from(application)
-          .where(and(isNotNull(application.submittedAt), inArray(application.status, ["new", "shortlisted"]), or(...memes)))
-          .limit(1);
-        if (deja) return { ok: false, status: 409, errors: { form: "Tu as déjà une candidature en cours : on l'écoute, et on te répond bientôt." } };
+        if (await dejaEnCours(tx, values)) return DEJA;
 
         if (ouvert) {
           await tx.update(application).set(champsDuDossier(values)).where(eq(application.id, ouvert.id));
@@ -208,14 +219,14 @@ export function createCandidatures(db: Db, { now: clock = () => new Date() }: { 
       }),
 
     /**
-     * Inscrit la photo du dossier (déjà recadrée et déposée par la route), à la place de la précédente. Rend l'image, et
-     * les clés du Storage de l'ancienne, à retirer.
+     * Inscrit la photo du dossier (déjà recadrée et déposée par la route), à la place de la précédente ; son texte
+     * alternatif est le nom de l'artiste. Rend l'image, et les clés du Storage de l'ancienne, à retirer.
      */
-    ajouterPhoto: (jeton: string, file: MediaUpload): Promise<{ ok: true; media: AdminMedia; removedImages: string[] } | NotSaved> =>
+    ajouterPhoto: (jeton: string, file: Omit<MediaUpload, "alt" | "credit">): Promise<{ ok: true; media: AdminMedia; removedImages: string[] } | NotSaved> =>
       db.transaction(async (tx) => {
         const dossier = await dossierDe(tx, jeton);
         if (!dossier) return { ok: false, errors: { photo: PERDU.errors.form! } };
-        const added = await addMedia(tx, file);
+        const added = await addMedia(tx, { ...file, alt: dossier.name, credit: null });
         if (!added.ok) return added;
         await tx.update(application).set({ photoId: added.media.id }).where(eq(application.id, dossier.id));
         return { ok: true, media: added.media, removedImages: await releaseMedia(tx, [dossier.photoId]) };
@@ -241,6 +252,8 @@ export function createCandidatures(db: Db, { now: clock = () => new Date() }: { 
         const dossierLu = lireDossier(form);
         const envoiLu = lireEnvoi(form, { aSon: Boolean(son) });
         if (!dossierLu.values || !envoiLu.values) return { ok: false, status: 422, errors: { ...dossierLu.errors, ...envoiLu.errors } };
+        // Deux dossiers ouverts côte à côte par la même personne : le second envoyé est refusé.
+        if (await dejaEnCours(tx, dossierLu.values)) return DEJA;
         if (son) {
           const recu = await tx
             .update(audioFile)

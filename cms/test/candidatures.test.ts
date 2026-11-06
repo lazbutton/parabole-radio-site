@@ -42,8 +42,6 @@ const image = (n: number) => ({
   sizeBytes: 1000,
   width: 800,
   height: 800,
-  alt: "Lou Velours",
-  credit: null,
   variants: [{ width: 800, key: `${UPLOAD_FOLDER}2026/11/0000000${n}-0000-4000-8000-000000000000-800.webp` }],
 });
 
@@ -201,12 +199,17 @@ describe("les candidatures", () => {
     await reset();
     const ouvert = await candidatures().ouvrirDossier(form());
     if (!ouvert.ok) throw new Error("dossier refusé");
+    // Un second dossier de la même personne, ouvert à côté avant l'envoi du premier.
+    const jumeau = await candidatures().ouvrirDossier(form());
+    if (!jumeau.ok) throw new Error("second dossier refusé");
     expect(await candidatures().deposer(ouvert.jeton, form(), null)).toMatchObject({ ok: false, status: 422, errors: { son: "Ajoute le MP3 de ton émission." } });
     const prepare = await candidatures().preparerSon(ouvert.jeton, { fileName: "set.mp3", size: 1000 });
     if (!prepare.ok) throw new Error("son refusé");
     // Un son annoncé mais d'un autre dossier ne passe pas.
     expect(await candidatures().deposer(ouvert.jeton, form(), { id: "00000000-0000-4000-8000-000000000000", size: 10 })).toMatchObject({ ok: false, errors: { son: expect.any(String) } });
     expect((await candidatures().deposer(ouvert.jeton, form(), { id: prepare.id, size: 1000 })).ok).toBe(true);
+    // Le second ne part plus : la première est en cours.
+    expect(await candidatures().deposer(jumeau.jeton, form(), { id: prepare.id, size: 1000 })).toMatchObject({ ok: false, status: 409 });
     // La même personne, écrite autrement : déjà en cours.
     expect(await candidatures().ouvrirDossier(form({ instagram: "https://instagram.com/LOU.VELOURS" }))).toMatchObject({ ok: false, status: 409 });
     // Une playlist par son lien seulement.
@@ -235,6 +238,10 @@ describe("les candidatures", () => {
     // la clé de l'image et celle de sa version la plus grande : la même, ici
     expect([...new Set(seconde.removedImages)]).toEqual([image(1).key]);
     expect((await db.select({ photoId: application.photoId }).from(application))[0]!.photoId).toBe(seconde.media.id);
+    // son texte alternatif : le nom de l'artiste
+    expect(seconde.media.alt).toBe("Lou Velours");
+    expect(await candidatures().dossierOuvert(ouvert.jeton)).toBe(true);
+    expect(await candidatures().dossierOuvert("z".repeat(43))).toBe(false);
     expect([...new Set(await candidatures().retirerPhoto(ouvert.jeton))]).toEqual([image(2).key]);
     expect(await db.select().from(media)).toEqual([]);
     expect(await candidatures().ajouterPhoto("y".repeat(43), image(3))).toMatchObject({ ok: false });
