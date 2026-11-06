@@ -1,5 +1,5 @@
 {
-  "id": "b56a63e9-a2f0-4b68-8b24-a45118d66e19",
+  "id": "a6e4c4a5-f94b-46e2-bc20-10e30e6901a1",
   "prevId": "26424043-d865-4734-b043-d857a642e92c",
   "version": "7",
   "dialect": "postgresql",
@@ -197,14 +197,7 @@
           "name": "ready",
           "type": "boolean",
           "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "regular": {
           "name": "regular",
@@ -248,30 +241,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "bio": {
-          "name": "bio",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "photo_id": {
-          "name": "photo_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "tracklist": {
-          "name": "tracklist",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "message": {
-          "name": "message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "status": {
           "name": "status",
           "type": "application_status",
@@ -291,25 +260,6 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
-        },
-        "show_id": {
-          "name": "show_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "dossier_hash": {
-          "name": "dossier_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "submitted_at": {
-          "name": "submitted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
         },
         "answered_at": {
           "name": "answered_at",
@@ -374,56 +324,15 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "application_show": {
-          "name": "application_show",
-          "columns": [
-            {
-              "expression": "show_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
-        "application_photo_id_media_id_fk": {
-          "name": "application_photo_id_media_id_fk",
-          "tableFrom": "application",
-          "tableTo": "media",
-          "columnsFrom": [
-            "photo_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
         "application_artist_id_artist_id_fk": {
           "name": "application_artist_id_artist_id_fk",
           "tableFrom": "application",
           "tableTo": "artist",
           "columnsFrom": [
             "artist_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "application_show_id_show_id_fk": {
-          "name": "application_show_id_show_id_fk",
-          "tableFrom": "application",
-          "tableTo": "show",
-          "columnsFrom": [
-            "show_id"
           ],
           "columnsTo": [
             "id"
@@ -446,15 +355,7 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "application_dossier_hash_unique": {
-          "name": "application_dossier_hash_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "dossier_hash"
-          ]
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
         "application_contact": {
@@ -488,26 +389,6 @@
         "application_answered": {
           "name": "application_answered",
           "value": "(\"application\".\"status\" in ('accepted', 'declined')) = (\"application\".\"answered_at\" is not null)"
-        },
-        "application_title": {
-          "name": "application_title",
-          "value": "\"application\".\"title\" is null or length(\"application\".\"title\") between 1 and 200"
-        },
-        "application_bio": {
-          "name": "application_bio",
-          "value": "\"application\".\"bio\" is null or length(\"application\".\"bio\") between 1 and 2000"
-        },
-        "application_tracklist": {
-          "name": "application_tracklist",
-          "value": "\"application\".\"tracklist\" is null or length(\"application\".\"tracklist\") between 1 and 20000"
-        },
-        "application_message": {
-          "name": "application_message",
-          "value": "\"application\".\"message\" is null or length(\"application\".\"message\") between 1 and 2000"
-        },
-        "application_dossier": {
-          "name": "application_dossier",
-          "value": "(\"application\".\"submitted_at\" is null) = (\"application\".\"dossier_hash\" is not null)"
         }
       },
       "isRLSEnabled": true
@@ -935,12 +816,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "application_id": {
-          "name": "application_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "role": {
           "name": "role",
           "type": "audio_role",
@@ -1061,21 +936,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "audio_file_application": {
-          "name": "audio_file_application",
-          "columns": [
-            {
-              "expression": "application_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -1104,19 +964,6 @@
           ],
           "onDelete": "set null",
           "onUpdate": "no action"
-        },
-        "audio_file_application_id_application_id_fk": {
-          "name": "audio_file_application_id_application_id_fk",
-          "tableFrom": "audio_file",
-          "tableTo": "application",
-          "columnsFrom": [
-            "application_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1133,7 +980,7 @@
       "checkConstraints": {
         "audio_file_show": {
           "name": "audio_file_show",
-          "value": "\"audio_file\".\"status\" = 'uploading' or \"audio_file\".\"show_id\" is not null or \"audio_file\".\"application_id\" is not null"
+          "value": "\"audio_file\".\"status\" = 'uploading' or \"audio_file\".\"show_id\" is not null"
         },
         "audio_file_part_status": {
           "name": "audio_file_part_status",
@@ -3359,6 +3206,56 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.site_settings": {
+      "name": "site_settings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "boolean",
+          "primaryKey": true,
+          "notNull": true,
+          "default": true
+        },
+        "crt_filter": {
+          "name": "crt_filter",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "crt_strength": {
+          "name": "crt_strength",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 100
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "site_settings_single": {
+          "name": "site_settings_single",
+          "value": "\"site_settings\".\"id\""
+        },
+        "site_settings_crt_strength": {
+          "name": "site_settings_crt_strength",
+          "value": "\"site_settings\".\"crt_strength\" between 10 and 200"
+        }
+      },
       "isRLSEnabled": true
     },
     "public.submission": {

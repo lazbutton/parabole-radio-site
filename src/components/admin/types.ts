@@ -324,7 +324,9 @@ export type ClipRow = {
   added: string;
 };
 /** Les vidéos de fond ; `uploads` : l'envoi vers Vercel Blob est branché ; `maxBytes` : le poids maximal d'une vidéo. */
-export type ClipsData = { clips: ClipRow[]; uploads: boolean; maxBytes: number };
+/** Le filtre cathodique posé sur tout le site : allumé ou non, sa force en pour cent, et les bornes du curseur. */
+export type CrtView = { on: boolean; strength: number; min: number; max: number };
+export type ClipsData = { clips: ClipRow[]; uploads: boolean; maxBytes: number; crt: CrtView };
 /** La réponse du serveur à une action de l'écran des vidéos : la liste à jour, ou les erreurs. */
 export type ClipsResponse = { ok: true; data: ClipsData; message?: string } | { ok: false; errors: FieldErrors };
 

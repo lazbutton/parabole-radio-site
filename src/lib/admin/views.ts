@@ -6,6 +6,7 @@
  */
 import {
   compteSoundCloud,
+  CRT_STRENGTH,
   dayLabel,
   DELAY_CHOICES,
   emptyArtistForm,
@@ -30,6 +31,7 @@ import {
   type AdminFilm,
   type AdminMedia,
   type AdminShow,
+  type SiteLook,
   type TeamMember,
   type Taxonomy,
 } from "@parabole/cms";
@@ -283,12 +285,13 @@ export function tagsData(taxonomy: Taxonomy, wanted: string | null, rubrique: st
   return { ...taxonomy, current: taxonomy.facets[0]?.slug ?? UNPLACED };
 }
 
-/** Les vidéos de fond, dans l'ordre : le numéro de chaîne compte celles de la rotation. */
-export function clipsData(clips: AdminClip[]): ClipsData {
+/** Les vidéos de fond, dans l'ordre (le numéro de chaîne compte celles de la rotation), et le filtre cathodique. */
+export function clipsData(clips: AdminClip[], look: SiteLook): ClipsData {
   let channel = 0;
   return {
     uploads: blobReady(),
     maxBytes: MAX_VIDEO_BYTES,
+    crt: { on: look.crtFilter, strength: look.crtStrength, ...CRT_STRENGTH },
     clips: clips.map((clip) => ({
       id: clip.id,
       title: clip.title,

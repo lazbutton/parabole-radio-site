@@ -152,8 +152,22 @@
     {
       "idx": 21,
       "version": "7",
-      "when": 1793968570189,
-      "tag": "0021_candidatures_envoi",
+      "when": 1793966698624,
+      "tag": "0021_reglages_du_site",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793966699006,
+      "tag": "0022_reglages_du_site_acces",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793969545332,
+      "tag": "0023_candidatures_envoi",
       "breakpoints": true
     }
   ]
