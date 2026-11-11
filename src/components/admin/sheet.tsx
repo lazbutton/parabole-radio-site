@@ -47,12 +47,44 @@ export function Field({ label, htmlFor, optional, hint, error, children }: { lab
  * Une propriété de la fiche, en ligne : le libellé (avec son icône) à gauche, la valeur à droite, puis l'aide et
  * l'erreur. Sur téléphone, le libellé passe au-dessus.
  */
-export function Property({ label, icon, htmlFor, hint, error, children }: { label: string; icon: ReactNode; htmlFor?: string; hint?: ReactNode; error?: string; children: ReactNode }) {
+/**
+ * La marque d'une info obligatoire : il la faut pour publier, et sans elle l'émission reste « à traiter » (retours de
+ * l'équipe du 11 nov. 2026). `missing` : elle manque encore, la marque passe en orange.
+ */
+export function Required({ missing = false }: { missing?: boolean }) {
+  return (
+    <Text as="span" size="1" weight="regular" color={missing ? "amber" : "gray"} className="admin-required">
+      obligatoire
+    </Text>
+  );
+}
+
+export function Property({
+  label,
+  icon,
+  htmlFor,
+  hint,
+  error,
+  required,
+  children,
+}: {
+  label: string;
+  icon: ReactNode;
+  htmlFor?: string;
+  hint?: ReactNode;
+  error?: string;
+  /** Une info obligatoire ; « missing » : elle manque encore. */
+  required?: boolean | "missing";
+  children: ReactNode;
+}) {
   return (
     <div className="admin-prop" data-invalid={error ? true : undefined}>
       <Text as={htmlFor ? "label" : "div"} size="2" color="gray" className="admin-prop-label" {...(htmlFor ? { htmlFor } : {})}>
         <span aria-hidden>{icon}</span>
-        {label}
+        <span className="admin-prop-name">
+          {label}
+          {required && <Required missing={required === "missing"} />}
+        </span>
       </Text>
       <div className="admin-prop-value">
         {children}
@@ -133,14 +165,17 @@ export function Section({ title, count, aside, children }: { title: ReactNode; c
   );
 }
 
-/** Un bloc du panneau de côté (Pochette, Son, Informations). */
-export function SidePanel({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
+/** Un bloc du panneau de côté (Pochette, Son, Informations) ; `required` : une info obligatoire (« missing » : qui manque). */
+export function SidePanel({ title, aside, required, children }: { title: string; aside?: ReactNode; required?: boolean | "missing"; children: ReactNode }) {
   return (
     <section className="admin-side-panel">
       <Flex justify="between" align="center" gap="2" mb="3">
-        <Heading as="h2" size="1" weight="bold" color="gray" className="admin-side-title">
-          {title}
-        </Heading>
+        <Flex align="baseline" gap="2">
+          <Heading as="h2" size="1" weight="bold" color="gray" className="admin-side-title">
+            {title}
+          </Heading>
+          {required && <Required missing={required === "missing"} />}
+        </Flex>
         {aside}
       </Flex>
       <Flex direction="column" gap="3">

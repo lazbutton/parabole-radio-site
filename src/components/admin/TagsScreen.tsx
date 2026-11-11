@@ -17,6 +17,7 @@ import {
   Cross2Icon,
   DotsHorizontalIcon,
   ExclamationTriangleIcon,
+  ExternalLinkIcon,
   FileTextIcon,
   InfoCircledIcon,
   MagnifyingGlassIcon,
@@ -755,16 +756,17 @@ function TagDialog({ tag, facets, tags, onClose, ...context }: { tag: TagRow | n
           {tag.shows > 0 && (
             <>
               {" · "}
-              <a href={`/admin/shows?tag=${tag.id}`} data-astro-prefetch="false" onClick={onClose}>
-                voir les émissions
+              {/* Dans un nouvel onglet : on garde la fenêtre de l'étiquette (et « À classer ») ouverte ici. */}
+              <a href={`/admin/shows?tag=${tag.id}`} target="_blank" rel="noopener" data-astro-prefetch="false">
+                voir les émissions <ExternalLinkIcon aria-label="(nouvel onglet)" className="admin-inline-icon" />
               </a>
             </>
           )}
           {tag.artists > 0 && (
             <>
               {" · "}
-              <a href={`/admin/artistes?tag=${tag.id}`} data-astro-prefetch="false" onClick={onClose}>
-                voir les artistes
+              <a href={`/admin/artistes?tag=${tag.id}`} target="_blank" rel="noopener" data-astro-prefetch="false">
+                voir les artistes <ExternalLinkIcon aria-label="(nouvel onglet)" className="admin-inline-icon" />
               </a>
             </>
           )}

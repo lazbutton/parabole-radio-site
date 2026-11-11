@@ -1,10 +1,11 @@
 /**
- * L'accueil : de quoi savoir quoi faire en arrivant. Les prochaines diffusions ; les envois des résidents pour la
- * prochaine deadline (qui a envoyé, qui relancer, cms/README.md, 9.12) ; puis ce qui reste à compléter, en un seul bloc
- * depuis les retours du 4 novembre 2026 : ce qui manque et ce qui attend (chaque ligne mène à la liste filtrée, avec le
- * même nombre), et les derniers brouillons à reprendre. À droite, l'import de la programmation Radio Cult (son dernier
- * passage, ce qu'il reste à relire, et « Importer maintenant »), le compte SoundCloud où partent les émissions (9.14)
- * et les chiffres des rubriques. Créer une fiche se fait depuis sa rubrique, ou la recherche (⌘K).
+ * L'accueil : de quoi savoir quoi faire en arrivant. Les prochaines émissions, avec en tête l'import de la
+ * programmation Radio Cult (son dernier passage, « Importer maintenant », les créneaux à corriger) : un seul bloc depuis
+ * les retours du 11 novembre 2026, puisque l'import crée ces émissions. Puis les envois des résidents pour la prochaine
+ * deadline (combien ont envoyé, qui relancer, le bouton vers les résidents ; cms/README.md, 9.12) ; puis ce qui reste à
+ * compléter, en un seul bloc : ce qui manque et ce qui attend (chaque ligne mène à la liste filtrée, avec le même
+ * nombre), et les derniers brouillons à reprendre. À droite, le compte SoundCloud où partent les émissions (9.14) et les
+ * chiffres des rubriques. Créer une fiche se fait depuis sa rubrique, ou la recherche (⌘K).
  */
 import { LABELS } from "@parabole/cms/labels";
 import {
@@ -28,13 +29,12 @@ import {
   PlayIcon,
   SpeakerLoudIcon,
   TextAlignLeftIcon,
-  UpdateIcon,
 } from "@radix-ui/react-icons";
-import { AlertDialog, Badge, Button, Callout, Card, Dialog, Flex, Heading, IconButton, Kbd, Link, Select, Text, TextField } from "@radix-ui/themes";
+import { AlertDialog, Badge, Button, Callout, Card, Dialog, Flex, Heading, IconButton, Kbd, Link, Progress, Select, Text, TextField } from "@radix-ui/themes";
 import { useEffect, useState, type ReactNode } from "react";
 import { PageHeader } from "./AdminShell";
 import { useCommand } from "./CommandPalette";
-import { StatusBadge, useModKey } from "./marks";
+import { StepBadge, useModKey } from "./marks";
 import { useRouter } from "./router";
 import { Field, postForm } from "./sheet";
 import { counted } from "./text";
@@ -52,7 +52,7 @@ const SOUNDCLOUD_RETURNS: Record<string, Flash> = {
   reglages: { kind: "error", title: "SoundCloud n'est pas branché", description: "Il manque SOUNDCLOUD_CLIENT_ID et SOUNDCLOUD_CLIENT_SECRET dans Vercel." },
 };
 
-export function Dashboard({ viewer, today, stats, upcoming, missing, envois, applications, deadlines, cycle, drafts, radiocult, soundcloud }: DashboardData & { viewer: Viewer }) {
+export function Dashboard({ viewer, today, stats, steps, upcoming, missing, envois, applications, deadlines, cycle, drafts, radiocult, soundcloud }: DashboardData & { viewer: Viewer }) {
   const firstName = viewer.name.split(" ")[0];
   const openCommand = useCommand();
   const mod = useModKey();
@@ -74,7 +74,7 @@ export function Dashboard({ viewer, today, stats, upcoming, missing, envois, app
     { count: envois.slot, label: `${envois.slot > 1 ? "Envois" : "Envoi"} sans créneau`, href: "/admin/shows?missing=slot", icon: <CalendarIcon /> },
     { count: applications.new, label: `${applications.new > 1 ? "Candidatures" : "Candidature"} à écouter`, href: "/admin/candidatures?status=new", icon: <EnvelopeClosedIcon /> },
     { count: applications.late, label: `${applications.late > 1 ? "Candidatures" : "Candidature"} sans réponse au-delà du délai annoncé`, href: "/admin/candidatures?late=1", icon: <ClockIcon /> },
-    { count: stats.shows.draft, label: `${stats.shows.draft > 1 ? "Émissions" : "Émission"} en brouillon`, href: "/admin/shows?status=draft", icon: <FileTextIcon /> },
+    { count: steps.todo, label: `${steps.todo > 1 ? "Émissions" : "Émission"} à traiter`, href: "/admin/shows?step=todo", icon: <FileTextIcon /> },
     { count: missing.tracklist, label: `${aired(missing.tracklist)} sans tracklist`, href: "/admin/shows?missing=tracklist", icon: <ListBulletIcon /> },
     { count: missing.sound, label: `${aired(missing.sound)} sans son`, href: "/admin/shows?missing=sound", icon: <SpeakerLoudIcon /> },
     { count: missing.cover, label: `${aired(missing.cover)} sans pochette`, href: "/admin/shows?missing=cover", icon: <ImageIcon /> },
@@ -100,34 +100,7 @@ export function Dashboard({ viewer, today, stats, upcoming, missing, envois, app
 
       <div className="admin-dashboard">
         <Flex direction="column" gap="5" minWidth="0">
-          <Panel title="Prochaines diffusions" action={<PanelLink href="/admin/shows">Toutes les émissions</PanelLink>}>
-            {upcoming.length ? (
-              <ul className="admin-rows">
-                {upcoming.map((show) => (
-                  <li key={show.href}>
-                    <a className="admin-row-link" href={show.href} data-astro-prefetch="false">
-                      <span className="admin-date-block" aria-hidden>
-                        <span>{show.weekday}</span>
-                        <strong>{show.dayOfMonth}</strong>
-                        <span>{show.month}</span>
-                      </span>
-                      <span className="admin-row-main">
-                        <Text as="span" size="2" weight="medium" highContrast className="admin-break">
-                          {show.title}
-                        </Text>
-                        <Text as="span" size="1" color="gray">
-                          {[`${show.when.charAt(0).toUpperCase()}${show.when.slice(1)}, ${show.time}`, LABELS.showType[show.type], show.artists].filter(Boolean).join(" · ")}
-                        </Text>
-                      </span>
-                      {show.status === "draft" && <StatusBadge status="draft" />}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <Empty icon={<DiscIcon />}>Aucune émission datée à venir. Les créneaux de Radio Cult arrivent ici chaque nuit, ou avec « Importer maintenant ».</Empty>
-            )}
-          </Panel>
+          <Upcoming upcoming={upcoming} panel={radiocult} />
 
           <Deadlines deadlines={deadlines} cycle={cycle} admin={viewer.role === "admin"} reserve={applications.new + applications.shortlisted} />
 
@@ -185,13 +158,24 @@ export function Dashboard({ viewer, today, stats, upcoming, missing, envois, app
         </Flex>
 
         <Flex direction="column" gap="5" minWidth="0">
-          <RadioCult panel={radiocult} />
           <SoundCloud panel={soundcloud} admin={viewer.role === "admin"} />
 
           <Panel title="En chiffres">
             <div className="admin-stats">
-              <Stat label="Émissions" icon={<DiscIcon />} published={counted(stats.shows.published, "publiée")} draft={stats.shows.draft} total={stats.shows.published + stats.shows.draft} href="/admin/shows" />
-              <Stat label="Résidents" icon={<PersonIcon />} published={counted(stats.artists.published, "publié")} draft={stats.artists.draft} total={stats.artists.published + stats.artists.draft} href="/admin/artistes" />
+              <Stat
+                label="Émissions"
+                icon={<DiscIcon />}
+                detail={`${steps.online} en ligne · ${steps.todo} à traiter · ${steps.waiting} en attente`}
+                total={stats.shows.published + stats.shows.draft}
+                href="/admin/shows"
+              />
+              <Stat
+                label="Résidents"
+                icon={<PersonIcon />}
+                detail={`${counted(stats.artists.published, "publié")} · ${stats.artists.draft} en brouillon`}
+                total={stats.artists.published + stats.artists.draft}
+                href="/admin/artistes"
+              />
             </div>
           </Panel>
 
@@ -223,11 +207,18 @@ function Deadlines({ deadlines, cycle, admin, reserve }: { deadlines: DeadlineVi
     <Panel
       title="Envois des résidents"
       action={
-        admin ? (
-          <Button size="1" variant="ghost" color="gray" onClick={() => setSetting(true)}>
-            <CalendarIcon /> Calendrier
+        <Flex gap="2" align="center">
+          <Button size="1" variant="soft" asChild>
+            <a href="/admin/artistes?role=resident" data-astro-prefetch="false">
+              <PersonIcon /> Résidents
+            </a>
           </Button>
-        ) : undefined
+          {admin && (
+            <Button size="1" variant="ghost" color="gray" onClick={() => setSetting(true)}>
+              <CalendarIcon /> Calendrier
+            </Button>
+          )}
+        </Flex>
       }
     >
       {!cycle ? (
@@ -239,52 +230,74 @@ function Deadlines({ deadlines, cycle, admin, reserve }: { deadlines: DeadlineVi
         <Flex direction="column" gap="4">
           {deadlines.map((panel) => {
             const missing = panel.residents.filter((resident) => !resident.sent);
+            const total = panel.residents.length;
             return (
               <div key={`${panel.group}-${panel.block}`} className="admin-deadline">
-                <Flex align="center" gap="2" wrap="wrap">
-                  <Text size="2" weight="bold">
-                    Groupe {panel.group}
-                  </Text>
+                <Flex align="center" justify="between" gap="2" wrap="wrap">
+                  <Flex align="center" gap="2" wrap="wrap">
+                    <Badge color="indigo" variant="soft" radius="full" size="2">
+                      Groupe {panel.group}
+                    </Badge>
+                    <Text size="1" color="gray">
+                      Bloc {panel.block}
+                    </Text>
+                  </Flex>
                   {panel.late && <Badge color="red">Deadline passée</Badge>}
                 </Flex>
-                <Text as="p" size="1" color="gray">
-                  Bloc {panel.block}
-                </Text>
-                <Text as="p" size="1" color={panel.late ? "red" : "gray"}>
-                  {panel.late ? `Deadline passée le ${panel.deadline} (${panel.when}) : les retardataires.` : `Deadline le ${panel.deadline}, ${panel.when}.`}
-                </Text>
-                {panel.residents.length ? (
+                {total ? (
                   <>
-                    <Text as="p" size="2" mt="2">
-                      {panel.sent} {panel.sent > 1 ? "envois" : "envoi"} sur {counted(panel.residents.length, "résident")}
-                    </Text>
+                    <Flex align="baseline" justify="between" gap="3" wrap="wrap" mt="3">
+                      <Flex align="baseline" gap="2">
+                        <Text size="6" weight="bold" className="admin-stat-value">
+                          {panel.sent}
+                        </Text>
+                        <Text size="2" color="gray">
+                          sur {total} {panel.sent > 1 ? "ont envoyé" : "a envoyé"}
+                        </Text>
+                      </Flex>
+                      <Text size="1" color={panel.late ? "red" : "gray"}>
+                        {panel.late ? `Deadline passée le ${panel.deadline} (${panel.when})` : `Deadline le ${panel.deadline}, ${panel.when}`}
+                      </Text>
+                    </Flex>
+                    <Progress
+                      size="1"
+                      mt="2"
+                      value={Math.round((panel.sent / total) * 100)}
+                      color={missing.length ? (panel.late ? "red" : "indigo") : "green"}
+                      aria-label={`Groupe ${panel.group} : ${panel.sent} envois sur ${total}`}
+                    />
                     {missing.length > 0 ? (
-                      <ul className="admin-rows admin-deadline-list">
-                        {missing.map((resident) => (
-                          <li key={resident.id} className="admin-deadline-row">
-                            <a className="admin-row-link" href={`/admin/artistes/${resident.id}`} data-astro-prefetch="false">
-                              <span className="admin-row-icon" aria-hidden>
-                                <PersonIcon />
-                              </span>
-                              <Text as="span" size="2" className="admin-row-main">
-                                {resident.name}
-                              </Text>
-                              {!resident.link && (
-                                <Text as="span" size="1" color="gray">
-                                  sans lien
+                      <>
+                        <Text as="p" size="1" weight="medium" color="gray" mt="3" mb="1">
+                          {panel.late ? "Les retardataires" : "À relancer"} · {missing.length}
+                        </Text>
+                        <ul className="admin-rows admin-deadline-list">
+                          {missing.map((resident) => (
+                            <li key={resident.id} className="admin-deadline-row">
+                              <a className="admin-row-link" href={`/admin/artistes/${resident.id}`} data-astro-prefetch="false">
+                                <span className="admin-row-icon" aria-hidden>
+                                  <PersonIcon />
+                                </span>
+                                <Text as="span" size="2" className="admin-row-main">
+                                  {resident.name}
                                 </Text>
+                                {!resident.link && (
+                                  <Text as="span" size="1" color="gray">
+                                    sans lien
+                                  </Text>
+                                )}
+                              </a>
+                              {resident.link && (
+                                <IconButton size="1" variant="ghost" color="gray" aria-label={`Copier le lien d'envoi de ${resident.name}`} title="Copier son lien d'envoi" onClick={() => void copy(resident.name, resident.link!)}>
+                                  <CopyIcon />
+                                </IconButton>
                               )}
-                            </a>
-                            {resident.link && (
-                              <IconButton size="1" variant="ghost" color="gray" aria-label={`Copier le lien d'envoi de ${resident.name}`} title="Copier son lien d'envoi" onClick={() => void copy(resident.name, resident.link!)}>
-                                <CopyIcon />
-                              </IconButton>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
                     ) : (
-                      <Text as="p" size="2" color="green">
+                      <Text as="p" size="2" color="green" mt="3">
                         Tout le groupe a envoyé.
                       </Text>
                     )}
@@ -402,18 +415,18 @@ function CycleDialog({ open, cycle, onClose }: { open: boolean; cycle: Dashboard
 const SHOWN = 5;
 
 /**
- * L'import de la programmation Radio Cult (cms/README.md, 9.4) : le dernier passage, puis ce qu'il reste à relire,
- * d'abord ce qui demande une correction (un show publié dont le créneau a bougé, un créneau disparu), puis les
- * brouillons créés ou mis à jour et les artistes créés. « Importer maintenant » lance l'import tout de suite, au nom
- * de la personne connectée, et l'accueil se met à jour.
+ * Les prochaines émissions, de la plus proche à la plus lointaine, avec leur état (à traiter, en attente), et en tête
+ * l'import de la programmation Radio Cult qui les crée (cms/README.md, 9.4) : son dernier passage, « Importer
+ * maintenant » (au nom de la personne connectée ; l'accueil se met à jour), et les créneaux à corriger à la main (les
+ * émissions publiées dont le créneau a bougé ou disparu). Les brouillons créés ou mis à jour par l'import se voient dans
+ * la liste, les artistes créés dans « À compléter ».
  */
-function RadioCult({ panel }: { panel: RadioCultPanel }) {
+function Upcoming({ upcoming, panel }: { upcoming: DashboardData["upcoming"]; panel: RadioCultPanel }) {
   const router = useRouter();
   const notify = useNotify();
   const [busy, setBusy] = useState(false);
   const { last, lastOk } = panel;
   const fixes = [...panel.moved, ...panel.gone];
-  const quiet = !fixes.length && !panel.created.length && !panel.updated.length && !panel.artists.length;
 
   async function run() {
     setBusy(true);
@@ -430,68 +443,84 @@ function RadioCult({ panel }: { panel: RadioCultPanel }) {
     else notify({ kind: "error", title: "Import impossible", description: "errors" in result ? result.errors.form : result.message });
   }
 
-  if (panel.unavailable)
-    return (
-      <Panel title="Programmation Radio Cult">
-        <Callout.Root color="amber" size="1" variant="surface">
-          <Callout.Icon>
-            <ExclamationTriangleIcon />
-          </Callout.Icon>
-          <Callout.Text>{panel.unavailable}</Callout.Text>
-        </Callout.Root>
-      </Panel>
-    );
+  const notes = [...new Set([...panel.notes, ...(panel.key ? [] : ["Sans la clé publishable de Radio Cult (PUBLIC_RADIOCULT_KEY), les artistes des créneaux ne sont pas lus."])])];
 
   return (
-    <Panel title="Programmation Radio Cult">
-      {!last ? (
-        <Text as="p" size="2" color="gray" mb="2">
-          Pas encore d'import. Il passe chaque nuit vers 6 h et crée un brouillon pour chaque créneau des 14 jours à venir ; « Importer maintenant » le
-          lance tout de suite.
-        </Text>
-      ) : last.ok ? (
-        <Text as="p" size="2" color="gray" mb="2" title={last.date}>
-          Dernier import {last.when}, par {last.by} : {last.summary.charAt(0).toLowerCase() + last.summary.slice(1)}
-        </Text>
-      ) : (
-        <Callout.Root color="red" size="1" variant="surface" mb="3">
-          <Callout.Icon>
-            <ExclamationTriangleIcon />
-          </Callout.Icon>
-          <Callout.Text>
-            Le dernier import, {last.when} ({last.by}), n'a rien changé : {last.summary}
-            {lastOk ? ` Le précédent, ${lastOk.when}, avait réussi.` : ""}
-          </Callout.Text>
-        </Callout.Root>
-      )}
-      <Flex mb="1">
-        <Button size="1" variant="soft" loading={busy} onClick={() => void run()}>
-          <DownloadIcon /> Importer maintenant
-        </Button>
-      </Flex>
-
-      {fixes.length > 0 && (
-        <ImportGroup
-          label="À corriger à la main"
-          hint="L'import ne touche ni aux émissions publiées ni aux créneaux disparus : corrige la fiche, ou le créneau chez Radio Cult."
-          lines={fixes}
-          icon={<ExclamationTriangleIcon />}
-          alert
-        />
-      )}
-      {panel.created.length > 0 && <ImportGroup label="Nouveaux brouillons" lines={panel.created} icon={<FileTextIcon />} />}
-      {panel.updated.length > 0 && <ImportGroup label="Brouillons mis à jour" lines={panel.updated} icon={<UpdateIcon />} />}
-      {panel.artists.length > 0 && <ImportGroup label="Artistes créés" lines={panel.artists} icon={<PersonIcon />} />}
-      {last?.ok && quiet && <Empty icon={<CheckCircledIcon />}>Rien à relire : les émissions suivent la programmation.</Empty>}
-
-      {(panel.notes.length > 0 || !panel.key) && (
-        <Flex direction="column" gap="1" mt="2">
-          {[...new Set([...panel.notes, ...(panel.key ? [] : ["Sans la clé publishable de Radio Cult (PUBLIC_RADIOCULT_KEY), les artistes des créneaux ne sont pas lus."])])].map((note) => (
-            <Text key={note} as="p" size="1" color="gray">
-              {note}
+    <Panel title="Prochaines émissions" action={<PanelLink href="/admin/shows">Toutes les émissions</PanelLink>}>
+      <div className="admin-import-bar">
+        {panel.unavailable ? (
+          <Callout.Root color="amber" size="1" variant="surface">
+            <Callout.Icon>
+              <ExclamationTriangleIcon />
+            </Callout.Icon>
+            <Callout.Text>{panel.unavailable}</Callout.Text>
+          </Callout.Root>
+        ) : (
+          <Flex align="center" justify="between" gap="3" wrap="wrap">
+            <Text as="p" size="1" color="gray" className="admin-import-status" title={last?.date}>
+              {!last
+                ? "Programmation Radio Cult : pas encore importée. L'import passe chaque nuit vers 6 h et crée un brouillon pour chaque créneau des 14 jours à venir."
+                : last.ok
+                  ? `Programmation Radio Cult importée ${last.when}, par ${last.by} : ${last.summary.charAt(0).toLowerCase() + last.summary.slice(1)}`
+                  : "Programmation Radio Cult : le dernier import n'a pas abouti."}
             </Text>
+            <Button size="1" variant="soft" loading={busy} onClick={() => void run()}>
+              <DownloadIcon /> Importer maintenant
+            </Button>
+          </Flex>
+        )}
+        {last && !last.ok && (
+          <Callout.Root color="red" size="1" variant="surface">
+            <Callout.Icon>
+              <ExclamationTriangleIcon />
+            </Callout.Icon>
+            <Callout.Text>
+              Le dernier import, {last.when} ({last.by}), n'a rien changé : {last.summary}
+              {lastOk ? ` Le précédent, ${lastOk.when}, avait réussi.` : ""}
+            </Callout.Text>
+          </Callout.Root>
+        )}
+        {fixes.length > 0 && (
+          <ImportGroup
+            label="Créneaux à corriger à la main"
+            hint="L'import ne touche ni aux émissions publiées ni aux créneaux disparus : corrige la fiche, ou le créneau chez Radio Cult."
+            lines={fixes}
+            icon={<ExclamationTriangleIcon />}
+            alert
+          />
+        )}
+        {notes.map((note) => (
+          <Text key={note} as="p" size="1" color="gray">
+            {note}
+          </Text>
+        ))}
+      </div>
+
+      {upcoming.length ? (
+        <ul className="admin-rows">
+          {upcoming.map((show) => (
+            <li key={show.href}>
+              <a className="admin-row-link" href={show.href} data-astro-prefetch="false">
+                <span className="admin-date-block" aria-hidden>
+                  <span>{show.weekday}</span>
+                  <strong>{show.dayOfMonth}</strong>
+                  <span>{show.month}</span>
+                </span>
+                <span className="admin-row-main">
+                  <Text as="span" size="2" weight="medium" highContrast className="admin-break">
+                    {show.title}
+                  </Text>
+                  <Text as="span" size="1" color="gray">
+                    {[`${show.when.charAt(0).toUpperCase()}${show.when.slice(1)}, ${show.time}`, LABELS.showType[show.type], show.artists].filter(Boolean).join(" · ")}
+                  </Text>
+                </span>
+                <StepBadge step={show.step} lacking={show.lacking} />
+              </a>
+            </li>
           ))}
-        </Flex>
+        </ul>
+      ) : (
+        <Empty icon={<DiscIcon />}>Aucune émission datée à venir. Les créneaux de Radio Cult arrivent ici chaque nuit, ou avec « Importer maintenant ».</Empty>
       )}
     </Panel>
   );
@@ -677,7 +706,7 @@ function Empty({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   );
 }
 
-function Stat({ label, icon, published, draft, total, href }: { label: string; icon: ReactNode; published: string; draft: number; total: number; href: string }) {
+function Stat({ label, icon, detail, total, href }: { label: string; icon: ReactNode; detail: string; total: number; href: string }) {
   return (
     <a className="admin-stat" href={href} data-astro-prefetch="false">
       <Flex align="center" gap="2">
@@ -692,7 +721,7 @@ function Stat({ label, icon, published, draft, total, href }: { label: string; i
         {total}
       </Text>
       <Text as="p" size="1" color="gray">
-        {published} · {draft} en brouillon
+        {detail}
       </Text>
     </a>
   );

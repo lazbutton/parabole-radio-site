@@ -119,6 +119,10 @@ html .radix-themes {
 .admin-search { width: 100%; max-width: 560px; }
 .admin-pills { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .admin-pills-end { margin-left: auto; }
+.admin-hidden-filter { gap: 6px; padding-right: 4px; }
+.admin-inline-icon { width: 12px; height: 12px; vertical-align: -1px; }
+.admin-hidden-filter-clear { display: grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 999px; background: none; color: inherit; cursor: pointer; }
+.admin-hidden-filter-clear:hover { background: var(--gray-a4); }
 .admin-pill strong { font-weight: 600; }
 
 /* Une liste qui se met à jour (filtre, recherche) : elle pâlit le temps de la réponse, si ça dure un peu. */
@@ -444,6 +448,8 @@ html .radix-themes {
 .admin-prop { display: grid; grid-template-columns: 148px minmax(0, 1fr); gap: 4px 16px; align-items: start; padding: 6px 0; }
 .admin-prop-label { display: flex; align-items: center; gap: 8px; min-height: var(--space-6); }
 .admin-prop-label svg { flex-shrink: 0; color: var(--gray-10); }
+.admin-prop-name { display: flex; flex-direction: column; line-height: 1.25; }
+.admin-required { font-size: 11px; letter-spacing: 0.01em; line-height: 1.2; }
 .admin-prop[data-invalid] .admin-prop-label { color: var(--red-11); }
 .admin-prop-value { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
 .admin-prop-value > .admin-tokens { align-self: stretch; }
@@ -854,3 +860,6 @@ input.admin-track-start { font-family: var(--code-font-family); font-variant-num
 .admin-line-icon { display: grid; place-items: center; width: 20px; color: var(--gray-10); flex-shrink: 0; }
 .admin-align-start { align-self: flex-start; }
 .admin-reserve { margin-top: 12px; }
+/* L'import Radio Cult, en tête des prochaines émissions : son passage, son bouton, ce qui est à corriger */
+.admin-import-bar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--gray-a4); }
+.admin-import-status { flex: 1 1 260px; min-width: 0; }

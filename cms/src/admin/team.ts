@@ -7,7 +7,7 @@ import { outer } from "../read/common.ts";
 import { artist, member, show, tag, tagGroup, tagMember, type ContentStatus, type ShowType, type TeamRole } from "../schema.ts";
 import { lacksBio, lacksPhoto } from "./artists.ts";
 import { awaitsAssembly, awaitsReview, awaitsSlot, deadlinePanels, sendFailed, type DeadlinePanel } from "./envois.ts";
-import { artistNames, lacksCover, lacksDescription, lacksSound, lacksTags, lacksTracklist } from "./shows.ts";
+import { artistNames, lackingOf, lacksCover, lacksDescription, lacksSound, lacksTags, lacksTracklist, stepOf, type ShowLack, type ShowStep } from "./shows.ts";
 
 export type TeamMember = { userId: string; email: string; name: string; role: TeamRole };
 
@@ -22,11 +22,13 @@ export async function getMember(tx: Tx, userId: string): Promise<TeamMember | nu
 
 export type Overview = {
   shows: { draft: number; published: number };
+  /** Les émissions par état (shows.ts, SHOW_STEPS) : à traiter, en attente, en ligne. */
+  steps: Record<ShowStep, number>;
   artists: { draft: number; published: number };
   /** Les brouillons modifiés le plus récemment, shows et artistes mêlés. */
   drafts: { kind: "show" | "artist"; id: string; title: string; updatedAt: Date }[];
   /** Les prochains shows à diffuser, du plus proche au plus lointain, brouillons compris. */
-  upcoming: { id: string; title: string; type: ShowType; status: ContentStatus; broadcastAt: Date; artists: string[] }[];
+  upcoming: { id: string; title: string; type: ShowType; status: ContentStatus; step: ShowStep; lacking: ShowLack[]; broadcastAt: Date; artists: string[] }[];
   /**
    * Ce qui reste à compléter : émissions déjà diffusées sans tracklist (sauf les podcasts), sans son, sans pochette,
    * sans description ou sans étiquette (`untagged`), artistes sans photo ou sans bio, étiquettes à classer (`tags`,
@@ -53,6 +55,8 @@ export async function overview(tx: Tx, { drafts = 8, upcoming = 5, now = new Dat
   const [shows] = await tx
     .select({
       ...counts(show.status),
+      todo: sql<number>`count(*) filter (where ${stepOf()} = 'todo')`.mapWith(Number),
+      waiting: sql<number>`count(*) filter (where ${stepOf()} = 'waiting')`.mapWith(Number),
       tracklist: sql<number>`count(*) filter (where ${lacksTracklist(now)})`.mapWith(Number),
       sound: sql<number>`count(*) filter (where ${lacksSound(now)})`.mapWith(Number),
       cover: sql<number>`count(*) filter (where ${lacksCover(now)})`.mapWith(Number),
@@ -76,7 +80,7 @@ export async function overview(tx: Tx, { drafts = 8, upcoming = 5, now = new Dat
     .from(tag)
     .where(sql`not exists (select 1 from ${tagGroup} g where g.tag_id = ${outer(tag.id)}) and not exists (select 1 from ${tagMember} m where m.tag_id = ${outer(tag.id)})`);
   const next = await tx
-    .select({ id: show.id, title: show.title, type: show.type, status: show.status, broadcastAt: show.broadcastAt, artists: artistNames() })
+    .select({ id: show.id, title: show.title, type: show.type, status: show.status, step: stepOf(), lacking: lackingOf(), broadcastAt: show.broadcastAt, artists: artistNames() })
     .from(show)
     .where(gt(show.broadcastAt, now))
     .orderBy(asc(show.broadcastAt))
@@ -85,6 +89,7 @@ export async function overview(tx: Tx, { drafts = 8, upcoming = 5, now = new Dat
   const artistDrafts = await tx.select({ id: artist.id, title: artist.name, updatedAt: artist.updatedAt }).from(artist).where(eq(artist.status, "draft")).orderBy(desc(artist.updatedAt)).limit(drafts);
   return {
     shows: { draft: shows?.draft ?? 0, published: shows?.published ?? 0 },
+    steps: { todo: shows?.todo ?? 0, waiting: shows?.waiting ?? 0, online: shows?.published ?? 0 },
     artists: { draft: artists?.draft ?? 0, published: artists?.published ?? 0 },
     drafts: [...showDrafts.map((row) => ({ kind: "show" as const, ...row })), ...artistDrafts.map((row) => ({ kind: "artist" as const, ...row }))]
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())

@@ -9,7 +9,7 @@ import type { Connection } from "../src/db.ts";
 import { fromParisInput, toParisInput } from "../src/paris.ts";
 import { frenchOrder } from "../src/read/common.ts";
 import { createReader } from "../src/read/index.ts";
-import { artist, show, showTag, tag, track } from "../src/schema.ts";
+import { artist, audioFile, media, show, showTag, tag, track } from "../src/schema.ts";
 import { formatTimecode, parseTimecode, parseTracklist } from "../src/tracklist.ts";
 import { createAccount, exampleDb, MEDIA_BASE, NOW } from "./helpers.ts";
 
@@ -363,16 +363,67 @@ describe("les shows dans l'admin", () => {
     expect(typed).toEqual({ ok: false, errors: { slug: "Cette adresse sert déjà à l'émission « Matin calme (exemple) »." } });
   });
 
-  it("publie avec une date de diffusion, puis dépublie", async () => {
+  it("publie avec les infos obligatoires (date, pochette, description, étiquettes, mood, tracklist, son), puis dépublie", async () => {
     const created = await saveForm(editor, { title: "À publier", broadcastAt: "2026-06-01T21:00" });
     if (!created.ok) throw new Error("création refusée");
     const loaded = await editor.getShow(created.id);
-    const published = await saveForm(editor, { title: "À publier", slug: loaded!.slug, broadcastAt: "2026-06-01T21:00" }, { id: created.id, version: loaded!.version, publish: true });
+    // Publier à la main demande tout ce que le formulaire marque « obligatoire ».
+    expect(await saveForm(editor, { title: "À publier", slug: loaded!.slug, broadcastAt: "2026-06-01T21:00" }, { id: created.id, version: loaded!.version, publish: true })).toEqual({
+      ok: false,
+      errors: { form: "Pour publier, il manque la pochette, la description, les étiquettes, le mood, la tracklist et le son." },
+    });
+    const [cover] = await connection.db.select({ id: media.id }).from(media).limit(1);
+    await connection.db.update(show).set({ coverId: cover!.id }).where(eq(show.id, created.id));
+    const [genre] = await connection.db.select({ id: tag.id }).from(tag).limit(1);
+    const complete = {
+      title: "À publier",
+      slug: loaded!.slug,
+      broadcastAt: "2026-06-01T21:00",
+      description: "Une émission complète.",
+      tags: [genre!.id],
+      energy: "2",
+      tracks: [{ artist: "A", title: "Un", start: "", hopperUrl: "" }],
+      soundcloudTrackId: "123456",
+    };
+    const fresh = await editor.getShow(created.id);
+    const published = await saveForm(editor, complete, { id: created.id, version: fresh!.version, publish: true });
     expect(published).toMatchObject({ ok: true });
     expect(await publicReader().getShow("a-publier")).toMatchObject({ title: "À publier" });
+    // En ligne, elle s'enregistre comme avant, même incomplète (les émissions d'exemple, celles publiées par SoundCloud).
+    const online = await editor.getShow(created.id);
+    expect(await saveForm(editor, { ...complete, description: "", slug: online!.slug }, { id: created.id, version: online!.version })).toMatchObject({ ok: true });
     const after = await editor.getShow(created.id);
     await saveForm(editor, { title: "À publier", slug: after!.slug, broadcastAt: "2026-06-01T21:00" }, { id: created.id, version: after!.version, unpublish: true });
     expect(await publicReader().getShow("a-publier")).toBeNull();
+  });
+
+  it("range les émissions en trois états : à traiter, en attente, en ligne", async () => {
+    const [cover] = await connection.db.select({ id: media.id }).from(media).limit(1);
+    const [theme] = await connection.db.select({ id: tag.id }).from(tag).limit(1);
+    // Un podcast prêt : sans tracklist ni mood (il n'en faut pas), avec son son validé.
+    const ready = await saveForm(editor, { title: "Podcast prêt", type: "podcast", broadcastAt: "2026-07-01T18:00", description: "Prêt à passer.", tags: [theme!.id] });
+    const half = await saveForm(editor, { title: "DJ set à moitié", broadcastAt: "2026-07-02T18:00", description: "Il manque des choses.", tags: [theme!.id] });
+    if (!ready.ok || !half.ok) throw new Error("création refusée");
+    await connection.db.update(show).set({ coverId: cover!.id }).where(eq(show.id, ready.id));
+    await connection.db.insert(audioFile).values({ showId: ready.id, role: "main", key: "audio/2026/07/00000000-0000-4000-8000-0000000000aa.mp3", fileName: "pret.mp3", mimeType: "audio/mpeg", status: "approved" });
+    const rows = (await editor.listShows({ q: "" , limit: 500 })).items;
+    const byTitle = (title: string) => rows.find((row) => row.title === title)!;
+    expect(byTitle("Podcast prêt")).toMatchObject({ step: "waiting", lacking: [] });
+    expect(byTitle("DJ set à moitié")).toMatchObject({ step: "todo", lacking: ["cover", "mood", "tracklist", "sound"] });
+    // Un son reçu, pas encore écouté : à traiter, même complète.
+    await connection.db.update(audioFile).set({ status: "received" }).where(eq(audioFile.showId, ready.id));
+    expect((await editor.listShows({ step: "todo", limit: 500 })).items.find((row) => row.title === "Podcast prêt")?.lacking).toEqual(["sound", "review"]);
+    await connection.db.update(audioFile).set({ status: "approved" }).where(eq(audioFile.showId, ready.id));
+    expect((await editor.listShows({ step: "waiting", limit: 500 })).items.map((row) => row.title)).toContain("Podcast prêt");
+    // Publiée : en ligne.
+    const online = (await editor.listShows({ step: "online", limit: 500 })).items;
+    expect(online.length).toBeGreaterThan(0);
+    expect(online.every((row) => row.status === "published")).toBe(true);
+    // Les comptes : chaque émission dans un seul état.
+    const steps = await editor.showSteps();
+    const total = (await editor.listShows({ limit: 500 })).total;
+    expect(steps.todo + steps.waiting + steps.online).toBe(total);
+    expect((await editor.overview()).steps).toEqual(steps);
   });
 
   it("refuse de publier sans date, même quand l'écran l'oublie, et garde la date d'un show publié", async () => {
