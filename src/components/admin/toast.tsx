@@ -2,9 +2,14 @@
  * Les notifications de l'admin (Radix Toast) : « Show enregistré », « La fiche n'est pas enregistrée »… En bas à
  * droite, quatre secondes (huit pour une erreur), fermables, glissables vers la droite ; lues par les lecteurs d'écran.
  * Elles restent affichées quand on change d'écran.
+ *
+ * Toast vient de radix-ui, comme le reste de Radix Themes, et non du paquet @radix-ui/react-toast : sa version à
+ * part ramenait une autre copie de react-dismissable-layer, et chaque copie tient son propre compte des fenêtres
+ * ouvertes. Le menu « … » et le dialogue de suppression ne se voyaient plus : en partant, le dialogue remettait
+ * pointer-events: none sur la page, et plus rien ne se cliquait. Pas d'autre paquet @radix-ui/* à part.
  */
 import { CheckCircledIcon, Cross2Icon, CrossCircledIcon, InfoCircledIcon } from "@radix-ui/react-icons";
-import * as Toast from "@radix-ui/react-toast";
+import { Toast } from "radix-ui";
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import type { Flash } from "./types";
 
