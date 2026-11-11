@@ -2,12 +2,13 @@
 /**
  * Une candidature (cms/README.md, 9.17) : tout ce qu'elle dit, et ce que l'équipe en fait, en POST (réponse en JSON) :
  *   - note : la note de l'équipe ;
- *   - shortlist, reopen : la mettre de côté, la remettre à écouter (un refus aussi, tant qu'il n'est pas effacé) ;
+ *   - shortlist, reopen : la mettre de côté, la remettre à écouter ;
  *   - accept : la validation, qui crée l'émission en brouillon avec son son, et la fiche d'invité (ou reprend la fiche
- *     du même nom), au nom de la personne connectée ; l'écran prépare ensuite le message à envoyer ;
- *   - decline : « pas cette fois » ; son son (seau R2) et sa photo (Storage) sont effacés tout de suite, la candidature
- *     six mois après, par la tâche de nuit ;
- *   - delete : l'effacer tout de suite (indésirable, ou demandé par la personne), avec son son et sa photo.
+ *     du même nom), au nom de la personne connectée ; l'écran prépare ensuite le message à envoyer. La candidature est
+ *     effacée six mois après, par la tâche de nuit ;
+ *   - decline : « pas cette fois » ; on ne répond qu'aux émissions retenues, elle est donc effacée tout de suite, avec
+ *     son son (seau R2) et sa photo (Storage) ;
+ *   - delete : l'effacer tout de suite (une candidature validée, avant ses six mois, ou à la demande de la personne).
  */
 import type { Accepted, NotSaved } from "@parabole/cms";
 import type { ApplicationResponse, Screen } from "../../../components/admin/types";
@@ -22,7 +23,7 @@ export const prerender = false;
 const admin = Astro.locals.admin!;
 const id = Astro.params.id ?? "";
 const now = new Date();
-const application = await admin.getApplication(id, now);
+const application = await admin.getApplication(id);
 const posted = Astro.request.method === "POST";
 if (!application) return posted ? json({ ok: false, errors: { form: "Cette candidature n'existe plus : elle a peut-être été effacée." } }, 404) : seeOther("/admin/candidatures");
 
@@ -61,22 +62,20 @@ if (posted) {
     }
     case "decline": {
       const declined = await admin.declineApplication(id);
-      done = declined;
-      if (declined.ok) await Promise.all([removeFiles(declined.keys), removeImages(declined.images)]);
-      message = "Réponse notée : pas cette fois. Son son et sa photo sont effacés";
-      break;
+      if (!declined.ok) return json(declined, 422);
+      await Promise.all([removeFiles(declined.keys), removeImages(declined.images)]);
+      return json({ ok: true, redirect: "/admin/candidatures", message: `Pas cette fois : la candidature de « ${declined.name} » est effacée` });
     }
     default:
       return json({ ok: false, errors: { form: "Action inconnue." } }, 400);
   }
   if (!done.ok) return json(done, 422);
-  const [fresh, settings] = await Promise.all([admin.getApplication(id, now), admin.applicationSettings()]);
+  const fresh = await admin.getApplication(id);
   if (!fresh) return json({ ok: false, errors: { form: "Cette candidature n'existe plus : elle a peut-être été effacée." } }, 404);
-  return json({ ok: true, sheet: applicationSheet(fresh, settings.replyDays, now), message } satisfies ApplicationResponse);
+  return json({ ok: true, sheet: applicationSheet(fresh, now), message } satisfies ApplicationResponse);
 }
 
-const settings = await admin.applicationSettings();
-const screen: Screen = { name: "application", title: application.title ?? application.name, data: { sheet: applicationSheet(application, settings.replyDays, now) } };
+const screen: Screen = { name: "application", title: application.title ?? application.name, data: { sheet: applicationSheet(application, now) } };
 if (wantsJson(Astro.request)) return json(screen);
 ---
 

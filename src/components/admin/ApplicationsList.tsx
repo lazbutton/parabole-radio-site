@@ -1,13 +1,14 @@
 /**
- * Les candidatures (cms/README.md, 9.17) : celles qui attendent une réponse d'abord (à écouter, mises de côté), les plus
- * récentes en haut. Les filtres en pastilles (statut, type, en retard) et la recherche s'appliquent sans recharger la
- * page et vivent dans l'adresse, comme dans les autres listes. Chaque ligne dit d'un coup d'œil quelle émission, de
- * qui, depuis quand, et si elle est venue en MP3 ou par un lien : chacune arrive prête, de quoi boucher un trou de la
- * grille. Un admin règle ici les types ouverts sur la page et le délai de réponse qu'elle annonce.
+ * Les candidatures (cms/README.md, 9.17) : celles qui attendent d'abord (à écouter, mises de côté), les plus récentes
+ * en haut. Les filtres en pastilles (statut, type) et la recherche s'appliquent sans recharger la page et vivent dans
+ * l'adresse, comme dans les autres listes. Chaque ligne dit d'un coup d'œil quelle émission, de qui, depuis quand, et si
+ * elle est venue en MP3 ou par un lien : chacune arrive prête, de quoi boucher un trou de la grille. On ne répond
+ * qu'aux émissions retenues : « Pas cette fois » efface la candidature, il n'y a donc pas de liste des refus. Un admin
+ * règle ici les types ouverts sur la page.
  */
 import { LABELS } from "@parabole/cms/labels";
 import { EnvelopeClosedIcon, ExternalLinkIcon, GearIcon, Link2Icon, SpeakerLoudIcon } from "@radix-ui/react-icons";
-import { Badge, Button, Card, Checkbox, Dialog, Flex, Link, Select, Table, Text, TextField } from "@radix-ui/themes";
+import { Badge, Button, Card, Checkbox, Dialog, Flex, Link, Select, Table, Text } from "@radix-ui/themes";
 import { useState } from "react";
 import type { ShowType } from "@parabole/cms";
 import { PageHeader } from "./AdminShell";
@@ -26,6 +27,7 @@ export const APPLICATION_STATUS = {
   new: { label: "À écouter", color: "amber" },
   shortlisted: { label: "Mise de côté", color: "blue" },
   accepted: { label: "Validée", color: "green" },
+  // un refus d'avant le 11 nov. 2026, que la nuit efface
   declined: { label: "Refusée", color: "gray" },
 } as const;
 
@@ -33,7 +35,6 @@ const STATUS_FILTERS: Record<string, string> = {
   new: "À écouter",
   shortlisted: "Mises de côté",
   accepted: "Validées",
-  declined: "Refusées",
   all: "Toutes",
 };
 
@@ -42,7 +43,7 @@ const TYPES: ShowType[] = ["dj_set", "podcast", "playlist"];
 export function ApplicationsList({ rows, total, filters, counts, settings, canSettle }: ApplicationsListData) {
   const { loading } = useRouter();
   const { shown, set, query } = useListFilters(filters, hrefOf);
-  const filtered = Boolean(filters.q || filters.status || filters.type || filters.late);
+  const filtered = Boolean(filters.q || filters.status || filters.type);
   const [settling, setSettling] = useState(false);
   const todo = counts.new + counts.shortlisted;
   const closed = settings.openTypes.length === 0;
@@ -55,7 +56,7 @@ export function ApplicationsList({ rows, total, filters, counts, settings, canSe
           filtered
             ? `${counted(total, "candidature")} pour ces filtres`
             : todo
-              ? `${counted(todo, "candidature")} à traiter · réponse annoncée sous ${settings.replyDays} jours`
+              ? `${counted(todo, "candidature")} à traiter · on ne répond qu'aux émissions retenues`
               : "Rien à traiter pour l'instant"
         }
         actions={
@@ -90,7 +91,6 @@ export function ApplicationsList({ rows, total, filters, counts, settings, canSe
             <Select.Item value="new">À écouter ({counts.new})</Select.Item>
             <Select.Item value="shortlisted">Mises de côté ({counts.shortlisted})</Select.Item>
             <Select.Item value="accepted">Validées ({counts.accepted})</Select.Item>
-            <Select.Item value="declined">Refusées ({counts.declined})</Select.Item>
             <Select.Item value="all">Toutes</Select.Item>
           </FilterPill>
           <FilterPill label="Type" allLabel="Tous les types" value={shown.type} valueLabel={LABELS.showType[shown.type as ShowType]} onChange={(type) => set({ type })}>
@@ -99,9 +99,6 @@ export function ApplicationsList({ rows, total, filters, counts, settings, canSe
                 {LABELS.showType[type]}
               </Select.Item>
             ))}
-          </FilterPill>
-          <FilterPill label="Réponse" allLabel="Dans les temps ou non" value={shown.late} valueLabel="En retard" onChange={(late) => set({ late })}>
-            <Select.Item value="1">En retard</Select.Item>
           </FilterPill>
           {filtered && (
             <Button variant="ghost" color="gray" size="2" asChild>
@@ -174,7 +171,7 @@ function ApplicationLine({ row }: { row: ApplicationRow }) {
                 {row.hasSound ? "MP3" : "lien"}
               </span>
               {" · "}
-              {[LABELS.showType[row.type], row.regular ? "régulièrement" : null, row.contact, row.city].filter(Boolean).join(" · ")}
+              {[LABELS.showType[row.type], row.contact, row.city].filter(Boolean).join(" · ")}
               <span className="admin-show-mobile">
                 {" · "}
                 {row.received}
@@ -190,11 +187,6 @@ function ApplicationLine({ row }: { row: ApplicationRow }) {
       </Table.Cell>
       <Table.Cell justify="end">
         <Flex align="center" justify="end" gap="2" wrap="wrap">
-          {row.late && (
-            <Badge color="red" variant="soft" radius="full">
-              En retard
-            </Badge>
-          )}
           <Badge color={status.color} variant="soft" radius="full">
             {status.label}
           </Badge>
@@ -204,12 +196,11 @@ function ApplicationLine({ row }: { row: ApplicationRow }) {
   );
 }
 
-/** Les réglages d'un admin : les types ouverts sur la page, le délai de réponse qu'elle annonce. */
+/** Les réglages d'un admin : les types ouverts sur la page. */
 function SettingsDialog({ open, settings, onClose }: { open: boolean; settings: ApplicationSettingsView; onClose(): void }) {
   const notify = useNotify();
   const router = useRouter();
   const [openTypes, setOpenTypes] = useState<ShowType[]>(settings.openTypes);
-  const [replyDays, setReplyDays] = useState(String(settings.replyDays));
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -218,7 +209,6 @@ function SettingsDialog({ open, settings, onClose }: { open: boolean; settings: 
     const body = new FormData();
     body.set("intent", "settings");
     for (const type of openTypes) body.append("openTypes", type);
-    body.set("replyDays", replyDays);
     const result = await postForm<ApplicationSettingsResponse>("/admin/candidatures", body);
     setBusy(false);
     if (!result.ok) return setErrors(result.errors);
@@ -236,7 +226,6 @@ function SettingsDialog({ open, settings, onClose }: { open: boolean; settings: 
         if (!next) onClose();
         else {
           setOpenTypes(settings.openTypes);
-          setReplyDays(String(settings.replyDays));
           setErrors({});
         }
       }}
@@ -262,11 +251,6 @@ function SettingsDialog({ open, settings, onClose }: { open: boolean; settings: 
                 </Text>
               ))}
             </Flex>
-          </Field>
-          <Field label="Réponse annoncée sous" htmlFor="replyDays" hint="En jours : 21 s'affiche « 3 semaines » sur la page." error={errors.replyDays}>
-            <TextField.Root id="replyDays" type="number" min={1} max={90} value={replyDays} onChange={(event) => setReplyDays(event.target.value)}>
-              <TextField.Slot side="right">jours</TextField.Slot>
-            </TextField.Root>
           </Field>
         </Flex>
         <Flex gap="3" mt="5" justify="end">

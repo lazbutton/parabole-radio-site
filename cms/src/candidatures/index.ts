@@ -24,14 +24,18 @@ import { lireDossier, lireEnvoi, TYPES_AU_PLURIEL, type CandidatureErrors, type 
 
 /** Au plus, tant de dossiers ouverts par heure, tous ensemble : de quoi arrêter un envoi en masse sans rien garder de personne. */
 export const PAR_HEURE = 30;
-/** Un refus est effacé tant de mois après la réponse. */
+/**
+ * Une candidature validée est effacée tant de mois après la validation (l'émission et la fiche nées d'elle restent).
+ * Une candidature qui n'est pas retenue, elle, est effacée tout de suite (« Pas cette fois »).
+ */
 export const MOIS_GARDES = 6;
 /** Un dossier jamais envoyé est oublié au bout d'un jour (le dépôt signé du son vaut 6 heures). */
 export const DOSSIER_MS = 24 * 3600 * 1000;
 /** Les réglages d'une base qui n'aurait pas encore sa ligne. */
-const REGLAGES_PAR_DEFAUT: Reglages = { openTypes: ["dj_set", "podcast", "playlist"], replyDays: 21 };
+const REGLAGES_PAR_DEFAUT: Reglages = { openTypes: ["dj_set", "podcast", "playlist"] };
 
-export type Reglages = { openTypes: ShowType[]; replyDays: number };
+/** Les réglages : les types ouverts. (Le délai de réponse annoncé n'est plus lu : on ne répond qu'aux émissions retenues.) */
+export type Reglages = { openTypes: ShowType[] };
 
 /** Les styles à cocher pour un type : les groupes du premier filtre des émissions qui vaut pour lui. */
 export type StylesDuType = { type: TypeCandidature; filtre: string; groupes: { slug: string; name: string }[] };
@@ -70,7 +74,11 @@ async function poserStyles(tx: Tx, applicationId: string, type: ShowType, styles
   if (coches.length) await tx.insert(applicationTag).values(coches.map(({ id }) => ({ applicationId, tagId: id })));
 }
 
-const DEJA: Refus = { ok: false, status: 409, errors: { form: "Tu as déjà une candidature en cours : on l'écoute, et on te répond bientôt." } };
+const DEJA: Refus = {
+  ok: false,
+  status: 409,
+  errors: { form: "Tu nous as déjà envoyé une émission : on l'écoute. Si elle est sélectionnée, tu recevras une réponse par mail ou sur Insta." },
+};
 
 /** La même personne (son Instagram ou son e-mail) a-t-elle déjà une candidature envoyée, pas encore répondue ? */
 async function dejaEnCours(tx: Tx, values: DossierValues): Promise<boolean> {
@@ -90,13 +98,13 @@ async function dejaEnCours(tx: Tx, values: DossierValues): Promise<boolean> {
 /** Les champs des écrans 1 et 2, tels qu'ils s'écrivent. */
 const champsDuDossier = (values: DossierValues) => ({
   type: values.type,
-  regular: values.regular,
   title: values.title,
   pitch: values.pitch,
   name: values.name,
   bio: values.bio,
   city: values.city,
   instagram: values.instagram,
+  profileUrl: values.profileUrl,
   email: values.email,
 });
 
@@ -117,9 +125,9 @@ export function createCandidatures(db: Db, { now: clock = () => new Date() }: { 
     /** Ce jeton ouvre-t-il un dossier en cours ? Avant de signer quoi que ce soit pour lui (une photo à déposer). */
     dossierOuvert: (jeton: string): Promise<boolean> => db.transaction(async (tx) => Boolean(await dossierDe(tx, jeton))),
 
-    /** Les réglages : les types ouverts, le délai de réponse annoncé. */
+    /** Les réglages : les types ouverts. */
     reglages: async (): Promise<Reglages> => {
-      const [ligne] = await db.select({ openTypes: applicationSettings.openTypes, replyDays: applicationSettings.replyDays }).from(applicationSettings).limit(1);
+      const [ligne] = await db.select({ openTypes: applicationSettings.openTypes }).from(applicationSettings).limit(1);
       return ligne ?? REGLAGES_PAR_DEFAUT;
     },
 
@@ -276,14 +284,20 @@ export function createCandidatures(db: Db, { now: clock = () => new Date() }: { 
 
     /**
      * Le ménage de la tâche de nuit : les dossiers jamais envoyés (plus d'un jour) sont oubliés, avec leurs sons et leur
-     * photo ; les refus de plus de six mois sont effacés. Rend leur nombre, et les clés à effacer du seau et du Storage.
+     * photo ; les candidatures validées depuis plus de six mois sont effacées (leur son et leur photo, passés à
+     * l'émission et à la fiche, restent) ; les refus d'avant le 11 nov. 2026, gardés six mois à l'époque, aussi. Rend
+     * leur nombre, et les clés à effacer du seau et du Storage.
      */
     menage: (): Promise<{ abandoned: number; erased: number; keys: string[]; images: string[] }> =>
       db.transaction(async (tx) => {
         const now = clock();
         const perdus = and(isNull(application.submittedAt), lt(application.createdAt, new Date(now.getTime() - DOSSIER_MS)));
-        const vieux = and(eq(application.status, "declined"), lt(application.answeredAt, moisAvant(now, MOIS_GARDES)));
-        const visees = await tx.select({ id: application.id, photoId: application.photoId, submitted: application.submittedAt }).from(application).where(or(perdus, vieux));
+        const validees = and(eq(application.status, "accepted"), lt(application.answeredAt, moisAvant(now, MOIS_GARDES)));
+        const refusees = eq(application.status, "declined");
+        const visees = await tx
+          .select({ id: application.id, photoId: application.photoId, submitted: application.submittedAt })
+          .from(application)
+          .where(or(perdus, validees, refusees));
         if (!visees.length) return { abandoned: 0, erased: 0, keys: [], images: [] };
         const ids = visees.map((one) => one.id);
         const sons = await tx.select({ key: audioFile.key }).from(audioFile).where(inArray(audioFile.applicationId, ids));
