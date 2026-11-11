@@ -280,25 +280,25 @@ export function createAdmin(db: Db, userId: string) {
     /** Règle le calendrier des groupes (un admin). */
     saveCycle: (values: { group1Start: string; blockDays: number; deadlineDays: number }) => saving(() => as((tx) => saveCycle(tx, values))),
     /** Les candidatures (9.17), les plus récentes d'abord ; par défaut, celles qui attendent une réponse. */
-    listApplications: (filters: AdminApplicationFilters = {}, now?: Date) => as((tx) => listApplications(tx, filters, now)),
+    listApplications: (filters: AdminApplicationFilters = {}) => as((tx) => listApplications(tx, filters)),
     /** Une candidature, avec ses styles et la fiche née de son oui, ou null. */
-    getApplication: (id: string, now?: Date) => as((tx) => getApplication(tx, id, now)),
+    getApplication: (id: string) => as((tx) => getApplication(tx, id)),
     /** La note de l'équipe sur une candidature. */
     noteApplication: (id: string, note: string) => as((tx) => noteApplication(tx, id, note)),
-    /** Remet une candidature à écouter, ou la met de côté (un refus aussi, tant qu'il n'est pas effacé). */
+    /** Remet une candidature à écouter, ou la met de côté. */
     moveApplication: (id: string, to: "new" | "shortlisted") => as((tx) => moveApplication(tx, id, to)),
     /** Le oui : la fiche d'invité (ou celle qui porte déjà ce nom) et son lien d'envoi, au nom de la personne connectée. */
     acceptApplication: (id: string) => saving(() => as((tx) => acceptApplication(tx, id, userId))),
-    /** « Pas cette fois », au nom de la personne connectée. */
-    declineApplication: (id: string) => as((tx) => declineApplication(tx, id, userId)),
+    /** « Pas cette fois » : la candidature est effacée tout de suite. Rend son nom et ce qu'il reste à retirer. */
+    declineApplication: (id: string) => as((tx) => declineApplication(tx, id)),
     /** Efface une candidature tout de suite. Rend son nom, ou null. */
     deleteApplication: (id: string) => as((tx) => deleteApplication(tx, id)),
-    /** Les réglages des candidatures : les types ouverts, le délai annoncé. */
+    /** Les réglages des candidatures : les types ouverts. */
     applicationSettings: () => as((tx) => getApplicationSettings(tx)),
     /** Règle les candidatures (un admin). */
-    saveApplicationSettings: (settings: { openTypes: string[]; replyDays: number }) => saving(() => as((tx) => saveApplicationSettings(tx, settings))),
+    saveApplicationSettings: (settings: { openTypes: string[] }) => saving(() => as((tx) => saveApplicationSettings(tx, settings))),
     /** Les candidatures qui attendent, pour l'accueil. */
-    applicationCounts: (now?: Date) => as((tx) => applicationCounts(tx, now)),
+    applicationCounts: () => as((tx) => applicationCounts(tx)),
   };
 }
 

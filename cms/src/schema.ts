@@ -963,8 +963,9 @@ export const broadcastCycle = pgTable(
  * son, son titre, sa description, ses styles, sa tracklist) avec sa bio et sa photo. Le serveur l'écrit en propriétaire
  * des tables, une fois la saisie vérifiée. Le temps de l'envoi du son, c'est un dossier (`dossier_hash`, l'empreinte du
  * jeton que garde la page ; `submitted_at` vide) ; envoyée, l'équipe la lit, l'écoute, la met de côté, y répond. La
- * valider crée la fiche d'invité et l'émission, en brouillon, avec son son validé (artist_id, show_id) ; un refus efface
- * le son et la photo, puis la candidature six mois après la réponse (la tâche de nuit).
+ * valider crée la fiche d'invité et l'émission, en brouillon, avec son son validé (artist_id, show_id) ; la tâche de
+ * nuit efface la candidature six mois après (l'émission et la fiche restent). Depuis le 11 nov. 2026, on ne répond
+ * qu'aux émissions retenues : « Pas cette fois » efface tout de suite la candidature, son son et sa photo.
  */
 export const application = pgTable(
   "application",
@@ -975,7 +976,7 @@ export const application = pgTable(
     ready: boolean("ready").notNull().default(true),
     /** Le titre de l'émission. */
     title: text("title"),
-    /** Passer régulièrement (vrai), une fois (faux), ou rien dit. */
+    /** Passer régulièrement (vrai), une fois (faux), ou rien dit. La page ne le demande plus depuis le 11 nov. 2026. */
     regular: boolean("regular"),
     /** Son nom d'artiste, ou celui de son projet. */
     name: text("name").notNull(),
@@ -983,6 +984,8 @@ export const application = pgTable(
     /** Son compte Instagram, sans @. Il en faut un, ou une adresse e-mail. */
     instagram: text("instagram"),
     email: text("email"),
+    /** Le lien vers sa musique (SoundCloud, Mixcloud, Bandcamp, son site…), facultatif ; il va sur sa fiche à la validation. */
+    profileUrl: text("profile_url"),
     /** La description de l'émission, en texte simple. */
     pitch: text("pitch").notNull(),
     /** Le lien d'une playlist envoyée sans fichier (Spotify, Deezer…) ; avant, un lien pour l'écouter. */
@@ -991,7 +994,10 @@ export const application = pgTable(
     bio: text("bio"),
     /** Sa photo, carrée, inscrite par la page. */
     photoId: uuid("photo_id").references(() => media.id, { onDelete: "set null" }),
-    /** La tracklist collée, une ligne par morceau ; lue (parseTracklist) quand l'émission est validée. */
+    /**
+     * La tracklist, une ligne par morceau : « artiste<tabulation>titre » depuis le 11 nov. 2026 (les cases de la page),
+     * du texte collé avant ; lue (parseTracklist) quand l'émission est validée.
+     */
     tracklist: text("tracklist"),
     /** Son mot pour l'équipe. */
     message: text("message"),
@@ -1020,6 +1026,7 @@ export const application = pgTable(
     check("application_instagram", sql`${t.instagram} is null or ${t.instagram} ~ '^[A-Za-z0-9._]{1,30}$'`),
     check("application_email", sql`${t.email} is null or (${t.email} ~ '^[^@[:space:]]+@[^@[:space:]]+[.][^@[:space:]]+$' and length(${t.email}) <= 200)`),
     check("application_listen_url", sql`${t.listenUrl} is null or (${t.listenUrl} ~ '^https?://' and length(${t.listenUrl}) <= 600)`),
+    check("application_profile_url", sql`${t.profileUrl} is null or (${t.profileUrl} ~ '^https?://' and length(${t.profileUrl}) <= 600)`),
     check("application_name", sql`length(${t.name}) between 1 and 120`),
     check("application_city", sql`${t.city} is null or length(${t.city}) between 1 and 80`),
     check("application_pitch", sql`length(${t.pitch}) between 1 and 2000`),
@@ -1051,7 +1058,8 @@ export const applicationTag = pgTable(
 
 /**
  * Les réglages des candidatures, sur une seule ligne : les types ouverts (un type fermé est « complet pour le moment »
- * sur la page), et le délai de réponse annoncé, en jours.
+ * sur la page). `reply_days`, le délai de réponse annoncé, n'est plus lu depuis le 11 nov. 2026 : la page ne promet
+ * plus de réponse qu'aux émissions retenues.
  */
 export const applicationSettings = pgTable(
   "application_settings",

@@ -8,16 +8,19 @@
  * Sur un grand écran, deux colonnes : à gauche, l'écran d'accueil (PASSE À L'ANTENNE, puis la page de télétexte
  * « Comment ça se passe »), qui reste en place ; à droite, le formulaire, sur une feuille au cadre jaune. Sur un
  * téléphone, le titre, puis le formulaire tout de suite, puis « Comment ça se passe ». Le formulaire tient en trois
- * écrans : Ton émission (type, titre, description, styles), Toi (nom, photo, bio, de quoi te répondre), Ton son (le
- * MP3, ou le lien d'une playlist ; la tracklist, un mot pour l'équipe) ; puis « C'est reçu ». Tout est écrit ici ; le
+ * écrans : Ton émission (type, titre, description, styles), Toi (nom, photo, bio, ville, tes liens — Instagram,
+ * SoundCloud ou autre —, ton e-mail), Ton son (le MP3, ou le lien d'une playlist ; la tracklist en cases, l'artiste et
+ * le titre de chaque morceau, pour la SACEM ; un mot pour l'équipe) ; puis « C'est reçu ». On ne répond qu'aux
+ * émissions sélectionnées (retours de l'équipe du 11 nov. 2026) : la page ne promet ni réponse à tous ni délai. Tout
+ * est écrit ici ; le
  * script (src/scripts/candidater.ts) passe d'un écran à l'autre, vérifie chaque écran avec les règles du serveur
  * (@parabole/cms/candidatures), ouvre le dossier de l'envoi à la fin du deuxième, y dépose la photo et le MP3, garde
  * le brouillon dans le navigateur et envoie (/api/candidature/…). Le MP3 part du navigateur : sans script, la page dit
  * qu'il en faut un.
  *
  * Les réglages viennent de l'admin (Candidatures) : un type fermé est « complet pour le moment » ; tous fermés, la page
- * le dit à la place du formulaire ; le délai de réponse annoncé. Les styles proposés sont les groupes du premier filtre
- * des émissions de chaque type (Genre, Thème…). Un champ piège, caché, attrape les robots.
+ * le dit à la place du formulaire. Les styles proposés sont les groupes du premier filtre des émissions de chaque type
+ * (Genre, Thème…). Un champ piège, caché, attrape les robots.
  */
 import {
   BIO_MAX,
@@ -26,19 +29,20 @@ import {
   EMAIL_MAX,
   LIEN_MAX,
   MESSAGE_MAX,
+  MORCEAU_MAX,
+  MORCEAUX_MAX,
   NOM_MAX,
   STYLES_MAX,
   TITRE_MAX,
-  TRACKLIST_MAX,
   VILLE_MAX,
   type ReglagesCandidatures,
   type ShowType,
   type StylesDuType,
 } from "@parabole/cms";
-import { MAIN_ACCEPT, MAX_MAIN_BYTES } from "@parabole/cms/envois";
+import { MAIN_ACCEPT } from "@parabole/cms/envois";
 import Base from "../layouts/Base.astro";
 import { IMAGE_TYPE_LIST, MAX_IMAGE_BYTES, MIN_IMAGE_SIDE } from "../lib/admin/storage";
-import { candidaturesDuSite, delaiEnMots } from "../lib/candidatures";
+import { candidaturesDuSite } from "../lib/candidatures";
 
 export const prerender = false;
 
@@ -49,8 +53,8 @@ const TYPES: { type: ShowType; nom: string; mot: string; description: string; so
     nom: "DJ set",
     mot: "Un mix enregistré : ta sélection, ton style.",
     description: "Le fil de ton set, l'ambiance, ce que tu joues…",
-    son: "Ton set, en un seul MP3.",
-    tracklist: "Un morceau par ligne, avec son minutage si tu l'as : 00:00 Artiste – Titre.",
+    son: "Ton set, en un seul MP3 : 1 h ou 2 h.",
+    tracklist: "Chaque morceau joué, dans l'ordre : l'artiste et le titre. On la déclare à la SACEM.",
   },
   {
     type: "podcast",
@@ -58,7 +62,7 @@ const TYPES: { type: ShowType; nom: string; mot: string; description: string; so
     mot: "Une émission parlée : un sujet, des voix, des invités.",
     description: "Le sujet, le format, qui parle, pourquoi ça te tient à cœur…",
     son: "L'épisode, en un seul MP3.",
-    tracklist: "Les morceaux diffusés, s'il y en a : un par ligne.",
+    tracklist: "Les morceaux diffusés, s'il y en a : l'artiste et le titre. On les déclare à la SACEM.",
   },
   {
     type: "playlist",
@@ -66,12 +70,12 @@ const TYPES: { type: ShowType; nom: string; mot: string; description: string; so
     mot: "Des morceaux choisis et enchaînés, sans mixer.",
     description: "Le fil de ta sélection, l'ambiance, le moment de la journée…",
     son: "Ta playlist enchaînée, en un seul MP3. Pas de fichier ? Donne son lien juste en dessous.",
-    tracklist: "Un morceau par ligne : Artiste – Titre.",
+    tracklist: "Chaque morceau, dans l'ordre : l'artiste et le titre. On la déclare à la SACEM.",
   },
 ];
 
 // Sans la base, la page s'affiche quand même, tout ouvert et sans styles à cocher ; l'envoi dira qu'il n'a pas pu partir.
-let reglages: ReglagesCandidatures = { openTypes: ["dj_set", "podcast", "playlist"], replyDays: 21 };
+let reglages: ReglagesCandidatures = { openTypes: ["dj_set", "podcast", "playlist"] };
 let styles: StylesDuType[] = [];
 try {
   const candidatures = await candidaturesDuSite();
@@ -83,9 +87,7 @@ try {
 Astro.response.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
 Astro.response.headers.set("Vercel-CDN-Cache-Control", "max-age=60, stale-while-revalidate=600");
 
-const DELAI = delaiEnMots(reglages.replyDays);
 const CONSERVATION = `${CANDIDATURES_MOIS_GARDES} mois`;
-const MO_MP3 = `${MAX_MAIN_BYTES / 1_000_000} Mo`;
 const ouvert = (type: ShowType) => reglages.openTypes.includes(type);
 /** Tout est complet : la page le dit, sans formulaire. */
 const ferme = !TYPES.some(({ type }) => ouvert(type));
@@ -93,6 +95,7 @@ const premier = TYPES.find(({ type }) => ouvert(type)) ?? TYPES[0]!;
 
 const config = {
   stylesMax: STYLES_MAX,
+  morceauxMax: MORCEAUX_MAX,
   types: Object.fromEntries(TYPES.map(({ type, description, son, tracklist }) => [type, { description, son, tracklist }])),
   image: { max: MAX_IMAGE_BYTES, types: IMAGE_TYPE_LIST, cote: MIN_IMAGE_SIDE },
 };
@@ -100,7 +103,7 @@ const config = {
 const ETAPES = ["Ton émission", "Toi", "Ton son"];
 ---
 
-<Base page="candidater" title="Candidater" description="DJ set, podcast ou playlist : envoie ton émission à Parabole Radio. On écoute tout, et tout le monde a une réponse.">
+<Base page="candidater" title="Candidater" description="DJ set, podcast ou playlist : envoie ton émission à Parabole Radio. Si elle est sélectionnée, tu recevras une réponse par mail.">
   <div class="candidater" data-candidater data-config={JSON.stringify(config)}>
     <div class="cand-gauche">
       <header class="cand-entete">
@@ -108,13 +111,8 @@ const ETAPES = ["Ton émission", "Toi", "Ton son"];
         <h1 class="cand-titre">Passe à l'antenne</h1>
         <div class="cand-chapeau">
           <p><span>DJ set, podcast ou playlist : envoie ton émission à Parabole Radio.</span></p>
-          <p><span>On écoute tout, et tout le monde a une réponse.</span></p>
+          <p><span>Ce n'est pas une garantie de passer, mais si on valide ton émission, tu recevras une réponse par mail&nbsp;!</span></p>
         </div>
-        <ul class="cand-reperes" aria-label="En bref">
-          <li>3 écrans</li>
-          <li>Ton MP3, jusqu'à {MO_MP3}</li>
-          <li>Réponse sous {DELAI}</li>
-        </ul>
       </header>
 
       <section class="cand-comment" aria-labelledby="candComment">
@@ -124,10 +122,10 @@ const ETAPES = ["Ton émission", "Toi", "Ton son"];
           <span class="teletexte-horloge" data-horloge aria-hidden="true"></span>
         </div>
         <ol class="cand-suite">
-          <li><b>Tu envoies</b><span>Ton émission, ta bio, ta photo et ton MP3.</span></li>
-          <li><b>On écoute</b><span>Réponse sous {DELAI}, par Insta ou par e-mail.</span></li>
-          <li><b>C'est validé ?</b><span>Ton émission et ta page d'artiste se préparent sur le site.</span></li>
-          <li><b>À l'antenne</b><span>On te dit quand elle passe.</span></li>
+          <li><b>Tu envoies</b><span>Ton émission et des infos sur toi.</span></li>
+          <li><b>On écoute</b><span>Toute l'équipe passe ton émission en revue.</span></li>
+          <li><b>C'est validé ?</b><span>Si ton émission est sélectionnée, on t'envoie un mail avec sa date de passage, et un post Insta.</span></li>
+          <li><b>À l'antenne</b><span>Ça passe à l'antenne, et c'est archivé sur notre site&nbsp;!</span></li>
         </ol>
         <div class="cand-mire" aria-hidden="true"></div>
       </section>
@@ -142,7 +140,7 @@ const ETAPES = ["Ton émission", "Toi", "Ton son"];
               <span class="teletexte-numero">P600</span> Candidatures
             </p>
             <h2 class="cand-recu-titre">Complet pour le moment</h2>
-            <p class="cand-recu-texte">On écoute tout ce qu'on a déjà reçu : les candidatures rouvrent bientôt. Repasse nous voir !</p>
+            <p class="cand-recu-texte">On écoute ce qu'on a déjà reçu : les candidatures rouvrent bientôt. Repasse nous voir !</p>
             <div class="cand-recu-liens">
               <a class="cand-suivant" href="/">
                 Écouter le direct
@@ -238,14 +236,6 @@ const ETAPES = ["Ton émission", "Toi", "Ton son"];
               </fieldset>
             )
           }
-
-          <fieldset class="cand-question" data-champ="frequence">
-            <legend class="cand-label">Tu aimerais passer… <span class="cand-facultatif">(facultatif)</span></legend>
-            <div class="cand-duo">
-              <label class="cand-option"><input type="radio" name="frequence" value="une-fois" /><span>Une fois</span></label>
-              <label class="cand-option"><input type="radio" name="frequence" value="reguliere" /><span>Régulièrement</span></label>
-            </div>
-          </fieldset>
         </section>
 
         <!-- 2. Toi -->
@@ -301,9 +291,8 @@ const ETAPES = ["Ton émission", "Toi", "Ton son"];
             <input id="candVille" name="ville" type="text" maxlength={VILLE_MAX} autocomplete="address-level2" />
           </div>
 
-          <fieldset class="cand-question" data-champ="contact">
-            <legend class="cand-label">Où te répondre ?</legend>
-            <p class="cand-aide" id="candAideContact">Au moins l'un des deux. On ne s'en sert que pour te répondre.</p>
+          <fieldset class="cand-question" data-champ="liens">
+            <legend class="cand-label">Tes liens</legend>
             <div class="cand-champ cand-champ-insta" data-champ="instagram">
               <label class="cand-sous-label" for="candInsta">Instagram</label>
               <div class="cand-prefixe">
@@ -312,13 +301,34 @@ const ETAPES = ["Ton émission", "Toi", "Ton son"];
               </div>
               <p class="cand-erreur" id="candErreurInsta" data-erreur="instagram" hidden></p>
             </div>
+            <div class="cand-champ" data-champ="profil">
+              <label class="cand-sous-label" for="candProfil">SoundCloud ou autre <span class="cand-facultatif">(facultatif)</span></label>
+              <input
+                id="candProfil"
+                name="profil"
+                type="url"
+                maxlength={LIEN_MAX}
+                inputmode="url"
+                autocapitalize="none"
+                autocomplete="url"
+                spellcheck="false"
+                placeholder="https://"
+                aria-describedby="candAideProfil candErreurProfil"
+              />
+              <p class="cand-aide" id="candAideProfil">Mixcloud, Bandcamp, ton site… Il ira sur ta page d'artiste.</p>
+              <p class="cand-erreur" id="candErreurProfil" data-erreur="profil" hidden></p>
+            </div>
+          </fieldset>
+
+          <div class="cand-question" data-champ="contact">
             <div class="cand-champ" data-champ="email">
-              <label class="cand-sous-label" for="candEmail">E-mail</label>
+              <label class="cand-label" for="candEmail">Ton e-mail</label>
               <input id="candEmail" name="email" type="email" maxlength={EMAIL_MAX} autocomplete="email" inputmode="email" aria-describedby="candAideContact candErreurEmail" />
               <p class="cand-erreur" id="candErreurEmail" data-erreur="email" hidden></p>
             </div>
+            <p class="cand-aide" id="candAideContact">Ton e-mail ou ton Instagram, au moins l'un des deux : c'est là qu'on te répond si ton émission est sélectionnée.</p>
             <p class="cand-erreur" data-erreur="contact" hidden></p>
-          </fieldset>
+          </div>
         </section>
 
         <!-- 3. Ton son -->
@@ -330,7 +340,7 @@ const ETAPES = ["Ton émission", "Toi", "Ton son"];
             <label class="cand-depot" data-depot>
               <input type="file" name="son" accept={`${MAIN_ACCEPT},audio/mpeg`} aria-labelledby="candSonLabel" aria-describedby="candAideSon candErreurSon" />
               <span class="cand-depot-titre"><span class="cand-depot-souris">Dépose ton MP3 ici</span><span class="cand-depot-doigt">Choisis ton MP3</span></span>
-              <span class="cand-depot-ou"><span class="cand-depot-souris">ou clique pour le choisir · </span>{MO_MP3} au plus</span>
+              <span class="cand-depot-ou cand-depot-souris">ou clique pour le choisir</span>
             </label>
             <div class="cand-fichier" data-fichier hidden>
               <div class="cand-fichier-tete">
@@ -360,19 +370,28 @@ const ETAPES = ["Ton émission", "Toi", "Ton son"];
             <p class="cand-erreur" id="candErreurLien" data-erreur="lien" hidden></p>
           </div>
 
-          <div class="cand-question cand-champ" data-champ="tracklist">
-            <label class="cand-label" for="candTracklist">Sa tracklist <span class="cand-facultatif">(facultatif)</span></label>
-            <textarea
-              id="candTracklist"
-              name="tracklist"
-              rows="5"
-              maxlength={TRACKLIST_MAX}
-              spellcheck="false"
-              placeholder={"00:00 Artiste – Titre\n04:12 Artiste – Titre"}
-              aria-describedby="candAideTracklist candErreurTracklist"></textarea>
+          <fieldset class="cand-question" data-champ="tracklist" aria-describedby="candAideTracklist candErreurTracklist">
+            <legend class="cand-label">Sa tracklist <span class="cand-facultatif" data-tracklist-facultatif hidden={premier.type !== "podcast"}>(facultatif)</span></legend>
             <p class="cand-aide" id="candAideTracklist" data-aide-tracklist>{premier.tracklist}</p>
+            <div class="cand-morceaux">
+              <div class="cand-morceaux-tete" aria-hidden="true"><span></span><span>Artiste</span><span>Titre</span><span></span></div>
+              <ol class="cand-morceaux-liste" data-morceaux></ol>
+            </div>
+            <template data-morceau-modele>
+              <li class="cand-morceau">
+                <span class="cand-morceau-num" aria-hidden="true"></span>
+                <input class="cand-morceau-champ" type="text" name="morceau-artiste" maxlength={MORCEAU_MAX} autocomplete="off" spellcheck="false" placeholder="Artiste" />
+                <input class="cand-morceau-champ" type="text" name="morceau-titre" maxlength={MORCEAU_MAX} autocomplete="off" spellcheck="false" placeholder="Titre" />
+                <button type="button" class="cand-morceau-retirer" data-morceau-retirer><span aria-hidden="true">×</span></button>
+              </li>
+            </template>
+            <div class="cand-morceaux-pied">
+              <button type="button" class="cand-lien-bouton" data-morceau-ajouter>+ Ajouter un morceau</button>
+              <span class="cand-compteur" data-morceaux-compte aria-live="polite"></span>
+            </div>
+            <p class="cand-aide">Ta tracklist est déjà écrite ? Colle-la dans une case : chaque ligne devient un morceau.</p>
             <p class="cand-erreur" id="candErreurTracklist" data-erreur="tracklist" hidden></p>
-          </div>
+          </fieldset>
 
           <div class="cand-question cand-champ" data-champ="message">
             <label class="cand-label" for="candMessage">Un mot pour l'équipe <span class="cand-facultatif">(facultatif)</span></label>
@@ -382,8 +401,8 @@ const ETAPES = ["Ton émission", "Toi", "Ton son"];
           </div>
 
           <p class="cand-vie-privee">
-            Tes infos ne servent qu'à te répondre et, si ton émission est validée, à sa page et à la tienne sur le site. Si ce n'est pas pour cette fois, ton son et ta photo
-            sont effacés tout de suite, le reste au bout de {CONSERVATION}.{" "}
+            Tes infos ne servent qu'à te répondre si ton émission est sélectionnée, puis à sa page et à la tienne sur le site. Si elle n'est pas retenue, tout est effacé tout de
+            suite ; si elle l'est, ta candidature est gardée {CONSERVATION}.{" "}
             <a href="/mentions-legales">Mentions légales</a>
           </p>
         </section>
@@ -409,13 +428,8 @@ const ETAPES = ["Ton émission", "Toi", "Ton son"];
         <p class="cand-page"><span class="teletexte-numero">P602</span> Émission reçue</p>
         <h2 class="cand-recu-titre">C'est reçu !</h2>
         <p class="cand-recu-texte">
-          Merci<span data-recu-nom></span>. On écoute ton émission, et on te répond sous {DELAI}, par Insta ou par e-mail.
+          Merci<span data-recu-nom></span>&nbsp;! Si ton émission est sélectionnée, tu recevras une réponse par mail ou Insta :)
         </p>
-        <ol class="cand-suite cand-suite-recu">
-          <li><b>On écoute</b><span>Toute l'équipe passe ton émission en revue.</span></li>
-          <li><b>C'est validé ?</b><span>Elle entre au programme, avec ta page sur le site.</span></li>
-          <li><b>À l'antenne</b><span>On te dit quand elle passe.</span></li>
-        </ol>
         <div class="cand-recu-liens">
           <a class="cand-suivant" href="/">Écouter le direct</a>
           <a class="cand-retour" href="/emissions">Réécouter les émissions</a>

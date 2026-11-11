@@ -3,15 +3,16 @@
  * le dossier de l'envoi (ouvert après Turnstile, mis à jour, refusé si le type est complet, si la personne a déjà une
  * candidature en cours, ou au-delà du plafond par heure) ; le son déposé dans le seau, la photo, l'envoi ; les règles
  * d'accès ; ce que l'équipe en fait (la liste, noter, mettre de côté, valider, qui crée la fiche d'invité et l'émission
- * avec son son validé, ou reprend la fiche du même nom sans rien écraser ; le refus, qui retire le son et la photo ;
- * l'effacement) ; les réglages ; ce que compte l'accueil ; et le ménage de la nuit.
+ * avec son son validé, ou reprend la fiche du même nom sans rien écraser ; « Pas cette fois », qui efface tout de
+ * suite la candidature, son son et sa photo ; l'effacement) ; les réglages ; ce que compte l'accueil ; et le ménage de
+ * la nuit (les dossiers abandonnés, les candidatures validées depuis six mois, les refus d'avant le 11 nov. 2026).
  */
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { withViewer } from "../src/access.ts";
 import { createAdmin, UPLOAD_FOLDER } from "../src/admin/index.ts";
 import { createCandidatures } from "../src/candidatures/index.ts";
-import { adresseWeb, compteInsta, lireCandidature, lireDossier, lireEnvoi, type CandidatureForm } from "../src/candidatures/regles.ts";
+import { adresseWeb, compteInsta, ecrireMorceaux, lireCandidature, lireDossier, lireEnvoi, lireMorceaux, type CandidatureForm } from "../src/candidatures/regles.ts";
 import type { Connection, Db } from "../src/db.ts";
 import { application, applicationSettings, applicationTag, artist, artistTag, audioFile, media, show, showArtist, showTag, submission, tag, track } from "../src/schema.ts";
 import { createAccount, freshDb, pgError } from "./helpers.ts";
@@ -21,7 +22,6 @@ const NOW = new Date("2026-11-06T10:00:00Z");
 /** Une candidature complète de DJ, à varier. */
 const form = (changes: Partial<CandidatureForm> = {}): CandidatureForm => ({
   type: "dj_set",
-  frequence: "reguliere",
   titre: "Disco du dimanche",
   description: "Un set house et disco du dimanche, avec des raretés funk.",
   styles: [],
@@ -29,9 +29,10 @@ const form = (changes: Partial<CandidatureForm> = {}): CandidatureForm => ({
   bio: "DJ à Lyon, je mixe de la house et du disco depuis dix ans.",
   ville: "Lyon",
   instagram: "@lou.velours",
+  profil: "",
   email: "",
   lien: "",
-  tracklist: "",
+  tracklist: "Artiste Un\tTitre un",
   message: "",
   ...changes,
 });
@@ -60,7 +61,6 @@ describe("les règles d'une candidature", () => {
     expect(errors).toEqual({});
     expect(values).toEqual({
       type: "dj_set",
-      regular: true,
       title: "Disco du dimanche",
       pitch: "Un set house et disco du dimanche, avec des raretés funk.",
       styles: ["house", "jazz", "rock"],
@@ -68,8 +68,10 @@ describe("les règles d'une candidature", () => {
       bio: "DJ à Lyon, je mixe de la house et du disco depuis dix ans.",
       city: "Lyon",
       instagram: "lou.velours",
+      profileUrl: null,
       email: null,
     });
+    expect(lireDossier(form({ profil: "soundcloud.com/lou-velours" })).values?.profileUrl).toBe("https://soundcloud.com/lou-velours");
   });
 
   it("disent ce qui manque, champ par champ, avec les messages de la page", () => {
@@ -81,20 +83,55 @@ describe("les règles d'une candidature", () => {
       bio: "Présente-toi en quelques lignes : ce sera ta bio sur le site.",
       contact: "Laisse ton Instagram ou ton e-mail, pour qu'on puisse te répondre.",
     });
-    expect(lireDossier(form({ instagram: "lou velours", email: "lou@" })).errors).toEqual({
+    expect(lireDossier(form({ instagram: "lou velours", email: "lou@", profil: "pas un lien" })).errors).toEqual({
       instagram: "Ce compte n'a pas l'air juste : des lettres, des chiffres, des points et des _ seulement.",
+      profil: "Ce lien n'a pas l'air d'une adresse web.",
       email: "Cette adresse e-mail n'a pas l'air complète.",
     });
   });
 
-  it("demandent le MP3, ou pour une playlist son lien ; la tracklist et le mot restent facultatifs", () => {
+  it("demandent le MP3, ou pour une playlist son lien ; le mot reste facultatif", () => {
     expect(lireEnvoi(form(), { aSon: false }).errors).toEqual({ son: "Ajoute le MP3 de ton émission." });
     expect(lireEnvoi(form({ type: "playlist" }), { aSon: false }).errors).toEqual({ son: "Ajoute le MP3 de ta playlist, ou son lien." });
     expect(lireEnvoi(form({ type: "playlist", lien: "pas un lien" }), { aSon: false }).errors).toEqual({ lien: "Ce lien n'a pas l'air d'une adresse web." });
-    expect(lireEnvoi(form({ type: "playlist", lien: "deezer.com/playlist/1" }), { aSon: false }).values).toEqual({ listenUrl: "https://deezer.com/playlist/1", tracklist: null, message: null });
+    expect(lireEnvoi(form({ type: "playlist", lien: "deezer.com/playlist/1" }), { aSon: false }).values).toEqual({
+      listenUrl: "https://deezer.com/playlist/1",
+      tracklist: "Artiste Un\tTitre un",
+      message: null,
+    });
     // Un set n'envoie pas de lien, même s'il en reste un dans le brouillon.
-    expect(lireEnvoi(form({ lien: "deezer.com/x", tracklist: " 00:00 A – B ", message: " Merci ! " }), { aSon: true }).values).toEqual({ listenUrl: null, tracklist: "00:00 A – B", message: "Merci !" });
+    expect(lireEnvoi(form({ lien: "deezer.com/x", message: " Merci ! " }), { aSon: true }).values).toEqual({ listenUrl: null, tracklist: "Artiste Un\tTitre un", message: "Merci !" });
     expect(lireCandidature(form({ titre: "" }), { aSon: false }).errors).toEqual({ titre: "Donne un titre à ton émission.", son: "Ajoute le MP3 de ton émission." });
+  });
+
+  it("demandent la tracklist en cases (l'artiste et le titre) pour un DJ set et une playlist, pas pour un podcast", () => {
+    const manque = "Ajoute ta tracklist : l'artiste et le titre de chaque morceau.";
+    expect(lireEnvoi(form({ tracklist: "" }), { aSon: true }).errors).toEqual({ tracklist: manque });
+    expect(lireEnvoi(form({ type: "playlist", tracklist: "\t\n  \t " }), { aSon: true }).errors).toEqual({ tracklist: manque });
+    expect(lireEnvoi(form({ type: "podcast", tracklist: "" }), { aSon: true }).values).toEqual({ listenUrl: null, tracklist: null, message: null });
+    // Une ligne à moitié remplie : il manque une case.
+    expect(lireEnvoi(form({ tracklist: "Artiste Un\tTitre un\nArtiste seul\t" }), { aSon: true }).errors).toEqual({
+      tracklist: "Il manque l'artiste ou le titre d'un morceau : remplis les deux cases, ou retire la ligne.",
+    });
+    expect(lireEnvoi(form({ type: "podcast", tracklist: "\tTitre seul" }), { aSon: true }).errors.tracklist).toMatch(/Il manque/);
+    // Les cases sont remises au propre ; les lignes vides, oubliées.
+    expect(lireEnvoi(form({ tracklist: "  Jay-Z \t  Dirt  off your   shoulder \n\t\n Moodymann\tShades of Jae" }), { aSon: true }).values?.tracklist).toBe(
+      "Jay-Z\tDirt off your shoulder\nMoodymann\tShades of Jae",
+    );
+    expect(lireEnvoi(form({ tracklist: Array.from({ length: 301 }, (_, n) => `A${n}\tT${n}`).join("\n") }), { aSon: true }).errors.tracklist).toMatch(/300 au plus/);
+  });
+
+  it("lisent et écrivent les morceaux, et une tracklist collée d'avant les cases", () => {
+    expect(lireMorceaux("00:00 Artiste – Titre\n12:30 Autre - Morceau (Remix)\n\nTracklist :")).toEqual([
+      { artiste: "Artiste", titre: "Titre" },
+      { artiste: "Autre", titre: "Morceau (Remix)" },
+    ]);
+    expect(lireMorceaux("Titre sans artiste")).toEqual([{ artiste: "", titre: "Titre sans artiste" }]);
+    const morceaux = [
+      { artiste: "Jay-Z", titre: "Dirt Off Your Shoulder" },
+      { artiste: "Kate Bush", titre: "Running Up That Hill – 2018 Remaster" },
+    ];
+    expect(lireMorceaux(ecrireMorceaux(morceaux))).toEqual(morceaux);
   });
 });
 
@@ -124,7 +161,7 @@ describe("les candidatures", () => {
     await db.delete(application);
     await db.delete(show);
     await db.delete(artist);
-    await db.update(applicationSettings).set({ openTypes: ["dj_set", "podcast", "playlist"], replyDays: 21 });
+    await db.update(applicationSettings).set({ openTypes: ["dj_set", "podcast", "playlist"] });
   }
 
   /** Une candidature envoyée en entier : le dossier, le son déposé (de cette taille), l'envoi. Rend son identifiant. */
@@ -143,7 +180,7 @@ describe("les candidatures", () => {
   }
 
   it("lisent les réglages posés par la migration et les styles de chaque type", async () => {
-    expect(await candidatures().reglages()).toEqual({ openTypes: ["dj_set", "podcast", "playlist"], replyDays: 21 });
+    expect(await candidatures().reglages()).toEqual({ openTypes: ["dj_set", "podcast", "playlist"] });
     const styles = await candidatures().styles();
     expect(styles.map((one) => [one.type, one.filtre])).toEqual([
       ["dj_set", "Genre"],
@@ -183,10 +220,13 @@ describe("les candidatures", () => {
     expect(await candidatures().cleSon("x".repeat(43), second.id)).toBeNull();
 
     // L'envoi : le second son, arrivé.
-    const depot = await candidatures().deposer(ouvert.jeton, form({ titre: "Disco du lundi", styles: [genre!.slug], tracklist: "00:00 A – B" }), { id: second.id, size: 140_000_000 });
+    const depot = await candidatures().deposer(ouvert.jeton, form({ titre: "Disco du lundi", styles: [genre!.slug], tracklist: "A\tB", profil: "soundcloud.com/lou" }), {
+      id: second.id,
+      size: 140_000_000,
+    });
     expect(depot).toMatchObject({ ok: true, removedKeys: [] });
     const [envoyee] = await db.select().from(application);
-    expect(envoyee).toMatchObject({ dossierHash: null, tracklist: "00:00 A – B", status: "new" });
+    expect(envoyee).toMatchObject({ dossierHash: null, tracklist: "A\tB", profileUrl: "https://soundcloud.com/lou", status: "new", regular: null });
     expect(envoyee!.submittedAt).toBeInstanceOf(Date);
     expect(await db.select({ status: audioFile.status, size: audioFile.sizeBytes, applicationId: audioFile.applicationId, fileName: audioFile.fileName }).from(audioFile)).toEqual([
       { status: "received", size: 140_000_000, applicationId: envoyee!.id, fileName: "Mon set.mp3" },
@@ -260,12 +300,12 @@ describe("les candidatures", () => {
     expect(
       (await pgError(withViewer(db, { role: "authenticated", userId: editorId }, (tx) => tx.insert(application).values({ type: "podcast", name: "X", pitch: "Une idée assez longue.", email: "x@exemple.test", submittedAt: NOW })))).code,
     ).toBe("42501");
-    expect(await createAdmin(db, editorId).saveApplicationSettings({ openTypes: ["podcast"], replyDays: 14 })).toEqual({ ok: false, errors: { form: "Seul un admin règle les candidatures." } });
-    expect(await createAdmin(db, adminId).saveApplicationSettings({ openTypes: ["podcast", "inconnu"], replyDays: 14 })).toEqual({ ok: true });
-    expect(await createAdmin(db, editorId).applicationSettings()).toEqual({ openTypes: ["podcast"], replyDays: 14 });
+    expect(await createAdmin(db, editorId).saveApplicationSettings({ openTypes: ["podcast"] })).toEqual({ ok: false, errors: { form: "Seul un admin règle les candidatures." } });
+    expect(await createAdmin(db, adminId).saveApplicationSettings({ openTypes: ["podcast", "inconnu"] })).toEqual({ ok: true });
+    expect(await createAdmin(db, editorId).applicationSettings()).toEqual({ openTypes: ["podcast"] });
   });
 
-  it("se listent une fois envoyées seulement, par statut, type, retard et recherche ; l'accueil les compte", async () => {
+  it("se listent une fois envoyées seulement, par statut, type et recherche ; l'accueil les compte", async () => {
     await reset();
     await envoyer();
     await envoyer({ type: "podcast", instagram: "", email: "ondes@exemple.test", nom: "Les Ondes Courtes", titre: "Radio pirate" });
@@ -274,16 +314,15 @@ describe("les candidatures", () => {
     // Un dossier pas encore envoyé n'existe pas pour l'équipe.
     await candidatures().ouvrirDossier(form({ instagram: "en.cours", nom: "En cours" }));
     const admin = createAdmin(db, editorId);
-    expect((await admin.listApplications({}, NOW)).rows.map((row) => [row.name, row.title, row.hasSound])).toEqual([
+    expect((await admin.listApplications({})).rows.map((row) => [row.name, row.title, row.hasSound])).toEqual([
       ["Les Ondes Courtes", "Radio pirate", true],
       ["Lou Velours", "Disco du dimanche", true],
       ["Ancienne", "Vieux set", true],
     ]);
-    expect((await admin.listApplications({ type: "podcast" }, NOW)).rows.map((row) => row.name)).toEqual(["Les Ondes Courtes"]);
-    expect((await admin.listApplications({ late: "1" }, NOW)).rows.map((row) => row.name)).toEqual(["Ancienne"]);
-    expect((await admin.listApplications({ q: "pirate" }, NOW)).rows.map((row) => row.name)).toEqual(["Les Ondes Courtes"]);
-    expect((await admin.listApplications({}, NOW)).counts).toEqual({ new: 3, shortlisted: 0, accepted: 0, declined: 0 });
-    expect(await admin.applicationCounts(NOW)).toEqual({ new: 3, shortlisted: 0, late: 1 });
+    expect((await admin.listApplications({ type: "podcast" })).rows.map((row) => row.name)).toEqual(["Les Ondes Courtes"]);
+    expect((await admin.listApplications({ q: "pirate" })).rows.map((row) => row.name)).toEqual(["Les Ondes Courtes"]);
+    expect((await admin.listApplications({})).counts).toEqual({ new: 3, shortlisted: 0, accepted: 0, declined: 0 });
+    expect(await admin.applicationCounts()).toEqual({ new: 3, shortlisted: 0 });
   });
 
   it("se valident : la fiche d'invité, l'émission en brouillon, ses styles, sa tracklist, l'envoi et le son validé", async () => {
@@ -294,13 +333,19 @@ describe("les candidatures", () => {
     const photo = await candidatures().ajouterPhoto(ouvert.jeton, image(4));
     const son = await candidatures().preparerSon(ouvert.jeton, { fileName: "set.mp3", size: 1000 });
     if (!photo.ok || !son.ok) throw new Error("refusé");
-    const depot = await candidatures().deposer(ouvert.jeton, form({ styles: [genre!.slug], tracklist: "00:00 Artiste Un – Titre un\n12:30 Artiste Deux – Titre deux", message: "Merci !" }), { id: son.id, size: 1000 });
+    const depot = await candidatures().deposer(
+      ouvert.jeton,
+      form({ styles: [genre!.slug], tracklist: "Artiste Un\tTitre un\nArtiste Deux\tTitre deux", message: "Merci !", profil: "https://soundcloud.com/lou-velours" }),
+      { id: son.id, size: 1000 },
+    );
     if (!depot.ok) throw new Error("envoi refusé");
     const admin = createAdmin(db, editorId);
     expect(await admin.moveApplication(depot.id, "shortlisted")).toEqual({ ok: true });
     expect(await admin.noteApplication(depot.id, "  À placer un dimanche  ")).toEqual({ ok: true });
-    expect(await admin.getApplication(depot.id, NOW)).toMatchObject({
+    expect(await admin.getApplication(depot.id)).toMatchObject({
       status: "shortlisted",
+      profileUrl: "https://soundcloud.com/lou-velours",
+      erasedAt: null,
       title: "Disco du dimanche",
       bio: "DJ à Lyon, je mixe de la house et du disco depuis dix ans.",
       photo: { id: photo.media.id },
@@ -324,7 +369,10 @@ describe("les candidatures", () => {
       status: "draft",
       bio: "DJ à Lyon, je mixe de la house et du disco depuis dix ans.",
       photoId: photo.media.id,
-      links: [{ label: "Instagram", url: "https://www.instagram.com/lou.velours/" }],
+      links: [
+        { label: "Instagram", url: "https://www.instagram.com/lou.velours/" },
+        { label: "SoundCloud", url: "https://soundcloud.com/lou-velours" },
+      ],
     });
     const activite = await db.select({ slug: tag.slug }).from(artistTag).innerJoin(tag, eq(tag.id, artistTag.tagId)).where(eq(artistTag.artistId, accepted.artistId));
     expect(activite.map((one) => one.slug)).toEqual(["dj"]);
@@ -333,8 +381,8 @@ describe("les candidatures", () => {
     expect(await db.select({ artistId: showArtist.artistId }).from(showArtist).where(eq(showArtist.showId, accepted.showId))).toEqual([{ artistId: accepted.artistId }]);
     expect((await db.select({ slug: tag.slug }).from(showTag).innerJoin(tag, eq(tag.id, showTag.tagId)).where(eq(showTag.showId, accepted.showId))).map((one) => one.slug)).toEqual([genre!.slug]);
     expect(await db.select({ position: track.position, artist: track.artist, title: track.title, start: track.startSeconds }).from(track).where(eq(track.showId, accepted.showId)).orderBy(track.position)).toEqual([
-      { position: 1, artist: "Artiste Un", title: "Titre un", start: 0 },
-      { position: 2, artist: "Artiste Deux", title: "Titre deux", start: 750 },
+      { position: 1, artist: "Artiste Un", title: "Titre un", start: null },
+      { position: 2, artist: "Artiste Deux", title: "Titre deux", start: null },
     ]);
     expect(await db.select({ artistId: submission.artistId, note: submission.note, link: submission.link }).from(submission).where(eq(submission.showId, accepted.showId))).toEqual([
       { artistId: accepted.artistId, note: "Merci !", link: null },
@@ -342,7 +390,10 @@ describe("les candidatures", () => {
     expect(await db.select({ showId: audioFile.showId, applicationId: audioFile.applicationId, status: audioFile.status }).from(audioFile)).toEqual([
       { showId: accepted.showId, applicationId: null, status: "approved" },
     ]);
-    expect(await admin.getApplication(depot.id, NOW)).toMatchObject({
+    const validee = await admin.getApplication(depot.id);
+    // Effacée six mois après la validation.
+    expect(validee!.erasedAt!.getTime() - validee!.answeredAt!.getTime()).toBeGreaterThan(180 * 86_400_000);
+    expect(validee).toMatchObject({
       status: "accepted",
       answeredBy: "Membre editor",
       artist: { id: accepted.artistId, status: "draft" },
@@ -361,13 +412,28 @@ describe("les candidatures", () => {
       .insert(artist)
       .values({ slug: "les-ondes-courtes", name: "Les Ondes Courtes", role: "resident", bio: "Leur vraie bio." })
       .returning({ id: artist.id });
-    const id = await envoyer({ type: "podcast", instagram: "", email: "ondes@exemple.test", nom: "les ondes courtes", titre: "Radio pirate", bio: "Une bio inventée pour prendre leur place." });
+    const id = await envoyer({
+      type: "podcast",
+      instagram: "",
+      email: "ondes@exemple.test",
+      profil: "mixcloud.com/ondes",
+      nom: "les ondes courtes",
+      titre: "Radio pirate",
+      bio: "Une bio inventée pour prendre leur place.",
+      tracklist: "",
+    });
     const admin = createAdmin(db, editorId);
-    expect((await admin.getApplication(id, NOW))?.sameName).toEqual({ id: existante!.id, name: "Les Ondes Courtes" });
+    expect((await admin.getApplication(id))?.sameName).toEqual({ id: existante!.id, name: "Les Ondes Courtes" });
     const accepted = await admin.acceptApplication(id);
     expect(accepted).toMatchObject({ ok: true, artistId: existante!.id, reused: true });
-    const [fiche] = await db.select({ role: artist.role, bio: artist.bio }).from(artist).where(eq(artist.id, existante!.id));
-    expect(fiche).toEqual({ role: "resident", bio: "Leur vraie bio." });
+    // Sa bio reste ; ses liens manquaient : ils viennent de la candidature.
+    const [fiche] = await db.select({ role: artist.role, bio: artist.bio, links: artist.links }).from(artist).where(eq(artist.id, existante!.id));
+    expect(fiche).toEqual({ role: "resident", bio: "Leur vraie bio.", links: [{ label: "Mixcloud", url: "https://mixcloud.com/ondes" }] });
+    // Une fiche qui a déjà ses liens les garde.
+    await db.update(artist).set({ links: [{ label: "Site", url: "https://ondes.exemple.test" }] }).where(eq(artist.id, existante!.id));
+    const encore = await envoyer({ type: "podcast", instagram: "ondes", email: "", profil: "soundcloud.com/ondes", nom: "Les Ondes Courtes", titre: "Radio pirate 2", tracklist: "" });
+    expect(await admin.acceptApplication(encore)).toMatchObject({ ok: true, artistId: existante!.id });
+    expect((await db.select({ links: artist.links }).from(artist).where(eq(artist.id, existante!.id)))[0]!.links).toEqual([{ label: "Site", url: "https://ondes.exemple.test" }]);
     expect(await db.select({ id: artist.id }).from(artist).where(sql`lower(${artist.name}) = 'les ondes courtes'`)).toHaveLength(1);
     // Une candidature d'avant le son, sans lien : rien à valider.
     await db.insert(application).values({ type: "dj_set", name: "Ancien", pitch: "Une idée assez longue pour passer.", instagram: "ancien", submittedAt: NOW });
@@ -375,7 +441,7 @@ describe("les candidatures", () => {
     expect(await admin.acceptApplication(ancienne!.id)).toMatchObject({ ok: false, errors: { form: expect.stringMatching(/rien à valider/) } });
   });
 
-  it("se refusent (le son et la photo partent tout de suite), se reprennent, s'effacent ; la nuit oublie les dossiers et les vieux refus", async () => {
+  it("« Pas cette fois » les efface tout de suite, avec leur son et leur photo ; elles s'effacent aussi à la main", async () => {
     await reset();
     const ouvert = await candidatures().ouvrirDossier(form());
     if (!ouvert.ok) throw new Error("dossier refusé");
@@ -386,34 +452,58 @@ describe("les candidatures", () => {
     if (!depot.ok) throw new Error("envoi refusé");
     const autre = await envoyer({ instagram: "autre", nom: "Autre" });
     const admin = createAdmin(db, editorId);
+    expect(await admin.moveApplication(depot.id, "shortlisted")).toEqual({ ok: true });
     const refus = await admin.declineApplication(depot.id);
-    expect(refus).toMatchObject({ ok: true, keys: [son.key] });
+    expect(refus).toMatchObject({ ok: true, name: "Lou Velours", keys: [son.key] });
     if (refus.ok) expect([...new Set(refus.images)]).toEqual([image(5).key]);
+    expect(await admin.getApplication(depot.id)).toBeNull();
     expect(await db.select().from(audioFile).where(eq(audioFile.applicationId, depot.id))).toEqual([]);
-    const declined = await admin.getApplication(depot.id, NOW);
-    expect(declined).toMatchObject({ status: "declined", answeredBy: "Membre editor", photo: null, sound: null });
-    expect(declined!.erasedAt!.getTime() - declined!.answeredAt!.getTime()).toBeGreaterThan(180 * 86_400_000);
-    expect(await admin.moveApplication(depot.id, "new")).toEqual({ ok: true });
-    expect(await admin.declineApplication(depot.id)).toEqual({ ok: true, keys: [], images: [] });
+    expect(await db.select({ id: media.id }).from(media).where(eq(media.key, image(5).key))).toEqual([]);
+    expect(await admin.declineApplication(depot.id)).toMatchObject({ ok: false });
+    // Effacée, la même personne peut en envoyer une autre.
+    expect((await candidatures().ouvrirDossier(form())).ok).toBe(true);
     const supprimee = await admin.deleteApplication(autre);
     expect(supprimee).toMatchObject({ name: "Autre", keys: [expect.stringMatching(/^audio\//)] });
     expect(await admin.deleteApplication(autre)).toBeNull();
+  });
 
-    // La nuit : un dossier jamais envoyé, de plus d'un jour, part avec son son et sa photo ; un refus, après six mois.
+  it("la nuit, oublient les dossiers abandonnés, les validées depuis six mois (l'émission et la fiche restent) et les vieux refus", async () => {
+    await reset();
+    // Une candidature validée, avec sa photo, qui passe à la fiche.
+    const ouvert = await candidatures().ouvrirDossier(form());
+    if (!ouvert.ok) throw new Error("dossier refusé");
+    const photo = await candidatures().ajouterPhoto(ouvert.jeton, image(7));
+    const son = await candidatures().preparerSon(ouvert.jeton, { fileName: "set.mp3", size: 1000 });
+    if (!photo.ok || !son.ok) throw new Error("refusé");
+    const depot = await candidatures().deposer(ouvert.jeton, form(), { id: son.id, size: 1000 });
+    if (!depot.ok) throw new Error("envoi refusé");
+    const accepted = await createAdmin(db, editorId).acceptApplication(depot.id);
+    if (!accepted.ok) throw new Error("validation refusée");
+    // Un refus d'avant le 11 nov. 2026, gardé à l'époque.
+    await db.insert(application).values({ type: "dj_set", name: "Refus", pitch: "Une idée assez longue pour passer.", instagram: "refus", submittedAt: NOW, status: "declined", answeredAt: NOW });
+    // Un dossier jamais envoyé.
     const perdu = await candidatures().ouvrirDossier(form({ instagram: "perdu", nom: "Perdu" }));
     if (!perdu.ok) throw new Error("dossier refusé");
     await candidatures().ajouterPhoto(perdu.jeton, image(6));
     const sonPerdu = await candidatures().preparerSon(perdu.jeton, { fileName: "set.mp3", size: 1000 });
     if (!sonPerdu.ok) throw new Error("son refusé");
-    expect(await candidatures().menage()).toEqual({ abandoned: 0, erased: 0, keys: [], images: [] });
-    clock = new Date(NOW.getTime() + 25 * 3600 * 1000);
-    await db.update(application).set({ createdAt: sql`created_at - interval '25 hours'` }).where(eq(application.name, "Perdu"));
+
+    // Cette nuit : le vieux refus part ; le dossier n'a pas un jour, la validée pas six mois.
+    expect(await candidatures().menage()).toEqual({ abandoned: 0, erased: 1, keys: [], images: [] });
+    // (created_at et answered_at sont l'heure réelle de l'écriture : la date du test s'y règle.)
+    await db.update(application).set({ createdAt: new Date(NOW.getTime() - 25 * 3600 * 1000) }).where(eq(application.name, "Perdu"));
     const nuit = await candidatures().menage();
     expect(nuit).toMatchObject({ abandoned: 1, erased: 0, keys: [sonPerdu.key] });
     expect([...new Set(nuit.images)]).toEqual([image(6).key]);
-    await db.update(application).set({ answeredAt: new Date("2026-04-01T10:00:00Z") }).where(eq(application.id, depot.id));
-    expect(await candidatures().menage()).toMatchObject({ abandoned: 0, erased: 1 });
+    expect(await db.select({ id: application.id }).from(application)).toEqual([{ id: depot.id }]);
+
+    // Six mois et un jour après la validation : la candidature part ; l'émission, la fiche, sa photo et le son restent.
+    await db.update(application).set({ answeredAt: new Date("2026-05-05T10:00:00Z") }).where(eq(application.id, depot.id));
+    expect(await candidatures().menage()).toEqual({ abandoned: 0, erased: 1, keys: [], images: [] });
     expect(await db.select().from(application)).toEqual([]);
+    expect(await db.select({ id: show.id }).from(show)).toEqual([{ id: accepted.showId }]);
+    expect(await db.select({ photoId: artist.photoId }).from(artist)).toEqual([{ photoId: photo.media.id }]);
+    expect(await db.select({ id: audioFile.id, showId: audioFile.showId }).from(audioFile)).toEqual([{ id: son.id, showId: accepted.showId }]);
   });
 
   it("gardent leur cohérence dans la base : un contact, une réponse datée, un dossier ou un envoi", async () => {
