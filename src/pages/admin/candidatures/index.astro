@@ -1,10 +1,9 @@
 ---
 /**
  * Les candidatures dans l'admin (cms/README.md, 9.17) : la liste, les plus récentes d'abord ; par défaut, celles qui
- * attendent une réponse (à écouter, mises de côté). Les filtres : statut, type, sans réponse au-delà du délai annoncé,
- * et la recherche (titre de l'émission, nom, compte Instagram, adresse e-mail, ville). Un admin y règle les
- * candidatures (POST, intent=settings) : les types ouverts sur la page, et le délai de réponse qu'elle annonce. Servie
- * en HTML ou en JSON, comme chaque écran.
+ * attendent une réponse (à écouter, mises de côté). Les filtres : statut, type, et la recherche (titre de l'émission,
+ * nom, compte Instagram, adresse e-mail, ville). Un admin y règle les candidatures (POST, intent=settings) : les types
+ * ouverts sur la page. Servie en HTML ou en JSON, comme chaque écran.
  */
 import type { ApplicationSettingsResponse, Screen } from "../../../components/admin/types";
 import Admin from "../../../layouts/Admin.astro";
@@ -19,7 +18,7 @@ if (Astro.request.method === "POST") {
   const data = await Astro.request.formData();
   if (data.get("intent") !== "settings") return json({ ok: false, errors: { form: "Action inconnue." } }, 400);
   if (!canSettle) return json({ ok: false, errors: { form: "Seul un admin règle les candidatures." } }, 403);
-  const saved = await admin.saveApplicationSettings({ openTypes: data.getAll("openTypes").map(String), replyDays: Number(data.get("replyDays")) });
+  const saved = await admin.saveApplicationSettings({ openTypes: data.getAll("openTypes").map(String) });
   if (!saved.ok) return json(saved, 422);
   const settings = await admin.applicationSettings();
   const ouverts = settings.openTypes.length;
@@ -35,10 +34,9 @@ const filters = {
   q: params.get("q")?.trim() ?? "",
   status: params.get("status") ?? "",
   type: params.get("type") ?? "",
-  late: params.get("late") ?? "",
 };
 const now = new Date();
-const [list, settings] = await Promise.all([admin.listApplications({ ...filters, status: filters.status || "todo" }, now), admin.applicationSettings()]);
+const [list, settings] = await Promise.all([admin.listApplications({ ...filters, status: filters.status || "todo" }), admin.applicationSettings()]);
 const screen: Screen = {
   name: "applications",
   title: "Candidatures",

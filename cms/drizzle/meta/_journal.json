@@ -169,6 +169,13 @@
       "when": 1793969545332,
       "tag": "0023_candidatures_envoi",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794427237020,
+      "tag": "0024_candidatures_liens",
+      "breakpoints": true
     }
   ]
 }

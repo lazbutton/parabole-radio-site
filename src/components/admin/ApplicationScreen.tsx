@@ -1,27 +1,28 @@
 /**
  * Une candidature (cms/README.md, 9.17) : à gauche, l'émission proposée (sa description, ses styles), son son (le MP3 à
- * écouter ou à télécharger, ou le lien d'une playlist ; sa tracklist), l'artiste (sa photo, sa bio), son mot pour
- * l'équipe, et la réponse ; à droite, le contact, la note de l'équipe et les informations. La réponse se donne en un
- * clic, confirmé :
+ * écouter ou à télécharger, ou le lien d'une playlist ; sa tracklist, morceau par morceau), l'artiste (sa photo, sa
+ * bio), son mot pour l'équipe, et la réponse ; à droite, le contact et ses liens, la note de l'équipe et les
+ * informations. La réponse se donne en un clic, confirmé :
  *   - « Valider » crée l'émission en brouillon, avec son son, ses styles et sa tracklist, et la fiche d'invité de
- *     l'artiste, en brouillon aussi (ou reprend la fiche qui porte déjà ce nom, sans rien écraser) ;
- *   - « Pas cette fois » note le refus et efface tout de suite le son et la photo ; la candidature, six mois après.
- * Puis l'écran prépare le message à envoyer, modifiable : le copier pour Insta, ou l'ouvrir dans la messagerie, avec
- * l'adresse et l'objet. « Mettre de côté » range une candidature à réécouter. « Effacer » la retire tout de suite
- * (indésirable, ou demandé par la personne).
+ *     l'artiste, en brouillon aussi (ou reprend la fiche qui porte déjà ce nom, sans rien écraser) ; l'écran prépare
+ *     ensuite le message à envoyer, modifiable : le copier pour Insta, ou l'ouvrir dans la messagerie. La candidature
+ *     est effacée six mois après (l'émission et la fiche restent) ;
+ *   - « Pas cette fois » l'efface tout de suite, avec son son et sa photo : depuis le 11 nov. 2026, on ne répond
+ *     qu'aux émissions retenues (la page le dit), il n'y a donc pas de message à envoyer.
+ * « Mettre de côté » range une candidature à réécouter. Une candidature validée peut s'effacer avant ses six mois.
  */
 import { LABELS } from "@parabole/cms/labels";
 import {
   ArrowLeftIcon,
   BookmarkIcon,
   CheckIcon,
-  ClockIcon,
   CopyIcon,
   Cross2Icon,
   DownloadIcon,
   EnvelopeClosedIcon,
   ExclamationTriangleIcon,
   InstagramLogoIcon,
+  Link2Icon,
   ResetIcon,
   SewingPinIcon,
   SpeakerLoudIcon,
@@ -52,15 +53,6 @@ export function messageValidee(name: string, title: string) {
   ].join("\n\n");
 }
 
-/** Le message du refus : merci, pas cette fois, la porte reste ouverte. */
-export function messageNon(name: string) {
-  return [
-    `Salut ${name} !`,
-    "Merci pour ton émission et pour le temps que tu y as mis. Ce ne sera pas pour cette fois, mais la porte reste ouverte : n'hésite pas à nous en envoyer une autre plus tard.",
-    `Belle continuation,\n${SIGNATURE}`,
-  ].join("\n\n");
-}
-
 export function ApplicationScreen({ sheet: initial }: ApplicationData) {
   const router = useRouter();
   const notify = useNotify();
@@ -72,7 +64,7 @@ export function ApplicationScreen({ sheet: initial }: ApplicationData) {
   const url = `/admin/candidatures/${sheet.id}`;
   const status = APPLICATION_STATUS[sheet.status];
   const answered = sheet.status === "accepted" || sheet.status === "declined";
-  /** De quoi valider : son MP3, ou le lien de sa playlist. Un refus repris n'a plus de son. */
+  /** De quoi valider : son MP3, ou le lien de sa playlist (une candidature d'avant le son n'a ni l'un ni l'autre). */
   const listenable = Boolean(sheet.sound || sheet.listenUrl);
 
   async function run(intent: Intent) {
@@ -90,7 +82,7 @@ export function ApplicationScreen({ sheet: initial }: ApplicationData) {
     }
     router.invalidate();
     if (result.message) notify({ kind: "success", title: result.message });
-    if (intent === "delete") {
+    if (intent === "delete" || intent === "decline") {
       forgetRecent(url);
       router.navigate(result.redirect ?? "/admin/candidatures");
       return;
@@ -110,11 +102,6 @@ export function ApplicationScreen({ sheet: initial }: ApplicationData) {
             <Badge color={status.color} variant="soft" radius="full">
               {status.label}
             </Badge>
-            {sheet.late && (
-              <Badge color="red" variant="soft" radius="full">
-                En retard
-              </Badge>
-            )}
             <span>
               Par {sheet.name}, reçue {sheet.received}
             </span>
@@ -158,15 +145,38 @@ export function ApplicationScreen({ sheet: initial }: ApplicationData) {
           <Section title="Le son">
             <Flex direction="column" gap="4">
               <Sound sheet={sheet} />
-              {sheet.tracklist && (
+              {sheet.tracklist.length > 0 ? (
                 <Flex direction="column" gap="2">
                   <Text size="2" weight="medium">
-                    Sa tracklist
+                    Sa tracklist · {sheet.tracklist.length} morceau{sheet.tracklist.length > 1 ? "x" : ""}
                   </Text>
-                  <Text as="p" size="2" className="admin-application-tracklist">
-                    {sheet.tracklist}
-                  </Text>
+                  <div className="admin-application-tracklist">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th scope="col">N°</th>
+                          <th scope="col">Artiste</th>
+                          <th scope="col">Titre</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sheet.tracklist.map((morceau, rang) => (
+                          <tr key={rang}>
+                            <td>{rang + 1}</td>
+                            <td>{morceau.artiste || "?"}</td>
+                            <td>{morceau.titre || "?"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </Flex>
+              ) : (
+                sheet.type === "podcast" && (
+                  <Text size="2" color="gray">
+                    Pas de tracklist (facultative pour un podcast).
+                  </Text>
+                )
               )}
             </Flex>
           </Section>
@@ -223,29 +233,21 @@ export function ApplicationScreen({ sheet: initial }: ApplicationData) {
             {sheet.status === "accepted" && sheet.show && sheet.artist ? (
               <Validated sheet={sheet} show={sheet.show} artist={sheet.artist} />
             ) : sheet.status === "declined" ? (
-              <Declined sheet={sheet} onReopen={() => void run("reopen")} busy={busy === "reopen"} />
+              <Declined sheet={sheet} />
             ) : (
               <Flex direction="column" gap="3">
-                {sheet.late && (
-                  <Callout.Root color="red" size="1">
-                    <Callout.Icon>
-                      <ClockIcon />
-                    </Callout.Icon>
-                    <Callout.Text>La page annonce une réponse sous {sheet.replyDays} jours : celle-ci attend depuis plus longtemps.</Callout.Text>
-                  </Callout.Root>
-                )}
                 {listenable ? (
                   <Text size="2" color="gray">
                     « Valider » crée l'émission « {sheet.title} » en brouillon, avec {sheet.sound ? "ce son" : "ce lien"}, ses styles et sa tracklist,{" "}
                     {sheet.sameName ? `et reprend la fiche « ${sheet.sameName.name} », qui existe déjà.` : `et la fiche d'invité de ${sheet.name}, en brouillon aussi.`} Le message à
-                    lui envoyer est prêt juste après.
+                    lui envoyer est prêt juste après. « Pas cette fois » efface la candidature : on ne répond qu'aux émissions retenues.
                   </Text>
                 ) : (
                   <Callout.Root color="amber" size="1">
                     <Callout.Icon>
                       <ExclamationTriangleIcon />
                     </Callout.Icon>
-                    <Callout.Text>Son son a été effacé avec le refus : il n'y a plus rien à valider. Pour l'entendre de nouveau, demande-lui de candidater encore.</Callout.Text>
+                    <Callout.Text>Ni son ni lien de playlist : il n'y a rien à valider. Pour l'entendre, demande-lui de candidater de nouveau.</Callout.Text>
                   </Callout.Root>
                 )}
                 <Flex gap="2" wrap="wrap">
@@ -286,6 +288,13 @@ export function ApplicationScreen({ sheet: initial }: ApplicationData) {
                 </Link>
               </Line>
             )}
+            {sheet.profile && (
+              <Line icon={<Link2Icon />}>
+                <Link href={sheet.profile.url} target="_blank" rel="noopener noreferrer" className="admin-break" title={sheet.profile.url}>
+                  {sheet.profile.label}
+                </Link>
+              </Line>
+            )}
             {sheet.city && <Line icon={<SewingPinIcon />}>{sheet.city}</Line>}
           </SidePanel>
 
@@ -313,9 +322,16 @@ export function ApplicationScreen({ sheet: initial }: ApplicationData) {
                 </>
               )}
             </Text>
-            <Button variant="ghost" color="red" size="2" onClick={() => setAsking("delete")} disabled={busy !== null} className="admin-align-start">
-              <TrashIcon /> Effacer la candidature
-            </Button>
+            {sheet.status === "accepted" && sheet.erasedAt && (
+              <Text size="2" color="gray">
+                Elle sera effacée le {sheet.erasedAt} ; l'émission et la fiche restent.
+              </Text>
+            )}
+            {answered && (
+              <Button variant="ghost" color="red" size="2" onClick={() => setAsking("delete")} disabled={busy !== null} className="admin-align-start">
+                <TrashIcon /> Effacer la candidature
+              </Button>
+            )}
           </SidePanel>
         </aside>
       </div>
@@ -338,7 +354,8 @@ export function ApplicationScreen({ sheet: initial }: ApplicationData) {
             <>
               <AlertDialog.Title>Pas cette fois pour {sheet.name} ?</AlertDialog.Title>
               <AlertDialog.Description size="2">
-                La réponse est notée. Son son et sa photo sont effacés tout de suite : on ne pourra plus l'écouter. Le reste de la candidature est effacé six mois après.
+                La candidature est effacée tout de suite, avec son son et sa photo : on ne pourra plus l'écouter. Pas de message à lui envoyer : la page dit qu'on ne répond
+                qu'aux émissions sélectionnées.
               </AlertDialog.Description>
             </>
           )}
@@ -469,26 +486,18 @@ function Validated({ sheet, show, artist }: { sheet: ApplicationSheet; show: Non
   );
 }
 
-/** Le refus : quand, par qui, quand il sera effacé, le message, et de quoi le reprendre (une playlist venue par son lien). */
-function Declined({ sheet, onReopen, busy }: { sheet: ApplicationSheet; onReopen(): void; busy: boolean }) {
+/** Un refus d'avant le 11 nov. 2026, quand on gardait les refus six mois : la tâche de nuit l'efface. */
+function Declined({ sheet }: { sheet: ApplicationSheet }) {
   return (
-    <Flex direction="column" gap="4">
-      <Callout.Root color="gray" size="1">
-        <Callout.Icon>
-          <Cross2Icon />
-        </Callout.Icon>
-        <Callout.Text>
-          Pas cette fois{sheet.answeredAt ? `, le ${sheet.answeredAt}` : ""}
-          {sheet.answeredBy ? ` par ${sheet.answeredBy}` : ""}. {sheet.erasedAt ? `Effacée le ${sheet.erasedAt}.` : ""}
-        </Callout.Text>
-      </Callout.Root>
-      <Message sheet={sheet} text={messageNon(sheet.name)} subject="Ton émission sur Parabole Radio" />
-      {sheet.listenUrl && (
-        <Button variant="ghost" color="gray" loading={busy} onClick={onReopen} className="admin-align-start">
-          <ResetIcon /> Remettre à écouter
-        </Button>
-      )}
-    </Flex>
+    <Callout.Root color="gray" size="1">
+      <Callout.Icon>
+        <Cross2Icon />
+      </Callout.Icon>
+      <Callout.Text>
+        Pas cette fois{sheet.answeredAt ? `, le ${sheet.answeredAt}` : ""}
+        {sheet.answeredBy ? ` par ${sheet.answeredBy}` : ""}. Elle sera effacée cette nuit.
+      </Callout.Text>
+    </Callout.Root>
   );
 }
 

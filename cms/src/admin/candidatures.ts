@@ -4,10 +4,11 @@
  * envoyées comptent (un dossier en cours d'envoi n'existe pas encore pour l'équipe).
  *
  * Une candidature arrive avec son émission entière : l'écouter suffit. La valider crée la fiche d'invité, en brouillon
- * (son nom, sa bio, sa photo, son Instagram, son activité), ou reprend la fiche qui porte déjà ce nom, sans toucher à ce
+ * (son nom, sa bio, sa photo, ses liens, son activité), ou reprend la fiche qui porte déjà ce nom, sans toucher à ce
  * qu'elle a déjà ; puis l'émission, en brouillon (titre, description, styles, tracklist), avec l'envoi et le son validé :
- * elle attend ensuite son créneau, comme l'envoi d'un résident (9.12). Un refus efface tout de suite le son et la photo,
- * et la candidature six mois après la réponse (la tâche de nuit).
+ * elle attend ensuite son créneau, comme l'envoi d'un résident (9.12). Une candidature validée est effacée six mois
+ * après (la tâche de nuit). Depuis le 11 nov. 2026, on ne répond qu'aux émissions retenues : « Pas cette fois » efface
+ * tout de suite la candidature, son son et sa photo.
  */
 import { and, asc, count, desc, eq, ilike, inArray, isNotNull, or, sql, type SQL } from "drizzle-orm";
 import type { Tx } from "../access.ts";
@@ -40,7 +41,7 @@ import {
 import { slugify } from "../slug.ts";
 import { parseTimecode, parseTracklist } from "../tracklist.ts";
 import { freeSlug, type NotSaved } from "./common.ts";
-import { isUuid } from "./input.ts";
+import { isUuid, linkLabel } from "./input.ts";
 import { getMedia, releaseMedia, type AdminMedia } from "./media.ts";
 
 /** L'activité d'un invité, d'après le type de sa candidature : les étiquettes du filtre Activité des artistes. */
@@ -51,8 +52,6 @@ export type AdminApplicationFilters = {
   /** « todo » (à écouter et mises de côté, par défaut), un statut, ou « all ». */
   status?: string;
   type?: string;
-  /** « 1 » : celles qui attendent leur réponse depuis plus que le délai annoncé. */
-  late?: string;
   q?: string;
 };
 
@@ -72,14 +71,14 @@ export type AdminApplicationRow = {
   answeredAt: Date | null;
   /** Un son est arrivé avec elle (sinon : le lien d'une playlist, ou une candidature d'avant le son). */
   hasSound: boolean;
-  /** Sans réponse depuis plus que le délai annoncé. */
-  late: boolean;
 };
 
 export type AdminApplication = AdminApplicationRow & {
   pitch: string;
   bio: string | null;
   photo: AdminMedia | null;
+  /** Le lien vers sa musique (SoundCloud ou autre). */
+  profileUrl: string | null;
   listenUrl: string | null;
   tracklist: string | null;
   message: string | null;
@@ -94,24 +93,16 @@ export type AdminApplication = AdminApplicationRow & {
   answeredBy: string | null;
   /** Une fiche qui porte déjà ce nom : la validation la reprendra plutôt que d'en créer une seconde. */
   sameName: { id: string; name: string } | null;
-  /** Le jour où un refus sera effacé. */
+  /** Le jour où une candidature validée sera effacée (six mois après) ; un refus d'avant le 11 nov. 2026, la nuit qui vient. */
   erasedAt: Date | null;
 };
 
-export type ApplicationCounts = { new: number; shortlisted: number; late: number };
+export type ApplicationCounts = { new: number; shortlisted: number };
 
-/** Une candidature envoyée attend sa réponse depuis plus que le délai annoncé. */
-const enRetard = (now: Date, replyDays: number) =>
-  sql<boolean>`(${application.status} in ('new', 'shortlisted') and ${application.submittedAt} < ${new Date(now.getTime() - replyDays * 86_400_000).toISOString()}::timestamptz)`;
 const envoyee = isNotNull(application.submittedAt);
 const aUnSon = sql<boolean>`exists (select 1 from ${audioFile} af where af.application_id = ${outer(application.id)} and af.status <> 'uploading')`;
 
-async function replyDaysOf(tx: Tx): Promise<number> {
-  const [row] = await tx.select({ replyDays: applicationSettings.replyDays }).from(applicationSettings).limit(1);
-  return row?.replyDays ?? 21;
-}
-
-const rowColumns = (now: Date, replyDays: number) => ({
+const rowColumns = () => ({
   id: application.id,
   title: application.title,
   name: application.name,
@@ -124,29 +115,22 @@ const rowColumns = (now: Date, replyDays: number) => ({
   createdAt: sql<Date>`coalesce(${application.submittedAt}, ${application.createdAt})`.mapWith((value) => new Date(value as string)),
   answeredAt: application.answeredAt,
   hasSound: aUnSon,
-  late: enRetard(now, replyDays),
 });
 
 /** Les candidatures envoyées, les plus récentes d'abord, et le compte de chaque statut (pour les pastilles de la liste). */
-export async function listApplications(
-  tx: Tx,
-  filters: AdminApplicationFilters = {},
-  now = new Date(),
-): Promise<{ rows: AdminApplicationRow[]; total: number; counts: Record<ApplicationStatus, number> }> {
-  const replyDays = await replyDaysOf(tx);
+export async function listApplications(tx: Tx, filters: AdminApplicationFilters = {}): Promise<{ rows: AdminApplicationRow[]; total: number; counts: Record<ApplicationStatus, number> }> {
   const where: (SQL | undefined)[] = [envoyee];
   const status = filters.status ?? "todo";
   if (status === "todo") where.push(inArray(application.status, ["new", "shortlisted"]));
   else if ((applicationStatus.enumValues as readonly string[]).includes(status)) where.push(eq(application.status, status as ApplicationStatus));
   if (filters.type && (showType.enumValues as readonly string[]).includes(filters.type)) where.push(eq(application.type, filters.type as ShowType));
-  if (filters.late === "1") where.push(enRetard(now, replyDays));
   const q = filters.q?.trim();
   if (q) {
     const motif = `%${escapeLike(q)}%`;
     where.push(or(ilike(application.name, motif), ilike(application.title, motif), ilike(application.instagram, motif), ilike(application.email, motif), ilike(application.city, motif)));
   }
   const rows = await tx
-    .select(rowColumns(now, replyDays))
+    .select(rowColumns())
     .from(application)
     .where(and(...where))
     .orderBy(desc(sql`coalesce(${application.submittedAt}, ${application.createdAt})`));
@@ -157,15 +141,15 @@ export async function listApplications(
 }
 
 /** Une candidature envoyée, avec son son, sa photo, ses styles, et ce que sa validation a créé ; null sinon. */
-export async function getApplication(tx: Tx, id: string, now = new Date()): Promise<AdminApplication | null> {
+export async function getApplication(tx: Tx, id: string): Promise<AdminApplication | null> {
   if (!isUuid(id)) return null;
-  const replyDays = await replyDaysOf(tx);
   const [row] = await tx
     .select({
-      ...rowColumns(now, replyDays),
+      ...rowColumns(),
       pitch: application.pitch,
       bio: application.bio,
       photoId: application.photoId,
+      profileUrl: application.profileUrl,
       listenUrl: application.listenUrl,
       tracklist: application.tracklist,
       message: application.message,
@@ -194,7 +178,12 @@ export async function getApplication(tx: Tx, id: string, now = new Date()): Prom
   const [fiche] = row.artistId ? await tx.select({ id: artist.id, name: artist.name, status: artist.status }).from(artist).where(eq(artist.id, row.artistId)).limit(1) : [];
   const [emission] = row.showId ? await tx.select({ id: show.id, title: show.title, status: show.status }).from(show).where(eq(show.id, row.showId)).limit(1) : [];
   const { artistId: _artistId, showId: _showId, photoId, ...rest } = row;
-  const erasedAt = row.status === "declined" && row.answeredAt ? new Date(new Date(row.answeredAt).setUTCMonth(row.answeredAt.getUTCMonth() + MOIS_GARDES)) : null;
+  const erasedAt =
+    row.status === "accepted" && row.answeredAt
+      ? new Date(new Date(row.answeredAt).setUTCMonth(row.answeredAt.getUTCMonth() + MOIS_GARDES))
+      : row.status === "declined"
+        ? new Date()
+        : null;
   return {
     ...rest,
     photo: await getMedia(tx, photoId),
@@ -237,10 +226,7 @@ export async function noteApplication(tx: Tx, id: string, note: string): Promise
   return done.length ? { ok: true } : GONE;
 }
 
-/**
- * Remet une candidature à écouter, ou la met de côté. Un refus peut être repris tant qu'il n'est pas effacé (son son et
- * sa photo, eux, sont déjà partis) ; une candidature validée, non : son émission existe.
- */
+/** Remet une candidature à écouter, ou la met de côté. Une candidature validée, non : son émission existe. */
 export async function moveApplication(tx: Tx, id: string, to: "new" | "shortlisted"): Promise<{ ok: true } | NotSaved> {
   const current = await locked(tx, id);
   if (!current) return GONE;
@@ -251,11 +237,17 @@ export async function moveApplication(tx: Tx, id: string, to: "new" | "shortlist
 
 export type Accepted = { ok: true; artistId: string; artistName: string; showId: string; showTitle: string; reused: boolean };
 
+/** Les liens d'une candidature, pour la fiche d'artiste : son Instagram, puis le lien vers sa musique. */
+const linksOf = (current: { instagram: string | null; profileUrl: string | null }) => [
+  ...(current.instagram ? [{ label: "Instagram", url: `https://www.instagram.com/${current.instagram}/` }] : []),
+  ...(current.profileUrl ? [{ label: linkLabel(current.profileUrl) || "Site", url: current.profileUrl }] : []),
+];
+
 /**
- * La validation : la fiche d'invité, en brouillon, avec son nom, sa bio, sa photo, son Instagram et son activité (ou la
- * fiche qui porte déjà ce nom, dont seuls la bio et la photo manquantes sont complétées) ; puis l'émission, en
- * brouillon, avec ses styles et sa tracklist, l'envoi (le lien d'une playlist, son mot pour l'équipe) et le son, validé.
- * Tout ou rien, dans la transaction de l'écran.
+ * La validation : la fiche d'invité, en brouillon, avec son nom, sa bio, sa photo, ses liens (Instagram, SoundCloud ou
+ * autre) et son activité (ou la fiche qui porte déjà ce nom, dont seuls la bio, la photo et les liens manquants sont
+ * complétés) ; puis l'émission, en brouillon, avec ses styles et sa tracklist, l'envoi (le lien d'une playlist, son mot
+ * pour l'équipe) et le son, validé. Tout ou rien, dans la transaction de l'écran.
  */
 export async function acceptApplication(tx: Tx, id: string, userId: string): Promise<Accepted | NotSaved> {
   const current = await locked(tx, id);
@@ -274,7 +266,11 @@ export async function acceptApplication(tx: Tx, id: string, userId: string): Pro
   if (fiche) {
     await tx
       .update(artist)
-      .set({ bio: sql`coalesce(${artist.bio}, ${current.bio})`, photoId: sql`coalesce(${artist.photoId}, ${current.photoId}::uuid)` })
+      .set({
+        bio: sql`coalesce(${artist.bio}, ${current.bio})`,
+        photoId: sql`coalesce(${artist.photoId}, ${current.photoId}::uuid)`,
+        links: sql`case when jsonb_array_length(${artist.links}) = 0 then ${JSON.stringify(linksOf(current))}::jsonb else ${artist.links} end`,
+      })
       .where(eq(artist.id, fiche.id));
   } else {
     const slug = await freeSlug(tx, artist, slugify(current.name) || "invite");
@@ -286,7 +282,7 @@ export async function acceptApplication(tx: Tx, id: string, userId: string): Pro
         role: "guest",
         bio: current.bio,
         photoId: current.photoId,
-        links: current.instagram ? [{ label: "Instagram", url: `https://www.instagram.com/${current.instagram}/` }] : [],
+        links: linksOf(current),
       })
       .returning({ id: artist.id });
     fiche = { id: created!.id, name: current.name };
@@ -339,13 +335,17 @@ async function releaseFiles(tx: Tx, id: string, photoId: string | null): Promise
   return { keys: sons.map((one) => one.key), images: await releaseMedia(tx, [photoId]) };
 }
 
-/** « Pas cette fois » : la réponse est notée, le son et la photo sont retirés ; la candidature est effacée six mois après. */
-export async function declineApplication(tx: Tx, id: string, userId: string): Promise<({ ok: true } & Released) | NotSaved> {
+/**
+ * « Pas cette fois » : on ne répond qu'aux émissions retenues, la candidature est donc effacée tout de suite, avec son
+ * son et sa photo. Rend son nom et ce qu'il reste à retirer du seau et du Storage.
+ */
+export async function declineApplication(tx: Tx, id: string): Promise<({ ok: true; name: string } & Released) | NotSaved> {
   const current = await locked(tx, id);
   if (!current) return GONE;
   if (current.status === "accepted") return { ok: false, errors: { form: "Cette candidature est déjà validée : son émission et sa fiche existent." } };
-  if (current.status !== "declined") await tx.update(application).set({ status: "declined", answeredAt: sql`now()`, answeredBy: userId }).where(eq(application.id, id));
-  return { ok: true, ...(await releaseFiles(tx, id, current.photoId)) };
+  const released = await releaseFiles(tx, id, current.photoId);
+  await tx.delete(application).where(eq(application.id, id));
+  return { ok: true, name: current.name, ...released };
 }
 
 /** Efface une candidature tout de suite (indésirable, ou demandé par la personne). Rend son nom et ce qu'il reste à retirer, ou null. */
@@ -357,30 +357,27 @@ export async function deleteApplication(tx: Tx, id: string): Promise<({ name: st
   return { name: current.name, ...released };
 }
 
-/** Les réglages : les types ouverts, le délai de réponse annoncé. */
+/** Les réglages : les types ouverts. */
 export async function getApplicationSettings(tx: Tx): Promise<Reglages> {
-  const [row] = await tx.select({ openTypes: applicationSettings.openTypes, replyDays: applicationSettings.replyDays }).from(applicationSettings).limit(1);
-  return row ?? { openTypes: [...TYPES_CANDIDATURE], replyDays: 21 };
+  const [row] = await tx.select({ openTypes: applicationSettings.openTypes }).from(applicationSettings).limit(1);
+  return row ?? { openTypes: [...TYPES_CANDIDATURE] };
 }
 
 /** Enregistre les réglages (un admin seulement : la base refuse les autres, sans erreur, d'où la vérification du retour). */
-export async function saveApplicationSettings(tx: Tx, { openTypes, replyDays }: { openTypes: string[]; replyDays: number }): Promise<{ ok: true } | NotSaved> {
+export async function saveApplicationSettings(tx: Tx, { openTypes }: { openTypes: string[] }): Promise<{ ok: true } | NotSaved> {
   const types = TYPES_CANDIDATURE.filter((type) => openTypes.includes(type));
-  if (!Number.isInteger(replyDays) || replyDays < 1 || replyDays > 90) return { ok: false, errors: { replyDays: "Un délai entre 1 et 90 jours." } };
-  const done = await tx.update(applicationSettings).set({ openTypes: types, replyDays }).where(eq(applicationSettings.id, true)).returning({ id: applicationSettings.id });
+  const done = await tx.update(applicationSettings).set({ openTypes: types }).where(eq(applicationSettings.id, true)).returning({ id: applicationSettings.id });
   return done.length ? { ok: true } : { ok: false, errors: { form: "Seul un admin règle les candidatures." } };
 }
 
-/** Pour l'accueil : à écouter, mises de côté, et sans réponse au-delà du délai. */
-export async function applicationCounts(tx: Tx, now = new Date()): Promise<ApplicationCounts> {
-  const replyDays = await replyDaysOf(tx);
+/** Pour l'accueil : à écouter, et mises de côté. */
+export async function applicationCounts(tx: Tx): Promise<ApplicationCounts> {
   const [row] = await tx
     .select({
       new: sql<number>`count(*) filter (where ${application.status} = 'new')`.mapWith(Number),
       shortlisted: sql<number>`count(*) filter (where ${application.status} = 'shortlisted')`.mapWith(Number),
-      late: sql<number>`count(*) filter (where ${enRetard(now, replyDays)})`.mapWith(Number),
     })
     .from(application)
     .where(envoyee);
-  return row ?? { new: 0, shortlisted: 0, late: 0 };
+  return row ?? { new: 0, shortlisted: 0 };
 }

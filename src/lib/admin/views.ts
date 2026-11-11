@@ -10,6 +10,8 @@ import {
   dayLabel,
   DELAY_CHOICES,
   emptyArtistForm,
+  lireMorceaux,
+  linkLabel,
   emptyEventForm,
   emptyShowForm,
   formatTimecode,
@@ -231,7 +233,7 @@ export async function dashboardData(admin: Admin, now = new Date()): Promise<Das
     importStatusOf(admin),
     admin.cycle(),
     database().then(compteSoundCloud).catch(() => null),
-    admin.applicationCounts(now),
+    admin.applicationCounts(),
   ]);
   return {
     today: parisLongDay(now),
@@ -412,12 +414,11 @@ export function applicationRow(row: AdminApplicationRow, now = new Date()): Appl
     status: row.status,
     received: since(row.createdAt, now),
     receivedAt: parisDateTime(row.createdAt),
-    late: row.late,
   };
 }
 
 /** Une candidature ouverte, prête à montrer. */
-export function applicationSheet(application: AdminApplication, replyDays: number, now = new Date()): ApplicationSheet {
+export function applicationSheet(application: AdminApplication, now = new Date()): ApplicationSheet {
   return {
     id: application.id,
     title: application.title ?? application.name,
@@ -430,13 +431,13 @@ export function applicationSheet(application: AdminApplication, replyDays: numbe
     status: application.status,
     receivedAt: parisDateTime(application.createdAt),
     received: since(application.createdAt, now),
-    late: application.late,
     pitch: application.pitch,
+    profile: application.profileUrl ? { url: application.profileUrl, label: linkLabel(application.profileUrl) || "Son lien" } : null,
     bio: application.bio,
     photo: mediaView(application.photo),
     sound: application.sound ? { id: application.sound.id, fileName: application.sound.fileName, size: application.sound.sizeBytes ? megabytes(application.sound.sizeBytes) : null } : null,
     listenUrl: application.listenUrl,
-    tracklist: application.tracklist,
+    tracklist: application.tracklist ? lireMorceaux(application.tracklist) : [],
     message: application.message,
     note: application.note ?? "",
     styles: application.styles.map((style) => style.name),
@@ -444,8 +445,7 @@ export function applicationSheet(application: AdminApplication, replyDays: numbe
     artist: application.artist,
     answeredBy: application.answeredBy,
     answeredAt: application.answeredAt ? parisDateTime(application.answeredAt) : null,
-    erasedAt: application.erasedAt ? parisDay(application.erasedAt) : null,
+    erasedAt: application.status === "accepted" && application.erasedAt ? parisDay(application.erasedAt) : null,
     sameName: application.sameName,
-    replyDays,
   };
 }

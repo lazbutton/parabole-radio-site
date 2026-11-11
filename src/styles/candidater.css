@@ -62,11 +62,6 @@ html[data-page="candidater"] .logo-overlay { display: none; }
   padding: 4px 8px; background: rgba(0,0,0,0.8); color: #ffffff;
   -webkit-box-decoration-break: clone; box-decoration-break: clone;
 }
-.cand-reperes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; list-style: none; }
-.cand-reperes li {
-  padding: 7px 10px 6px; border: 2px solid #fff039; background: rgba(0,0,0,0.6); box-shadow: var(--bave);
-  color: #fff039; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; line-height: 1; text-transform: uppercase;
-}
 
 /* « Comment ça se passe » : une page de télétexte (tete.css), sans flou */
 .cand-comment {
@@ -116,7 +111,6 @@ html[data-page="candidater"] .logo-overlay { display: none; }
   /* « L'ANTENNE » fait 5,3 fois la taille du texte : 18 % de la colonne le fait tenir */
   .cand-titre { font-size: clamp(40px, min(18cqi, 7.6vh), 76px); }
   .cand-chapeau { margin-top: clamp(12px, 2.2vh, 18px); font-size: clamp(14px, 1.9vh, 16px); }
-  .cand-reperes { margin-top: clamp(12px, 1.8vh, 18px); }
   .cand-suite { gap: clamp(8px, 1.4vh, 14px); padding-block: clamp(12px, 1.9vh, 18px); }
 }
 @supports (height: 100dvh) {
@@ -124,7 +118,6 @@ html[data-page="candidater"] .logo-overlay { display: none; }
 }
 /* une fenêtre basse : les repères s'effacent (« Comment ça se passe » dit déjà les trois écrans et le délai) */
 @media (min-width: 1024px) and (max-height: 760px) {
-  .cand-reperes { display: none; }
   .cand-suite span { font-size: 13px; }
 }
 
@@ -195,7 +188,7 @@ legend.cand-label { margin-bottom: 10px; }
   border: 2px solid rgba(255,240,57,0.7); background: rgba(0,0,0,0.55); color: #ffffff;
   cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
-.cand-chaine input, .cand-option input, .cand-puce input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.cand-chaine input, .cand-puce input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .cand-chaine-num { color: #fff039; font-size: 10px; font-weight: 700; letter-spacing: 0.14em; line-height: 1.2; }
 .cand-chaine-nom { font-size: 22px; font-weight: 700; letter-spacing: 0.03em; line-height: 1; text-transform: uppercase; }
 .cand-chaine-mot { margin-top: 8px; color: rgba(255,255,255,0.78); font-size: 13px; line-height: 1.4; }
@@ -209,19 +202,10 @@ legend.cand-label { margin-bottom: 10px; }
   .cand-chaine-nom { font-size: clamp(17px, 4cqi, 22px); }
 }
 
-/* Les paires : oui ou pas encore, une fois ou régulièrement */
-.cand-duo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.cand-option {
-  position: relative; display: flex; align-items: center; justify-content: center; min-height: 50px; padding: 10px 12px;
-  border: 2px solid rgba(255,240,57,0.7); background: rgba(0,0,0,0.55); color: #fff039;
-  font-size: 13px; font-weight: 700; letter-spacing: 0.1em; line-height: 1.2; text-align: center; text-transform: uppercase;
-  cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s;
-}
-.cand-option:hover { border-color: #fff039; box-shadow: var(--bave); }
-.cand-option:has(input:checked) { background: #fff039; border-color: #fff039; color: #000dff; box-shadow: var(--bave-fort); }
-.cand-option:has(input:checked) span::before, .cand-puce:has(input:checked) span::before { content: '✓ '; }
-:is(.cand-chaine, .cand-option, .cand-puce):has(input:focus-visible) { outline: 2px solid #ffffff; outline-offset: 3px; }
-.cand-question[data-faux] :is(.cand-chaine, .cand-option) { border-color: var(--erreur); }
+/* Une touche choisie */
+.cand-puce:has(input:checked) span::before { content: '✓ '; }
+:is(.cand-chaine, .cand-puce):has(input:focus-visible) { outline: 2px solid #ffffff; outline-offset: 3px; }
+.cand-question[data-faux] .cand-chaine { border-color: var(--erreur); }
 
 /* Les champs à remplir */
 .cand-champ { display: flex; flex-direction: column; gap: 8px; }
@@ -272,6 +256,42 @@ legend.cand-label { margin-bottom: 10px; }
 }
 .cand-lien-bouton:hover { color: #ffffff; }
 .cand-lien-bouton:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+.cand-lien-bouton:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* La tracklist : un morceau par ligne, son numéro, l'artiste et le titre côte à côte, × pour le retirer.
+   Sur une feuille étroite (téléphone), le titre passe sous l'artiste. */
+.cand-morceaux { display: flex; flex-direction: column; gap: 6px; }
+.cand-morceaux-tete, .cand-morceau { display: grid; grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1.25fr) 40px; gap: 6px; align-items: center; }
+.cand-morceaux-tete span { color: rgba(255,255,255,0.55); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.cand-morceaux-liste { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.cand-morceau-num { color: #fff039; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-align: right; }
+.cand-morceau-champ {
+  width: 100%; min-height: 46px; padding: 10px 12px;
+  background: #050505; color: #ffffff; border: 2px solid rgba(255,255,255,0.3); border-radius: 0;
+  font: inherit; font-size: 16px; line-height: 1.3;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.cand-morceau-champ::placeholder { color: rgba(255,255,255,0.3); }
+.cand-morceau-champ:hover { border-color: rgba(255,240,57,0.6); }
+.cand-morceau-champ:focus { outline: none; border-color: #fff039; box-shadow: var(--bave); }
+.cand-morceau-champ[aria-invalid="true"] { border-color: var(--erreur); }
+.cand-morceau-retirer {
+  display: grid; place-items: center; width: 40px; height: 46px; padding: 0;
+  background: none; border: 2px solid transparent; color: rgba(255,255,255,0.55);
+  font: inherit; font-size: 22px; line-height: 1; cursor: pointer; transition: color 0.15s, border-color 0.15s;
+}
+.cand-morceau-retirer:hover { color: #fff039; border-color: rgba(255,240,57,0.6); }
+.cand-morceau-retirer:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+.cand-morceaux-pied { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+@container (max-width: 459px) {
+  .cand-morceaux-tete { display: none; }
+  .cand-morceaux-liste { gap: 12px; }
+  .cand-morceau { grid-template-columns: 22px minmax(0, 1fr) 40px; row-gap: 4px; }
+  .cand-morceau-num { grid-row: 1 / span 2; align-self: start; padding-top: 15px; }
+  .cand-morceau-champ:nth-of-type(1) { grid-column: 2; grid-row: 1; }
+  .cand-morceau-champ:nth-of-type(2) { grid-column: 2; grid-row: 2; }
+  .cand-morceau-retirer { grid-column: 3; grid-row: 1 / span 2; }
+}
 
 /* La photo : un carré, recadré comme il le sera sur le site (au centre) */
 .cand-photo { display: flex; align-items: center; gap: 16px; }
@@ -375,8 +395,7 @@ legend.cand-label { margin-bottom: 10px; }
   filter: blur(0.3px);
 }
 .cand-recu-texte { margin: 16px 24px 0; font-size: 17px; line-height: 1.5; }
-.cand-suite-recu { margin-top: 8px; padding-left: 24px; padding-right: 24px; }
-.cand-recu-liens { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; padding: 10px 24px 0; }
+.cand-recu-liens { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; padding: 18px 24px 0; }
 .cand-recu-liens .cand-suivant { margin-left: 0; }
 
 /* ---------- TÉLÉPHONE ---------- */
@@ -402,7 +421,7 @@ legend.cand-label { margin-bottom: 10px; }
   .cand-erreur-envoi { margin: 0 16px 14px; }
   .cand-brouillon { margin: 0 16px 16px; text-align: left; }
   .cand-recu > .cand-page, .cand-recu-titre, .cand-recu-texte { margin-left: 16px; margin-right: 16px; }
-  .cand-suite-recu, .cand-recu-liens { padding-left: 16px; padding-right: 16px; }
+  .cand-recu-liens { padding-left: 16px; padding-right: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

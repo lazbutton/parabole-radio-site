@@ -13,13 +13,31 @@
 // MP3 arrivé et la photo compris : on peut quitter la page, ou l'appli d'Insta, et reprendre. Quitter la page pendant
 // qu'un fichier part demande confirmation. Un refus du serveur ramène à l'écran du champ en cause ; le brouillon n'est
 // effacé qu'une fois la candidature reçue. Branché sur astro:page-load : à chaque arrivée sur la page.
-import { CHAMPS_PAR_ECRAN, compteInsta, lienPossible, lireCandidature, lireDossier, type CandidatureErrors, type CandidatureForm } from "@parabole/cms/candidatures";
+//
+// La tracklist se remplit en cases, l'artiste et le titre de chaque morceau (pour la SACEM) : « + Ajouter un morceau »,
+// × pour en retirer un, Entrée passe au morceau suivant (sans envoyer), et une tracklist collée dans une case (plusieurs
+// lignes, ou les cases d'un tableur) se range d'elle-même, un morceau par ligne. Elle part en texte, une ligne par
+// morceau (ecrireMorceaux), et se relit de même dans le brouillon.
+import {
+  CHAMPS_PAR_ECRAN,
+  compteInsta,
+  ecrireMorceaux,
+  lienPossible,
+  lireCandidature,
+  lireDossier,
+  lireMorceaux,
+  tracklistDemandee,
+  type CandidatureErrors,
+  type CandidatureForm,
+  type Morceau,
+} from "@parabole/cms/candidatures";
 import { audioRefusal, WANTED_KBPS } from "@parabole/cms/envois";
+import { parseTracklist } from "@parabole/cms/tracklist";
 import { PUBLIC_TURNSTILE_SITE_KEY } from "astro:env/client";
 import { mp3Kbps, putAudio } from "../components/envoi/audio";
 
 type ParType = { description: string; son: string; tracklist: string };
-type Config = { stylesMax: number; types: Record<string, ParType>; image: { max: number; types: string[]; cote: number } };
+type Config = { stylesMax: number; morceauxMax: number; types: Record<string, ParType>; image: { max: number; types: string[]; cote: number } };
 type Champ = HTMLInputElement | HTMLTextAreaElement;
 type Faute = { champ: string; message: string; cibles: Champ[] };
 type Reponse = {
@@ -55,8 +73,10 @@ type Brouillon = {
 /** Le brouillon, dans le navigateur. */
 const CLE = "parabole:candidature";
 const ETAPES = 3;
-/** Les champs gardés dans le brouillon et envoyés (les styles et les fichiers à part). */
-const CHAMPS = ["type", "frequence", "titre", "description", "nom", "bio", "ville", "instagram", "email", "lien", "tracklist", "message"] as const;
+/** Les champs gardés dans le brouillon et envoyés (les styles, la tracklist et les fichiers à part). */
+const CHAMPS = ["type", "titre", "description", "nom", "bio", "ville", "instagram", "profil", "email", "lien", "message"] as const;
+/** Les cases de la tracklist, au moins, même vides : de quoi voir tout de suite comment la remplir. */
+const MORCEAUX_VIDES = 3;
 /** Le serveur oublie un dossier jamais envoyé au bout d'un jour : le brouillon, un peu avant. */
 const DOSSIER_GARDE_MS = 23 * 3600 * 1000;
 const JETON = /^[A-Za-z0-9_-]{43}$/;
@@ -201,6 +221,11 @@ function brancher(page: HTMLElement): () => void {
   const etatSon = un("[data-fichier-etat]");
   const noteSon = un("[data-fichier-note]");
   const zoneLien = un("[data-lien]");
+  // la tracklist
+  const listeMorceaux = un<HTMLOListElement>("[data-morceaux]");
+  const modeleMorceau = un<HTMLTemplateElement>("[data-morceau-modele]");
+  const ajoutMorceau = un<HTMLButtonElement>("[data-morceau-ajouter]");
+  const compteMorceaux = un("[data-morceaux-compte]");
   /** Le type des aides tant qu'aucun n'est choisi : le premier ouvert. */
   const typeParDefaut = form.querySelector<HTMLInputElement>('[name="type"]:not(:disabled)')?.value ?? "dj_set";
 
@@ -234,7 +259,11 @@ function brancher(page: HTMLElement): () => void {
   const type = () => valeur("type");
   const puces = (): HTMLInputElement[] => [...page.querySelectorAll<HTMLInputElement>(`[data-styles="${type() || typeParDefaut}"] input`)];
   const styles = () => puces().filter((puce) => puce.checked).map((puce) => puce.value);
-  const formulaire = (): CandidatureForm => ({ ...(Object.fromEntries(CHAMPS.map((nom) => [nom, valeur(nom)])) as Omit<CandidatureForm, "styles">), styles: styles() });
+  const formulaire = (): CandidatureForm => ({
+    ...(Object.fromEntries(CHAMPS.map((nom) => [nom, valeur(nom)])) as Omit<CandidatureForm, "styles" | "tracklist">),
+    tracklist: tracklistTexte(),
+    styles: styles(),
+  });
   /** Un MP3 est choisi et n'a pas été refusé : arrivé, ou en route (ENVOYER l'attendra). */
   const aUnSon = () => !!son && son.etat !== "erreur";
   const enRoute = () => son?.etat === "envoi" || photo?.etat === "envoi";
@@ -273,6 +302,14 @@ function brancher(page: HTMLElement): () => void {
   /** Les champs où poser une erreur (et le curseur). */
   function ciblesDe(nom: string): Champ[] {
     if (nom === "contact") return [champ("instagram"), champ("email")];
+    if (nom === "tracklist") {
+      // les cases vides d'un morceau à moitié rempli ; sinon, la première case
+      const moities = lignesMorceaux().flatMap((ligne) => {
+        const [artiste, titre] = casesDe(ligne);
+        return artiste.value.trim() && !titre.value.trim() ? [titre] : !artiste.value.trim() && titre.value.trim() ? [artiste] : [];
+      });
+      return moities.length ? moities : casesDe(lignesMorceaux()[0]!).slice(0, 1);
+    }
     const premier = form.querySelector<Champ>(`[name="${nom}"]:not(:disabled)`) ?? form.querySelector<Champ>(`[name="${nom}"]`);
     return premier ? [premier] : [];
   }
@@ -645,6 +682,84 @@ function brancher(page: HTMLElement): () => void {
     sauver();
   }
 
+  // ---------- la tracklist, en cases ----------
+  const lignesMorceaux = () => [...listeMorceaux.querySelectorAll<HTMLLIElement>(".cand-morceau")];
+  const casesDe = (ligne: HTMLLIElement) => [...ligne.querySelectorAll<HTMLInputElement>(".cand-morceau-champ")] as [HTMLInputElement, HTMLInputElement];
+  const morceauxSaisis = (): Morceau[] => lignesMorceaux().map((ligne) => ({ artiste: casesDe(ligne)[0].value, titre: casesDe(ligne)[1].value }));
+  /** La tracklist telle qu'elle part : une ligne par morceau rempli, même à moitié (la règle le signale). */
+  function tracklistTexte(): string {
+    return ecrireMorceaux(morceauxSaisis().filter(({ artiste, titre }) => artiste.trim() || titre.trim()));
+  }
+  function nouvelleLigne({ artiste, titre }: Morceau = { artiste: "", titre: "" }): HTMLLIElement {
+    const ligne = (modeleMorceau.content.firstElementChild as HTMLLIElement).cloneNode(true) as HTMLLIElement;
+    const [caseArtiste, caseTitre] = casesDe(ligne);
+    caseArtiste.value = artiste;
+    caseTitre.value = titre;
+    return ligne;
+  }
+  /** Numérote les morceaux, nomme leurs cases pour un lecteur d'écran, compte ceux qui sont remplis. */
+  function numeroter() {
+    const lignes = lignesMorceaux();
+    lignes.forEach((ligne, rang) => {
+      const n = rang + 1;
+      ligne.querySelector(".cand-morceau-num")!.textContent = String(n).padStart(2, "0");
+      const [caseArtiste, caseTitre] = casesDe(ligne);
+      caseArtiste.setAttribute("aria-label", `Artiste du morceau ${n}`);
+      caseTitre.setAttribute("aria-label", `Titre du morceau ${n}`);
+      ligne.querySelector("[data-morceau-retirer]")!.setAttribute("aria-label", `Retirer le morceau ${n}`);
+    });
+    const remplis = morceauxSaisis().filter(({ artiste, titre }) => artiste.trim() || titre.trim()).length;
+    compteMorceaux.textContent = remplis ? `${remplis} morceau${remplis > 1 ? "x" : ""}` : "";
+    ajoutMorceau.disabled = lignes.length >= config.morceauxMax;
+  }
+  /** Pose ces morceaux dans les cases, à la place de tout ce qu'il y avait ; au moins quelques cases vides. */
+  function poserMorceaux(morceaux: Morceau[]) {
+    const lignes = morceaux.slice(0, config.morceauxMax).map(nouvelleLigne);
+    while (lignes.length < MORCEAUX_VIDES) lignes.push(nouvelleLigne());
+    listeMorceaux.replaceChildren(...lignes);
+    numeroter();
+  }
+  /** Ajoute une ligne après celle-ci (ou à la fin), et y met le curseur. */
+  function ajouterMorceau(apres?: HTMLLIElement) {
+    if (lignesMorceaux().length >= config.morceauxMax) return;
+    const ligne = nouvelleLigne();
+    if (apres) apres.after(ligne);
+    else listeMorceaux.append(ligne);
+    numeroter();
+    casesDe(ligne)[0].focus();
+  }
+  function retirerMorceau(ligne: HTMLLIElement) {
+    const suivante = (ligne.nextElementSibling ?? ligne.previousElementSibling) as HTMLLIElement | null;
+    if (lignesMorceaux().length > 1) ligne.remove();
+    else casesDe(ligne).forEach((une) => (une.value = ""));
+    numeroter();
+    (suivante && suivante.isConnected ? casesDe(suivante)[0] : casesDe(lignesMorceaux()[0]!)[0]).focus();
+    apresTracklist();
+  }
+  /** Une tracklist collée dans une case : chaque ligne devient un morceau, à partir de cette case. */
+  function collerTracklist(ligne: HTMLLIElement, texte: string) {
+    const colles = parseTracklist(texte).map(({ artist, title }) => ({ artiste: artist, titre: title }));
+    if (!colles.length) return;
+    const lignes = lignesMorceaux();
+    const rang = lignes.indexOf(ligne);
+    const avant = morceauxSaisis().slice(0, rang);
+    const ici = morceauxSaisis()[rang]!;
+    const garde = ici.artiste.trim() || ici.titre.trim() ? [ici] : [];
+    const apres = morceauxSaisis()
+      .slice(rang + 1)
+      .filter(({ artiste, titre }) => artiste.trim() || titre.trim());
+    poserMorceaux([...avant, ...garde, ...colles, ...apres]);
+    annonce.textContent = `${colles.length} morceau${colles.length > 1 ? "x" : ""} ajouté${colles.length > 1 ? "s" : ""} à la tracklist.`;
+    const derniere = lignesMorceaux()[Math.min(rang + garde.length + colles.length - 1, lignesMorceaux().length - 1)];
+    if (derniere) casesDe(derniere)[1].focus();
+    apresTracklist();
+  }
+  /** La tracklist a changé hors de la saisie : son écran se revérifie, le brouillon se garde. */
+  function apresTracklist() {
+    if (tentes.has(ici)) montrer(ici, verifier(ici), false);
+    sauver();
+  }
+
   // ---------- les aides suivent le type ----------
   function suivreType() {
     const choisi = type() || typeParDefaut;
@@ -654,6 +769,7 @@ function brancher(page: HTMLElement): () => void {
       un("[data-aide-son]").textContent = textes.son;
       un("[data-aide-tracklist]").textContent = textes.tracklist;
     }
+    un("[data-tracklist-facultatif]").hidden = tracklistDemandee(choisi);
     page.querySelectorAll<HTMLElement>("[data-styles]").forEach((groupe) => {
       groupe.hidden = groupe.dataset.styles !== choisi;
       // les styles d'un autre type ne partent pas
@@ -685,7 +801,7 @@ function brancher(page: HTMLElement): () => void {
   function sauver() {
     window.clearTimeout(minuterie);
     minuterie = window.setTimeout(() => {
-      const champs = Object.fromEntries(CHAMPS.map((nom) => [nom, valeur(nom)]));
+      const champs: Record<string, string> = { ...Object.fromEntries(CHAMPS.map((nom) => [nom, valeur(nom)])), tracklist: tracklistTexte() };
       const rempli = Object.values(champs).some(Boolean) || !!jeton;
       const brouillon: Brouillon = { ici, atteinte, champs, styles: styles() };
       if (jeton) {
@@ -722,6 +838,8 @@ function brancher(page: HTMLElement): () => void {
         for (const option of element) if (option instanceof HTMLInputElement) option.checked = option.value === garde && !option.disabled;
       } else if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) element.value = garde;
     }
+    // la tracklist : en cases (une ligne par morceau), ou, d'un brouillon d'avant les cases, du texte collé
+    poserMorceaux(lireMorceaux(champs.tracklist ?? ""));
     suivreType();
     for (const puce of puces()) puce.checked = brouillon.styles?.includes(puce.value) ?? false;
     const dossier = brouillon.dossier;
@@ -816,6 +934,7 @@ function brancher(page: HTMLElement): () => void {
       if (cible.name === "site" || cible.type === "file") return;
       if (cible.name === "type") suivreType();
       if (cible.name === "styles") limiterStyles();
+      if (cible.classList.contains("cand-morceau-champ")) numeroter();
       compter(cible);
       if (tentes.has(ici)) montrer(ici, verifier(ici), false);
       sauver();
@@ -870,6 +989,42 @@ function brancher(page: HTMLElement): () => void {
   un("[data-son-changer]").addEventListener("click", () => choixSon.click(), { signal });
   un("[data-son-retirer]").addEventListener("click", retirerSon, { signal });
 
+  // La tracklist : ajouter, retirer, Entrée pour passer au morceau suivant, coller une tracklist entière.
+  ajoutMorceau.addEventListener("click", () => ajouterMorceau(), { signal });
+  listeMorceaux.addEventListener(
+    "click",
+    (evenement) => {
+      const bouton = (evenement.target as Element).closest("[data-morceau-retirer]");
+      if (bouton) retirerMorceau(bouton.closest<HTMLLIElement>(".cand-morceau")!);
+    },
+    { signal },
+  );
+  listeMorceaux.addEventListener(
+    "keydown",
+    (evenement) => {
+      const cible = evenement.target as HTMLElement;
+      if (evenement.key !== "Enter" || !cible.classList.contains("cand-morceau-champ") || evenement.isComposing) return;
+      evenement.preventDefault();
+      const ligne = cible.closest<HTMLLIElement>(".cand-morceau")!;
+      const [caseArtiste] = casesDe(ligne);
+      if (cible === caseArtiste) return casesDe(ligne)[1].focus();
+      const suivante = ligne.nextElementSibling as HTMLLIElement | null;
+      if (suivante) casesDe(suivante)[0].focus();
+      else ajouterMorceau(ligne);
+    },
+    { signal },
+  );
+  listeMorceaux.addEventListener(
+    "paste",
+    (evenement) => {
+      const texte = evenement.clipboardData?.getData("text/plain") ?? "";
+      if (!/[\n\t]/.test(texte.trim())) return; // un seul nom : il se colle dans la case, tout simplement
+      evenement.preventDefault();
+      collerTracklist((evenement.target as HTMLElement).closest<HTMLLIElement>(".cand-morceau")!, texte);
+    },
+    { signal },
+  );
+
   // Quitter la page pendant qu'un fichier part : le navigateur demande confirmation. Dans le site, la navigation est
   // rendue au navigateur (Astro recharge alors la page demandée), qui pose la même question.
   window.addEventListener(
@@ -889,6 +1044,7 @@ function brancher(page: HTMLElement): () => void {
     { signal },
   );
 
+  poserMorceaux([]);
   restaurer();
   suivreType();
   for (const zone of form.querySelectorAll<HTMLTextAreaElement>("textarea")) compter(zone);

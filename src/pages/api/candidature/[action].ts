@@ -35,7 +35,6 @@ function lireForm(brut: unknown): CandidatureForm {
   const form = brut && typeof brut === "object" ? (brut as Record<string, unknown>) : {};
   return {
     type: texte(form.type, 20),
-    frequence: texte(form.frequence, 20),
     titre: texte(form.titre, 400),
     description: texte(form.description, 4000),
     styles: Array.isArray(form.styles) ? form.styles.slice(0, 10).map((style) => texte(style, 80)) : [],
@@ -43,6 +42,7 @@ function lireForm(brut: unknown): CandidatureForm {
     bio: texte(form.bio, 4000),
     ville: texte(form.ville, 200),
     instagram: texte(form.instagram, 300),
+    profil: texte(form.profil, 1000),
     email: texte(form.email, 300),
     lien: texte(form.lien, 1000),
     tracklist: texte(form.tracklist, 40_000),
