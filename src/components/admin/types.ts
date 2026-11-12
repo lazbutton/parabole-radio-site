@@ -20,6 +20,8 @@ import type { DocumentChanges,
   FacetScope,
   FieldErrors,
   ShowForm,
+  ShowLack,
+  ShowStep,
   ShowType,
   TagFilterMenu,
   TeamRole,
@@ -54,6 +56,8 @@ export type DashboardData = {
   /** « dimanche 1 novembre » */
   today: string;
   stats: { shows: Counts; artists: Counts };
+  /** Les émissions par état : à traiter, en attente, en ligne. */
+  steps: Record<ShowStep, number>;
   /** Les prochaines diffusions, de la plus proche à la plus lointaine. */
   upcoming: {
     href: string;
@@ -61,6 +65,8 @@ export type DashboardData = {
     artists: string;
     type: ShowType;
     status: ContentStatus;
+    step: ShowStep;
+    lacking: ShowLack[];
     /** « jeu. », « 5 », « nov. » : la petite page de calendrier ; « 18:00 » ; « dans 4 jours ». */
     weekday: string;
     dayOfMonth: string;
@@ -151,9 +157,23 @@ export type ShowRow = {
   tags: number;
   status: ContentStatus;
   fromRadioCult: boolean;
+  /** Où elle en est : à traiter, en attente, en ligne ; et ce qui la laisse à traiter. */
+  step: ShowStep;
+  lacking: ShowLack[];
 };
-export type ShowFilters = { q: string; status: string; type: string; tag: string; artist: string; missing: string; order: string };
-export type ShowsListData = { rows: ShowRow[]; total: number; page: number; pages: number; filters: ShowFilters; artists: Choice[]; tags: TagFilterMenu };
+/** `step` : l'état ; `missing` : ce qui manque (les liens de l'accueil) ; `status` : brouillon ou publiée (adresses d'avant). */
+export type ShowFilters = { q: string; step: string; status: string; type: string; tag: string; artist: string; missing: string; order: string };
+export type ShowsListData = {
+  rows: ShowRow[];
+  total: number;
+  page: number;
+  pages: number;
+  filters: ShowFilters;
+  /** Combien d'émissions dans chaque état, toutes ensemble. */
+  steps: Record<ShowStep, number>;
+  artists: Choice[];
+  tags: TagFilterMenu;
+};
 
 /** L'état d'une fiche de show : ce que l'écran montre, et ce que le serveur renvoie après chaque enregistrement. */
 export type ShowSheet = {

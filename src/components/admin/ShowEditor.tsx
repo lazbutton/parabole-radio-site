@@ -9,6 +9,10 @@
  * Les étiquettes se choisissent à la souris, filtre par filtre : ceux du type du show (Genre et Géographie pour un DJ
  * set ou une playlist, Thème pour un podcast), en pastilles (FacetPicker). Une étiquette hors des filtres se tape dans
  * « Autres » : elle sera à classer.
+ *
+ * Les infos obligatoires (retours de l'équipe du 11 nov. 2026) portent la marque « obligatoire », orange tant qu'elles
+ * manquent : la date de diffusion, les étiquettes, le mood et la tracklist (sauf podcast), la description, la pochette,
+ * le son. Sans elles, l'émission reste « à traiter » dans la liste, et ne se publie pas à la main (le serveur le dit).
  */
 import { ENERGY, LABELS } from "@parabole/cms/labels";
 import type { FieldErrors, ShowForm } from "@parabole/cms";
@@ -21,7 +25,7 @@ import { Assembler } from "./Assembler";
 import { ReceivedParts, ReceivedSound, SubmissionPanel } from "./EnvoiPanels";
 import { FacetPicker } from "./FacetPicker";
 import { ImageField, placeImage } from "./ImageField";
-import { Field, filledPlaces, FormError, mergeSaved, placeErrors, postForm, Property, Section, SheetBar, SidePanel, SlugField, TitleInput, useSheetKeys, type Intent, type SaveIntent } from "./sheet";
+import { Field, filledPlaces, FormError, mergeSaved, placeErrors, postForm, Property, Required, Section, SheetBar, SidePanel, SlugField, TitleInput, useSheetKeys, type Intent, type SaveIntent } from "./sheet";
 import { TextEditor } from "./TextEditor";
 import { useNotify } from "./toast";
 import { TokenPicker } from "./TokenPicker";
@@ -147,6 +151,10 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
   const toggleTag = (id: string) => set("tags", form.tags.includes(id) ? form.tags.filter((value) => value !== id) : [...form.tags, id]);
   const typePlural = PLURALS[form.type as keyof typeof PLURALS];
   const soundcloud = /^https?:\/\//.test(form.soundcloudUrl.trim()) ? form.soundcloudUrl.trim() : null;
+  /** Le son est prêt : validé, en route ou parti vers SoundCloud, ou la piste renseignée à la main (comme la liste). */
+  const soundReady = Boolean(form.soundcloudTrackId.trim()) || ["approved", "sending", "sent"].includes(sheet.envoi.main?.status ?? "");
+  /** La marque d'une info obligatoire : orange tant qu'elle manque. */
+  const need = (missing: boolean) => (missing ? ("missing" as const) : true);
 
   return (
     <form
@@ -186,7 +194,7 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
                   ))}
                 </SegmentedControl.Root>
               </Property>
-              <Property label="Diffusion" icon={<CalendarIcon />} htmlFor="broadcastAt" hint="Heure de Paris. Il en faut une pour publier." error={errors.broadcastAt}>
+              <Property label="Diffusion" icon={<CalendarIcon />} htmlFor="broadcastAt" hint="Heure de Paris." error={errors.broadcastAt} required={need(!form.broadcastAt)}>
                 <TextField.Root
                   id="broadcastAt"
                   type="datetime-local"
@@ -225,8 +233,14 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
                   ordered
                 />
               </Property>
-              {tags.shown.map((facet) => (
-                <Property key={facet.id} label={facet.name} icon={<BookmarkIcon />}>
+              {tags.shown.map((facet, rank) => (
+                <Property
+                  key={facet.id}
+                  label={facet.name}
+                  icon={<BookmarkIcon />}
+                  hint={rank === 0 ? "Une étiquette au moins, dans l'un des filtres." : undefined}
+                  required={rank === 0 ? need(!form.tags.length) : undefined}
+                >
                   <FacetPicker
                     facet={facet}
                     names={tags.names}
@@ -240,6 +254,7 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
                 <Property
                   label="Mood"
                   icon={<MixerHorizontalIcon />}
+                  required={need(!form.energy)}
                   hint={`De ${LABELS.energy.low.toLowerCase()} (${ENERGY.min}) à ${LABELS.energy.high.toLowerCase()} (${ENERGY.max}) : le curseur des filtres du site, pour les DJ sets et les playlists.`}
                   error={errors.energy}
                 >
@@ -314,7 +329,13 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
                 )}
               </Property>
             </div>
-            <Section title="Description">
+            <Section
+              title={
+                <>
+                  Description <Required missing={!form.description.trim()} />
+                </>
+              }
+            >
               <TextEditor
                 id="description"
                 label="Description"
@@ -324,7 +345,20 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
                 placeholder="L'émission en quelques lignes : l'ambiance, les invités, l'occasion…"
               />
             </Section>
-            <TracklistEditor rows={form.tracks} onChange={(tracks) => set("tracks", tracks)} errors={errors} />
+            <TracklistEditor
+              rows={form.tracks}
+              onChange={(tracks) => set("tracks", tracks)}
+              errors={errors}
+              title={
+                form.type === "podcast" ? (
+                  "Tracklist"
+                ) : (
+                  <>
+                    Tracklist <Required missing={!form.tracks.some(filled)} />
+                  </>
+                )
+              }
+            />
             {sheet.id && sheet.form.type === "playlist" ? (
               <Assembler
                 url={url}
@@ -345,7 +379,7 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
           </div>
 
           <aside className="admin-sheet-side" aria-label="Pochette, son et informations">
-            <SidePanel title="Pochette">
+            <SidePanel title="Pochette" required={need(!sheet.cover)}>
               <ImageField
                 image={sheet.cover}
                 kind="pochette"
@@ -358,7 +392,7 @@ export function ShowEditor({ sheet: initialSheet }: ShowEditorData) {
               />
             </SidePanel>
             <SubmissionPanel url={url} envoi={sheet.envoi} dirty={dirty} />
-            <SidePanel title="Son">
+            <SidePanel title="Son" required={need(!soundReady)}>
               <ReceivedSound
                 url={url}
                 envoi={sheet.envoi}

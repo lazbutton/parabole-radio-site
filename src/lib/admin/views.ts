@@ -238,12 +238,15 @@ export async function dashboardData(admin: Admin, now = new Date()): Promise<Das
   return {
     today: parisLongDay(now),
     stats: { shows: overview.shows, artists: overview.artists },
+    steps: overview.steps,
     upcoming: overview.upcoming.map((show) => ({
       href: `/admin/shows/${show.id}`,
       title: show.title,
       artists: show.artists.join(", "),
       type: show.type,
       status: show.status,
+      step: show.step,
+      lacking: show.lacking,
       ...parisDayParts(show.broadcastAt),
       time: parisTime(show.broadcastAt),
       when: inDays(show.broadcastAt, now),

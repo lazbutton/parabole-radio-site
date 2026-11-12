@@ -1,25 +1,26 @@
 /**
  * Les émissions : toutes, brouillons compris, rangées par mois (« À venir » en tête : les créneaux de Radio Cult des
  * deux semaines qui viennent, importés en brouillons à préparer), avec la recherche et les filtres de cms/README.md
- * (9.2) en pastilles — type, étiquette, artiste, puis statut et ce qui manque, côte à côte — et l'ordre. Tout
- * s'applique sans recharger la page, et vit dans l'adresse : une liste filtrée se garde ou se partage. La colonne
- * « À compléter » dit d'un coup d'œil ce qui manque à une émission déjà diffusée : tracklist (sauf podcast), son,
- * pochette, description, étiquettes.
+ * (9.2) en pastilles — type, étiquette, artiste, état — et l'ordre. Tout s'applique sans recharger la page, et vit
+ * dans l'adresse : une liste filtrée se garde ou se partage. Chaque émission a son état (retours de l'équipe du 11 nov.
+ * 2026) : à traiter (une info obligatoire manque, ou quelque chose attend l'équipe ; la ligne dit quoi), en attente
+ * (prête, elle attend sa diffusion), en ligne. Ce qui manque (`missing`, les liens de l'accueil) filtre encore, sans
+ * pastille : une étiquette le dit en tête de liste, avec de quoi l'enlever.
  */
 import { LABELS } from "@parabole/cms/labels";
-import { BookmarkIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon, DiscIcon, ImageIcon, ListBulletIcon, PlusIcon, SpeakerLoudIcon, TextAlignLeftIcon } from "@radix-ui/react-icons";
+import { ChevronLeftIcon, ChevronRightIcon, Cross2Icon, DiscIcon, PlusIcon } from "@radix-ui/react-icons";
 import { Badge, Button, Card, Flex, Link, Select, Table, Text, Tooltip } from "@radix-ui/themes";
-import { Fragment, type ReactNode } from "react";
+import { Fragment } from "react";
 import { PageHeader } from "./AdminShell";
 import { FilterPill, listHref, SearchField, TagFilterPill, useListFilters } from "./filters";
-import { StatusBadge, TypeTile } from "./marks";
+import { lackSentence, STEPS, StepBadge, TypeTile } from "./marks";
 import { useRouter } from "./router";
 import { counted } from "./text";
 import type { ShowFilters, ShowRow, ShowsListData } from "./types";
 
 const hrefOf = (filters: ShowFilters, page?: number) => listHref("/admin/shows", filters, { page, defaults: { order: "recent" } });
 
-/** Ce qui manque à une émission déjà diffusée, et ce qui attend dans les envois des résidents : les choix du filtre, et leurs libellés. */
+/** Ce qui manque à une émission déjà diffusée, et ce qui attend dans les envois des résidents : les liens de l'accueil. */
 const MISSING: Record<string, string> = {
   tracklist: "Sans tracklist",
   sound: "Sans son",
@@ -47,10 +48,14 @@ function grouped(rows: ShowRow[]) {
   return groups;
 }
 
-export function ShowsList({ rows, total, page, pages, filters, artists, tags }: ShowsListData) {
+export function ShowsList({ rows, total, page, pages, filters, steps, artists, tags }: ShowsListData) {
   const { loading } = useRouter();
   const { shown, set, goToPage, query } = useListFilters(filters, hrefOf);
-  const filtered = Boolean(filters.q || filters.status || filters.type || filters.tag || filters.artist || filters.missing);
+  const filtered = Boolean(filters.q || filters.step || filters.status || filters.type || filters.tag || filters.artist || filters.missing);
+  /** Un filtre sans pastille, venu de l'accueil ou d'une adresse d'avant : il se dit, et s'enlève. */
+  const hidden: { label: string; clear: Partial<ShowFilters> }[] = [];
+  if (filters.missing && MISSING[filters.missing]) hidden.push({ label: MISSING[filters.missing]!, clear: { missing: "" } });
+  if (filters.status === "draft" || filters.status === "published") hidden.push({ label: filters.status === "draft" ? "Brouillons" : "Publiées", clear: { status: "" } });
 
   return (
     <div className="admin-page">
@@ -83,28 +88,21 @@ export function ShowsList({ rows, total, page, pages, filters, artists, tags }: 
               </Select.Item>
             ))}
           </FilterPill>
-          <FilterPill label="Statut" allLabel="Tous les statuts" value={shown.status} valueLabel={shown.status === "draft" ? "Brouillons" : "Publiées"} onChange={(status) => set({ status })}>
-            <Select.Item value="published">Publiées</Select.Item>
-            <Select.Item value="draft">Brouillons</Select.Item>
+          <FilterPill label="État" allLabel="Tous les états" value={shown.step} valueLabel={STEPS[shown.step as keyof typeof STEPS]?.label} onChange={(step) => set({ step })}>
+            {(["todo", "waiting", "online"] as const).map((step) => (
+              <Select.Item key={step} value={step}>
+                {STEPS[step].label} ({steps[step]})
+              </Select.Item>
+            ))}
           </FilterPill>
-          <FilterPill label="À compléter" allLabel="Toutes les émissions" value={shown.missing} valueLabel={MISSING[shown.missing]} onChange={(missing) => set({ missing })}>
-            <Select.Group>
-              <Select.Label>Déjà diffusées</Select.Label>
-              <Select.Item value="tracklist">Sans tracklist</Select.Item>
-              <Select.Item value="sound">Sans son</Select.Item>
-              <Select.Item value="cover">Sans pochette</Select.Item>
-              <Select.Item value="description">Sans description</Select.Item>
-              <Select.Item value="tags">Sans étiquette</Select.Item>
-            </Select.Group>
-            <Select.Separator />
-            <Select.Group>
-              <Select.Label>Envois des résidents</Select.Label>
-              <Select.Item value="review">Sons à écouter</Select.Item>
-              <Select.Item value="failed">Publications SoundCloud en échec</Select.Item>
-              <Select.Item value="assemble">Playlists à assembler</Select.Item>
-              <Select.Item value="slot">Envois sans créneau</Select.Item>
-            </Select.Group>
-          </FilterPill>
+          {hidden.map((one) => (
+            <Badge key={one.label} size="2" color="gray" variant="soft" radius="full" className="admin-hidden-filter">
+              {one.label}
+              <button type="button" className="admin-hidden-filter-clear" aria-label={`Enlever le filtre « ${one.label} »`} onClick={() => set(one.clear)}>
+                <Cross2Icon />
+              </button>
+            </Badge>
+          ))}
           {filtered && (
             <Button variant="ghost" color="gray" size="2" asChild>
               <a href="/admin/shows" data-astro-prefetch="false">
@@ -131,15 +129,14 @@ export function ShowsList({ rows, total, page, pages, filters, artists, tags }: 
               <Table.Row>
                 <Table.ColumnHeaderCell>Émission</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell className="admin-hide-mobile">Diffusion</Table.ColumnHeaderCell>
-                <Table.ColumnHeaderCell className="admin-hide-tablet">À compléter</Table.ColumnHeaderCell>
-                <Table.ColumnHeaderCell justify="end">Statut</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell justify="end">État</Table.ColumnHeaderCell>
               </Table.Row>
             </Table.Header>
             <Table.Body>
               {grouped(rows).map((group) => (
                 <Fragment key={group.label}>
                   <Table.Row className="admin-group">
-                    <Table.Cell colSpan={4}>
+                    <Table.Cell colSpan={3}>
                       <Flex align="center" gap="2">
                         <Text size="2" weight="bold" highContrast>
                           {group.label}
@@ -206,7 +203,7 @@ export function ShowsList({ rows, total, page, pages, filters, artists, tags }: 
   );
 }
 
-/** Une ligne : la vignette du type, le titre et les artistes, la diffusion, ce qui reste à compléter, son statut. */
+/** Une ligne : la vignette du type, le titre et les artistes, la diffusion, son état (et, au survol, ce qui manque). */
 function ShowLine({ row }: { row: ShowRow }) {
   const href = `/admin/shows/${row.id}`;
   return (
@@ -225,6 +222,11 @@ function ShowLine({ row }: { row: ShowRow }) {
                 {row.day ? `${row.day}, ${row.time}` : "sans date"}
               </span>
             </Text>
+            {row.step === "todo" && row.lacking.length > 0 && (
+              <Text size="1" color="amber" className="admin-break admin-hide-mobile">
+                {lackSentence(row.lacking)}
+              </Text>
+            )}
           </Flex>
         </Flex>
       </Table.RowHeaderCell>
@@ -245,50 +247,18 @@ function ShowLine({ row }: { row: ShowRow }) {
           </Text>
         )}
       </Table.Cell>
-      <Table.Cell className="admin-hide-tablet">
-        <ToComplete row={row} />
-      </Table.Cell>
       <Table.Cell justify="end">
-        <StatusBadge status={row.status} feminine />
+        <Flex align="center" justify="end" gap="2" wrap="wrap">
+          {row.fromRadioCult && (
+            <Tooltip content="Créée par l'import de la programmation Radio Cult">
+              <Badge size="1" color="gray" variant="outline" className="admin-hide-tablet">
+                Radio Cult
+              </Badge>
+            </Tooltip>
+          )}
+          <StepBadge step={row.step} lacking={row.lacking} />
+        </Flex>
       </Table.Cell>
     </Table.Row>
-  );
-}
-
-/**
- * Ce qui manque à une émission, en pastilles : orange une fois diffusée (le compte de l'accueil), grises avant. La
- * tracklist et le son n'arrivent qu'après la diffusion ; un podcast n'a pas forcément de tracklist.
- */
-function ToComplete({ row }: { row: ShowRow }) {
-  const due = !row.upcoming && Boolean(row.day);
-  const lacking: { key: string; label: string; icon: ReactNode }[] = [
-    ...(due && row.type !== "podcast" && !row.tracks ? [{ key: "tracklist", label: "Tracklist", icon: <ListBulletIcon /> }] : []),
-    ...(due && !row.hasSound ? [{ key: "sound", label: "Son", icon: <SpeakerLoudIcon /> }] : []),
-    ...(!row.hasCover ? [{ key: "cover", label: "Pochette", icon: <ImageIcon /> }] : []),
-    ...(!row.hasDescription ? [{ key: "description", label: "Description", icon: <TextAlignLeftIcon /> }] : []),
-    ...(!row.tags ? [{ key: "tags", label: "Étiquettes", icon: <BookmarkIcon /> }] : []),
-  ];
-  if (!lacking.length)
-    return (
-      <Text size="1" color="green" className="admin-complete">
-        <CheckIcon aria-hidden /> Complète
-      </Text>
-    );
-  return (
-    <Flex gap="1" wrap="wrap" aria-label={`À compléter : ${lacking.map((item) => item.label.toLowerCase()).join(", ")}`}>
-      {lacking.map((item) => (
-        <Badge key={item.key} size="1" variant="soft" color={due ? "amber" : "gray"} radius="full">
-          {item.icon}
-          {item.label}
-        </Badge>
-      ))}
-      {row.fromRadioCult && (
-        <Tooltip content="Créée par l'import de la programmation Radio Cult">
-          <Badge size="1" color="gray" variant="outline">
-            Radio Cult
-          </Badge>
-        </Tooltip>
-      )}
-    </Flex>
   );
 }

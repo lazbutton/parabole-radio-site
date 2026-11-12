@@ -7,7 +7,7 @@ import { and, asc, desc, eq, inArray, ne, or, sql, type SQL } from "drizzle-orm"
 import type { Tx } from "../access.ts";
 import { coveredTagIds, frenchOrder, oneOf, outer, paging, type Paged } from "../read/common.ts";
 import { escapeLike, prefixQuery } from "../read/search.ts";
-import { artist, contentStatus, SEARCH_CONFIG, show, showArtist, showTag, showType, tag, track, type ContentStatus, type ShowType } from "../schema.ts";
+import { artist, audioFile, contentStatus, SEARCH_CONFIG, show, showArtist, showTag, showType, tag, track, type ContentStatus, type ShowType } from "../schema.ts";
 import { slugify } from "../slug.ts";
 import { freeSlug, versionOf, type NotSaved, type Saved } from "./common.ts";
 import { awaitsAssembly, awaitsReview, awaitsSlot, sendFailed } from "./envois.ts";
@@ -39,12 +39,18 @@ export type AdminShowRow = {
   tags: number;
   /** L'émission vient de l'import Radio Cult. */
   fromRadioCult: boolean;
+  /** Où elle en est : à traiter, en attente, en ligne (SHOW_STEPS). */
+  step: ShowStep;
+  /** Ce qui la laisse « à traiter » : les infos obligatoires qui manquent, et ce qui attend l'équipe (SHOW_LACKS). */
+  lacking: ShowLack[];
 };
 
 export type AdminShowFilters = {
   /** Recherche : titre, description, artistes, tracklist. */
   q?: string;
   status?: string;
+  /** Où elle en est : « todo » (à traiter), « waiting » (en attente), « online » (en ligne). */
+  step?: string;
   type?: string;
   /** Identifiant d'une étiquette : celle-ci, ou une étiquette de son groupe. */
   tag?: string;
@@ -86,14 +92,72 @@ export const lacksSound = (now: Date) => sql`(${aired(now)} and ${show.soundclou
 /** Une émission diffusée sans pochette : le site montre la vignette de son type. */
 export const lacksCover = (now: Date) => sql`(${aired(now)} and ${show.coverId} is null)`;
 
-/** Une description vide, ou faite seulement d'espaces et de retours à la ligne. */
-const blankDescription = sql`coalesce(${show.description}, '') !~ '[^[:space:]]'`;
-
 /** Une émission diffusée sans description. */
 export const lacksDescription = (now: Date) => sql`(${aired(now)} and ${blankDescription})`;
 
 /** Une émission diffusée sans aucune étiquette : les filtres du site ne la trouvent pas. */
 export const lacksTags = (now: Date) => sql`(${aired(now)} and not exists (select 1 from ${showTag} st where st.show_id = ${outer(show.id)}))`;
+
+// ---------------------------------------------------------------------------------------------------------------
+// Où en est une émission : à traiter, en attente, en ligne (retours de l'équipe du 11 nov. 2026)
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * Les trois états d'une émission dans l'admin, calculés (rien n'est rangé à la main) :
+ *   - « online », en ligne : publiée sur le site ;
+ *   - « todo », à traiter : en brouillon, il lui manque une info obligatoire du formulaire, ou quelque chose attend
+ *     l'équipe (un son à écouter, une playlist à assembler, un envoi sans créneau, SoundCloud en échec) ;
+ *   - « waiting », en attente : en brouillon, tout est là ; elle attend sa diffusion, puis SoundCloud la publie.
+ */
+export const SHOW_STEPS = ["todo", "waiting", "online"] as const;
+export type ShowStep = (typeof SHOW_STEPS)[number];
+
+/** Une description vide, ou faite seulement d'espaces et de retours à la ligne. */
+const blankDescription = sql`coalesce(${show.description}, '') !~ '[^[:space:]]'`;
+
+/** Un son prêt : validé (ou parti, ou en route vers SoundCloud), ou la piste SoundCloud renseignée à la main. */
+const hasReadySound = () =>
+  sql`(${show.soundcloudTrackId} is not null or exists (select 1 from ${audioFile} af where af.show_id = ${outer(show.id)} and af.role = 'main' and af.status in ('approved', 'sending', 'sent')))`;
+
+/**
+ * Les infos obligatoires du formulaire d'une émission : la date de diffusion, la pochette, la description, les
+ * étiquettes, le mood (sauf podcast), la tracklist (sauf podcast), le son. Il les faut toutes pour la publier à la main.
+ */
+const REQUIRED: { key: ShowLack; when: () => SQL }[] = [
+  { key: "date", when: () => sql`${show.broadcastAt} is null` },
+  { key: "cover", when: () => sql`${show.coverId} is null` },
+  { key: "description", when: () => blankDescription },
+  { key: "tags", when: () => sql`not exists (select 1 from ${showTag} st where st.show_id = ${outer(show.id)})` },
+  { key: "mood", when: () => sql`(${show.type} <> 'podcast' and ${show.energy} is null)` },
+  { key: "tracklist", when: () => sql`(${show.type} <> 'podcast' and not exists (select 1 from ${track} tr where tr.show_id = ${outer(show.id)}))` },
+  { key: "sound", when: () => sql`not ${hasReadySound()}` },
+];
+
+/** Ce qui attend l'équipe dans les envois des résidents (9.12) : une émission concernée reste « à traiter ». */
+const WAITING_FOR_TEAM: { key: ShowLack; when: () => SQL }[] = [
+  { key: "review", when: awaitsReview },
+  { key: "failed", when: sendFailed },
+  { key: "assemble", when: awaitsAssembly },
+  { key: "slot", when: awaitsSlot },
+];
+
+/** Ce qui laisse une émission « à traiter », dans l'ordre où on le dit. */
+export const SHOW_LACKS = ["date", "cover", "description", "tags", "mood", "tracklist", "sound", "review", "failed", "assemble", "slot"] as const;
+export type ShowLack = (typeof SHOW_LACKS)[number];
+
+const LACKING = [...REQUIRED, ...WAITING_FOR_TEAM];
+
+/** La liste de ce qui manque à une émission, ou attend l'équipe (vide : elle est prête). */
+export const lackingOf = () => sql<ShowLack[]>`array_remove(array[${sql.join(
+  LACKING.map(({ key, when }) => sql`case when ${when()} then ${key}::text end`),
+  sql`, `,
+)}]::text[], null)`;
+
+/** Une émission prête : rien d'obligatoire ne manque, rien n'attend l'équipe. */
+const isReady = () => sql`not (${sql.join(LACKING.map(({ when }) => sql`(${when()})`), sql` or `)})`;
+
+/** Son état : en ligne si elle est publiée ; sinon en attente si elle est prête, à traiter sinon. */
+export const stepOf = () => sql<ShowStep>`(case when ${show.status} = 'published' then 'online' when ${isReady()} then 'waiting' else 'todo' end)`;
 
 /** Les conditions de « À compléter », par valeur du filtre. */
 // Les envois des résidents (cms/README.md, 9.12) passent par la même table : le tableau de bord compte comme la liste.
@@ -132,6 +196,7 @@ export async function listShows(tx: Tx, filters: AdminShowFilters = {}): Promise
   const conditions: (SQL | undefined)[] = [];
   if (filters.q) conditions.push(matching(filters.q));
   if (filters.status && oneOf(contentStatus.enumValues, filters.status)) conditions.push(eq(show.status, filters.status));
+  if (filters.step && oneOf(SHOW_STEPS, filters.step)) conditions.push(sql`${stepOf()} = ${filters.step}`);
   if (filters.type && oneOf(showType.enumValues, filters.type)) conditions.push(eq(show.type, filters.type));
   if (isUuid(filters.tag)) conditions.push(sql`exists (select 1 from ${showTag} st where st.show_id = ${outer(show.id)} and st.tag_id in ${coveredTagIds(filters.tag)})`);
   if (isUuid(filters.artist)) conditions.push(sql`exists (select 1 from ${showArtist} sa where sa.show_id = ${outer(show.id)} and sa.artist_id = ${filters.artist})`);
@@ -155,6 +220,8 @@ export async function listShows(tx: Tx, filters: AdminShowFilters = {}): Promise
       hasDescription: sql<boolean>`not ${blankDescription}`,
       tags: sql<number>`(select count(*) from ${showTag} st where st.show_id = ${outer(show.id)})`.mapWith(Number),
       fromRadioCult: sql<boolean>`${show.radiocultEventId} is not null`,
+      step: stepOf(),
+      lacking: lackingOf(),
     })
     .from(show)
     .where(where)
@@ -164,6 +231,51 @@ export async function listShows(tx: Tx, filters: AdminShowFilters = {}): Promise
   const [count] = await tx.select({ total: sql<number>`count(*)`.mapWith(Number) }).from(show).where(where);
   return { items: rows, total: count?.total ?? 0, ...page };
 }
+
+/** Combien d'émissions à traiter, en attente, en ligne : pour les pastilles de la liste et l'accueil. */
+export async function countSteps(tx: Tx): Promise<Record<ShowStep, number>> {
+  const rows = await tx.select({ step: stepOf(), n: sql<number>`count(*)`.mapWith(Number) }).from(show).groupBy(sql`1`);
+  const counts: Record<ShowStep, number> = { todo: 0, waiting: 0, online: 0 };
+  for (const { step, n } of rows) counts[step] = n;
+  return counts;
+}
+
+/** Les infos obligatoires qui manquent pour publier à la main : celles du formulaire, et la pochette et le son de la fiche. */
+async function missingToPublish(tx: Tx, id: string | undefined, values: ShowValues): Promise<ShowLack[]> {
+  const [saved] = id
+    ? await tx
+        .select({ hasCover: sql<boolean>`${show.coverId} is not null`, hasSound: hasReadySound() })
+        .from(show)
+        .where(eq(show.id, id))
+    : [];
+  const lacks: (ShowLack | false)[] = [
+    !values.broadcastAt && "date",
+    !saved?.hasCover && "cover",
+    !/[^\s]/.test(values.description ?? "") && "description",
+    !values.tags.length && "tags",
+    values.type !== "podcast" && values.energy == null && "mood",
+    values.type !== "podcast" && !values.tracks.length && "tracklist",
+    !values.soundcloudTrackId && !saved?.hasSound && "sound",
+  ];
+  return lacks.filter((lack): lack is ShowLack => Boolean(lack));
+}
+
+/** Les infos obligatoires, en mots : « la pochette », « le son »… */
+const REQUIRED_WORDS: Partial<Record<ShowLack, string>> = {
+  date: "la date de diffusion",
+  cover: "la pochette",
+  description: "la description",
+  tags: "les étiquettes",
+  mood: "le mood",
+  tracklist: "la tracklist",
+  sound: "le son",
+};
+
+/** « la pochette, la tracklist et le son » */
+const inWords = (lacks: ShowLack[]) => {
+  const words = lacks.map((lack) => REQUIRED_WORDS[lack] ?? lack);
+  return words.length > 1 ? `${words.slice(0, -1).join(", ")} et ${words.at(-1)}` : (words[0] ?? "");
+};
 
 // ---------------------------------------------------------------------------------------------------------------
 // La fiche
@@ -334,6 +446,7 @@ export type ShowSave = {
  */
 export async function saveShow(tx: Tx, { id, version, values, status }: ShowSave): Promise<Saved | NotSaved> {
   let finalStatus: ContentStatus = status ?? "draft";
+  let wasPublished = false;
   if (id !== undefined) {
     const gone: NotSaved = { ok: false, errors: { form: "Cette émission n'existe plus : elle a peut-être été supprimée." } };
     if (!isUuid(id)) return gone;
@@ -346,8 +459,14 @@ export async function saveShow(tx: Tx, { id, version, values, status }: ShowSave
         errors: { form: "Quelqu'un a enregistré cette émission pendant que tu la modifiais. Enregistre de nouveau pour remplacer sa version par la tienne." },
       };
     finalStatus = status ?? current.status;
+    wasPublished = current.status === "published";
   }
   if (finalStatus === "published" && !values.broadcastAt) return { ok: false, errors: { broadcastAt: "Il faut une date de diffusion pour publier." } };
+  // Publier à la main demande les infos obligatoires ; une émission déjà en ligne s'enregistre comme avant.
+  if (finalStatus === "published" && !wasPublished) {
+    const lacks = await missingToPublish(tx, id, values);
+    if (lacks.length) return { ok: false, errors: { form: `Pour publier, il manque ${inWords(lacks)}.` } };
+  }
   let slug = values.slug;
   const [clash] = await tx
     .select({ title: show.title })

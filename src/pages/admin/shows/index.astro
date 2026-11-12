@@ -1,10 +1,10 @@
 ---
 /**
  * Les shows dans l'admin : tous, brouillons compris, du plus récent au plus ancien (ceux sans date en tête), rangés
- * par mois, avec les filtres de cms/README.md (9.2) : statut, type, étiquette (un groupe vaut pour ses étiquettes),
- * artiste, ce qui manque (tracklist, son),
- * et la recherche. Les filtres sont dans l'adresse : une liste filtrée se garde en favori ou se partage avec
- * l'équipe, et l'accueil y mène. Servie en HTML ou en JSON, comme chaque écran.
+ * par mois, avec les filtres de cms/README.md (9.2) : l'état (à traiter, en attente, en ligne), le type, l'étiquette (un
+ * groupe vaut pour ses étiquettes), l'artiste, et la recherche. Ce qui manque (`missing`) et le statut (`status`)
+ * filtrent encore, sans pastille : l'accueil y mène. Les filtres sont dans l'adresse : une liste filtrée se garde en
+ * favori ou se partage avec l'équipe. Servie en HTML ou en JSON, comme chaque écran.
  */
 import type { Screen } from "../../../components/admin/types";
 import Admin from "../../../layouts/Admin.astro";
@@ -18,6 +18,7 @@ const admin = Astro.locals.admin!;
 const params = Astro.url.searchParams;
 const filters = {
   q: params.get("q")?.trim() ?? "",
+  step: params.get("step") ?? "",
   status: params.get("status") ?? "",
   type: params.get("type") ?? "",
   tag: params.get("tag") ?? "",
@@ -27,10 +28,11 @@ const filters = {
 };
 const page = Math.max(1, Math.trunc(Number(params.get("page"))) || 1);
 const now = new Date();
-const [result, choices, tags] = await Promise.all([
+const [result, choices, tags, steps] = await Promise.all([
   admin.listShows({ ...filters, now, limit: PER_PAGE, offset: (page - 1) * PER_PAGE }),
   admin.showChoices(),
   admin.tagFilter("show", { used: true }),
+  admin.showSteps(),
 ]);
 const screen: Screen = {
   name: "shows",
@@ -53,11 +55,14 @@ const screen: Screen = {
       tags: item.tags,
       status: item.status,
       fromRadioCult: item.fromRadioCult,
+      step: item.step,
+      lacking: item.lacking,
     })),
     total: result.total,
     page,
     pages: Math.max(1, Math.ceil(result.total / PER_PAGE)),
     filters,
+    steps,
     artists: choices.artists,
     tags,
   },

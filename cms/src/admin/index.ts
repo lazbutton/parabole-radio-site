@@ -42,7 +42,7 @@ import type { NotSaved } from "./common.ts";
 import type { ClipFile, FacetValues, MediaText } from "./input.ts";
 import { fieldErrorsFrom } from "./errors.ts";
 import { addMedia, describeMedia, getMedia, placeMedia, releaseMedia, type MediaPlace, type MediaSlot, type MediaUpload } from "./media.ts";
-import { deleteShow, getShow, listShows, saveShow, showChoices, type AdminShowFilters, type ShowSave } from "./shows.ts";
+import { countSteps, deleteShow, getShow, listShows, saveShow, showChoices, type AdminShowFilters, type ShowSave } from "./shows.ts";
 import {
   addTags,
   deleteFacet,
@@ -102,6 +102,8 @@ export function createAdmin(db: Db, userId: string) {
     radiocultLinks: () => as((tx) => radiocultLinks(tx)),
     /** Les shows, brouillons compris, filtrés et triés par date. */
     listShows: (filters: AdminShowFilters = {}) => as((tx) => listShows(tx, filters)),
+    /** Combien d'émissions à traiter, en attente, en ligne. */
+    showSteps: () => as((tx) => countSteps(tx)),
     /** Un show à modifier, ou null. */
     getShow: (id: string) => as((tx) => getShow(tx, id)),
     /** Les artistes et les étiquettes à proposer dans la fiche d'un show. */
@@ -355,7 +357,8 @@ export {
   type ShowForm,
   type ShowValues,
 } from "./input.ts";
-export type { AdminShow, AdminShowArtist, AdminShowFilters, AdminShowRow, AdminTag, ShowSave } from "./shows.ts";
+export type { AdminShow, AdminShowArtist, AdminShowFilters, AdminShowRow, AdminTag, ShowLack, ShowSave, ShowStep } from "./shows.ts";
+export { SHOW_LACKS, SHOW_STEPS } from "./shows.ts";
 export type { Overview, TeamMember } from "./team.ts";
 export type { AdminAudioFile, AdminSubmission, AdminUploadLink, DeadlinePanel } from "./envois.ts";
 export type { Accepted, AdminApplication, AdminApplicationFilters, AdminApplicationRow, ApplicationCounts } from "./candidatures.ts";
